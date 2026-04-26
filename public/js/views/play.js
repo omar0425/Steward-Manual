@@ -424,25 +424,36 @@ function buildManualEntryForm() {
   const section = el('section', { class: 'section-panel manual-entry-panel', id: 'manual-entry-panel' });
   section.innerHTML = `
     <p class="tc-section-label" style="margin-bottom:16px;">Your Debts</p>
-    <form id="manual-snapshot-form" class="manual-entry-form" autocomplete="off">
-      <div class="manual-entry-accounts">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <p class="manual-entry-sub-label">Debt Accounts</p>
-          <button type="button" class="refresh-btn" id="add-debt-account-btn">+ Add Account</button>
-        </div>
-        <div id="debt-accounts-entries"></div>
-        <p class="manual-entry-hint">Add each credit card, loan, or liability separately to track them individually.</p>
-        <div class="manual-entry-field" style="margin-top:10px;">
-          <label for="entry-total-debt">Or enter total debt ($) <span class="field-hint">(if you prefer not to list each account)</span></label>
-          <input type="number" id="entry-total-debt" step="0.01" min="0" placeholder="0.00" />
-        </div>
-      </div>
 
+    <!-- Saved debts list (shown when debts exist) -->
+    <div id="saved-debts-list" class="saved-debts-list" style="display:none;">
+      <div id="saved-debts-rows"></div>
+      <div class="saved-debts-total">
+        <span>Total Debt</span>
+        <span id="saved-debts-total-val">$0</span>
+      </div>
       <div class="manual-entry-actions">
-        <button type="submit" class="commitment-btn" id="save-snapshot-btn">Save Snapshot</button>
+        <button type="button" class="commitment-btn" id="update-balances-btn">Update Balances</button>
         <p class="data-strip-msg" id="snapshot-save-msg"></p>
       </div>
-    </form>
+    </div>
+
+    <!-- Add new debt form -->
+    <div id="add-debt-section">
+      <form id="manual-snapshot-form" class="manual-entry-form" autocomplete="off">
+        <div class="manual-entry-accounts">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <p class="manual-entry-sub-label" id="add-debt-heading">Add your debts</p>
+            <button type="button" class="refresh-btn" id="add-debt-account-btn">+ Add Account</button>
+          </div>
+          <div id="debt-accounts-entries"></div>
+          <p class="manual-entry-hint">Add each credit card, loan, or liability with its current balance.</p>
+        </div>
+        <div class="manual-entry-actions">
+          <button type="submit" class="commitment-btn" id="save-snapshot-btn">Save Debts</button>
+        </div>
+      </form>
+    </div>
   `;
   return section;
 }

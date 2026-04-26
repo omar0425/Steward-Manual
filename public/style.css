@@ -1648,7 +1648,71 @@ body[data-app-mode="ready"]   #dashboard         { display: flex; flex-direction
   width: 100%;
   max-width: 320px;
 }
+/* ── Saved Debts List ─────────────────────────────────────────────────────── */
+.saved-debts-list { display: flex; flex-direction: column; gap: 0; }
+.saved-debt-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
+}
+.saved-debt-row:first-child { border-top: 1px solid var(--border, rgba(255,255,255,0.06)); }
+.saved-debt-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+}
+.saved-debt-balance {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.saved-debt-dollar {
+  font-size: 14px;
+  color: var(--text-2);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.saved-debt-balance-input {
+  width: 120px;
+  background: var(--surface);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text);
+  font-size: 15px;
+  padding: 8px 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  text-align: right;
+  transition: border-color 0.15s;
+}
+.saved-debt-balance-input:focus {
+  outline: none;
+  border-color: var(--gold, #d4af37);
+}
+.saved-debts-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.saved-debts-total span:last-child {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px;
+  color: var(--neg, #e55);
+}
+#add-debt-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, rgba(255,255,255,0.06));
+}
 [data-theme="light"] .manual-entry-field input { background: var(--bg); border-color: rgba(40,25,5,0.14); }
 [data-theme="light"] .debt-account-entry-row .debt-acct-name,
 [data-theme="light"] .debt-account-entry-row .debt-acct-balance { background: var(--bg); border-color: rgba(40,25,5,0.14); }
+[data-theme="light"] .saved-debt-balance-input { background: var(--bg); border-color: rgba(40,25,5,0.14); }
 [data-theme="light"] .manual-entry-panel { border-color: rgba(212,175,55,0.22); }
