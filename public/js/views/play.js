@@ -209,36 +209,6 @@ function buildHeroSection() {
         </div>
       </div>
 
-      <div class="breathing-rail breathing-rail--journey" id="breathing-rail">
-        <p class="cf-section-label" style="margin-bottom:10px;">Breathing Room</p>
-        <div class="breathing-head">
-          <div class="breathing-topline">
-            <div class="breathing-val" id="stat-breathing-room">\u2014</div>
-            <span class="breathing-pill-wrap"><span class="stability-pill" id="board-liquidity-pill">\u2014</span></span>
-          </div>
-          <span class="breathing-buffer-warn" id="breathing-buffer-warn" hidden></span>
-        </div>
-        <div class="breathing-sub">Cushion \u00f7 expenses (spendable)</div>
-        <div
-          class="breathing-goal-track"
-          id="breathing-goal-track"
-          role="progressbar"
-          aria-label="Breathing room goal progress"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="0"
-        >
-          <div class="breathing-goal-fill" id="breathing-goal-fill"></div>
-          <span class="breathing-goal-marker" aria-hidden="true"></span>
-        </div>
-        <p class="breathing-goal-readout" id="breathing-goal-readout"></p>
-        <p class="breathing-note">
-          Goal: hold <strong id="breathing-goal-months">2.0 months</strong> of spendable cushion.
-          Calculated from your entered assets divided by monthly expenses.
-          Asset runway: <strong id="stat-months-ahead-display">\u2014</strong>.
-        </p>
-      </div>
-
       <div class="hero-links">
         <a href="/showcase" class="hero-link">View all 10 stages</a>
       </div>
@@ -557,11 +527,8 @@ function buildSentinelDiv() {
     <span id="progress-debt-direction" hidden></span>
     <span id="vnext-inband-pct-readout" hidden></span>
     <span id="vnext-progress-finish-cue" hidden></span>
-    <span id="breathing-room-alert" hidden></span>
     <span id="hero-axes-hint" hidden></span>
-    <span id="hero-liquidity-runway" hidden></span>
     <span id="hero-phase-pill" hidden></span>
-    <span id="hero-stability-pill" hidden></span>
     <span id="streak-line" hidden></span>
     <div id="vnext-nw-climb-chart-wrap" hidden></div>
     <span id="vnext-nw-climb-empty" hidden></span>
@@ -591,7 +558,6 @@ export function mountPlayShell(root) {
   dashboard.appendChild(buildSessionPanel());
   dashboard.appendChild(buildDebtAccountsPanel());
   dashboard.appendChild(buildStageProgressDetail());
-  dashboard.appendChild(buildStabilityNarrative());
   dashboard.appendChild(buildCumulativePaydownTrophy());
   dashboard.appendChild(buildDataStrip());
   dashboard.appendChild(buildSentinelDiv());
