@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Steward — Debt tier gallery</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ── Showcase layout ─────────────────────────────────────────────── */
+    body {
+      min-height: 100vh;
+      background: var(--forest-50, #f4f8f5);
+    }
+
+    .showcase-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 40px 0;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .showcase-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--forest-950, #0d2218);
+      margin: 0;
+    }
+
+    .showcase-subtitle {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-500, #5a7060);
+      margin: 4px 0 0;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 18px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+      color: var(--forest-800, #1d4a3c);
+      background: rgba(29,74,60,0.09);
+      border: 1px solid rgba(29,74,60,0.18);
+      border-radius: 8px;
+      transition: background 130ms ease, transform 100ms ease;
+    }
+    .back-btn:hover { background: rgba(29,74,60,0.16); transform: translateY(-1px); }
+
+    /* ── Grid — 4 columns max ────────────────────────────────────────── */
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 36px 28px;
+      max-width: 1400px;
+      margin: 36px auto 72px;
+      padding: 0 40px;
+    }
+
+    /* ── Individual showcase card wrapper ────────────────────────────── */
+    .sc-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* ── Active card pulse (new keyframe — does not touch character anims) */
+    @keyframes scActivePulse {
+      0%, 100% { box-shadow: 0 6px 24px rgba(0,0,0,0.22), 0 2px 6px rgba(0,0,0,0.14),
+                              0 0 0 2.5px var(--sc-accent, rgba(255,255,255,0.35)),
+                              0 0 18px 2px var(--sc-accent, rgba(255,255,255,0.18)); }
+         50%   { box-shadow: 0 8px 28px rgba(0,0,0,0.26), 0 2px 6px rgba(0,0,0,0.14),
+                              0 0 0 3.5px var(--sc-accent, rgba(255,255,255,0.55)),
+                              0 0 28px 6px var(--sc-accent, rgba(255,255,255,0.28)); }
+    }
+
+    /* The state-card itself */
+    .sc-card {
+      width: 320px;
+      height: 520px;
+      border-radius: 22px;
+      overflow: hidden;
+      position: relative;
+      padding-top: 48px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.22), 0 2px 6px rgba(0,0,0,0.14);
+      flex-shrink: 0;
+      transition: transform 220ms ease, box-shadow 220ms ease;
+    }
+    .sc-card:hover {
+      transform: translateY(-8px) scale(1.018);
+      box-shadow: 0 20px 48px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.16);
+    }
+    .sc-card.is-active {
+      animation: scActivePulse 2.2s ease-in-out infinite;
+    }
+    /* Hover on active card pauses the pulse cleanly */
+    .sc-card.is-active:hover {
+      animation: none;
+      box-shadow: 0 20px 48px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.16),
+                  0 0 0 3px var(--sc-accent, rgba(255,255,255,0.5));
+    }
+
+    /* Character mount — sits above the footer overlay.
+       bottom: 150px keeps most of the character out of the footer zone.
+       overflow: visible lets tall states (wealthy racecar, sparkles)
+       breathe upward; the card's own overflow:hidden is the clip boundary. */
+    .sc-mount {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 150px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
+      padding-top: 48px;
+    }
+    /* Badge chip — top-left */
+    .sc-badge {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 12;
+      background: rgba(0,0,0,0.50);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: rgba(255,255,255,0.95);
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      padding: 6px 13px 5px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      pointer-events: none;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── YOU ARE HERE chip — top-right, only on active card ─────────── */
+    .sc-active-chip {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 12;
+      background: var(--sc-accent, rgba(255,255,255,0.25));
+      color: rgba(255,255,255,0.96);
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 5px 9px 4px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.22);
+      pointer-events: none;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    /* Footer gradient overlay — expanded for bigger card */
+    .sc-footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 11;
+      padding: 56px 18px 18px;
+      background: linear-gradient(to top,
+        rgba(4,14,9,0.92)  0%,
+        rgba(4,14,9,0.72)  48%,
+        rgba(4,14,9,0)     100%);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .sc-tier-name {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: rgba(255,255,255,0.97);
+      line-height: 1.1;
+      margin: 0;
+    }
+
+    /* Flavor text — italic one-liner above progress bar */
+    .sc-flavor {
+      font-size: 0.74rem;
+      font-style: italic;
+      color: rgba(255,255,255,0.58);
+      line-height: 1.35;
+      margin: 0;
+    }
+
+    /* Progress bar row — 8px tall with accent glow */
+    .sc-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .sc-bar-track {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.14);
+      border-radius: 999px;
+      overflow: visible;        /* let glow escape */
+      position: relative;
+    }
+    .sc-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #2ecc71, #48c07a);
+      box-shadow: 0 0 10px 2px var(--sc-accent, rgba(72,192,122,0.55));
+      position: absolute;
+      top: 0; left: 0;
+    }
+    .sc-bar-label {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: rgba(255,255,255,0.65);
+      min-width: 30px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .sc-bar-caption {
+      font-size: 0.62rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.38);
+      letter-spacing: 0.04em;
+      margin: 2px 0 0;
+      line-height: 1.3;
+    }
+
+    /* Next-tier target line */
+    .sc-next-target {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.42);
+      letter-spacing: 0.03em;
+      margin: 0;
+    }
+
+    /* Copy block below the card */
+    .sc-copy {
+      text-align: center;
+      padding: 0 6px;
+      width: 100%;
+    }
+    .sc-copy-label {
+      display: block;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-500, #5a7060);
+      margin-bottom: 5px;
+    }
+    .sc-copy-text {
+      font-size: 0.82rem;
+      color: var(--ink-700, #2e4a38);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1200px) {
+      .showcase-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 860px) {
+      .showcase-grid { grid-template-columns: repeat(2, 1fr); padding: 0 20px; }
+      .showcase-header { padding: 20px 20px 0; }
+      .sc-card { width: 100%; }
+    }
+    @media (max-width: 540px) {
+      .showcase-grid { grid-template-columns: 1fr; gap: 24px; }
+    }
+  </style>
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(255, 228, 170, 0.30), transparent 24%),
+        radial-gradient(circle at bottom right, rgba(34, 73, 56, 0.16), transparent 28%),
+        linear-gradient(155deg, #efe3ca 0%, #f6efe5 54%, #f4f8f5 100%);
+    }
+
+    .showcase-header {
+      max-width: 1480px;
+      padding: 30px 40px 0;
+    }
+
+    .showcase-intro {
+      max-width: 1480px;
+      margin: 18px auto 0;
+      padding: 0 40px;
+      display: grid;
+      grid-template-columns: minmax(320px, 1.2fr) minmax(320px, 1fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .showcase-intro-copy,
+    .showcase-phase-card {
+      position: relative;
+      overflow: hidden;
+      padding: 24px;
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.52), rgba(255,255,255,0.18)),
+        rgba(255,251,246,0.72);
+      border: 1px solid rgba(16,38,28,0.08);
+      box-shadow: 0 18px 50px rgba(16,38,28,0.08);
+    }
+
+    .showcase-intro-copy::before,
+    .showcase-phase-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.26), transparent 60%);
+    }
+
+    .showcase-kicker,
+    .showcase-phase-label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+    }
+
+    .showcase-kicker {
+      background: rgba(34,73,56,0.08);
+      color: #224938;
+      margin-bottom: 14px;
+    }
+
+    .showcase-intro-title {
+      margin: 0 0 14px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(2rem, 3vw, 3rem);
+      line-height: 0.98;
+      color: #10261c;
+    }
+
+    .showcase-intro-text {
+      max-width: 56ch;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: #44584e;
+    }
+
+    .showcase-phase-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .showcase-phase-card.pressure .showcase-phase-label {
+      background: rgba(208,107,134,0.16);
+      color: #b54361;
+    }
+
+    .showcase-phase-card.momentum .showcase-phase-label {
+      background: rgba(104,191,125,0.16);
+      color: #389560;
+    }
+
+    .showcase-phase-card.reward .showcase-phase-label {
+      background: rgba(240,199,67,0.18);
+      color: #c89628;
+    }
+
+    .showcase-phase-title {
+      margin: 12px 0 8px;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #173326;
+    }
+
+    .showcase-phase-copy {
+      font-size: 0.86rem;
+      line-height: 1.6;
+      color: #607267;
+    }
+
+    .showcase-grid {
+      max-width: 1480px;
+      margin-top: 28px;
+      gap: 34px 24px;
+    }
+
+    .sc-wrap {
+      align-items: stretch;
+      gap: 14px;
+    }
+
+    .sc-card {
+      width: 100%;
+      max-width: 350px;
+      height: 590px;
+      margin: 0 auto;
+      border-radius: 28px;
+      padding-top: 34px;
+      box-shadow:
+        0 24px 58px rgba(8,20,14,0.22),
+        0 10px 20px rgba(8,20,14,0.12);
+    }
+
+    .sc-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255,255,255,0.07), transparent 36%);
+      opacity: 0.5;
+    }
+
+    .sc-card:hover {
+      transform: translateY(-10px) scale(1.016);
+      box-shadow:
+        0 32px 70px rgba(8,20,14,0.28),
+        0 14px 24px rgba(8,20,14,0.14);
+    }
+
+    .sc-mount {
+      bottom: 168px;
+      padding-top: 30px;
+    }
+
+    .sc-mount .steward-wrap {
+      --scene-shift-x: 0px !important;
+      --scene-shift-y: 0px !important;
+      --optical-x: 0px !important;
+      --optical-y: 0px !important;
+    }
+
+    /* ── WEALTHY CARD — Premium Max-Tier Treatment ──────────────────── */
+
+    .sc-wrap[data-tier-id="wealthy"] .sc-card {
+      box-shadow:
+        0 0 0 2.5px rgba(255,215,0,0.52),
+        0 0 0 5px rgba(255,215,0,0.12),
+        0 38px 90px rgba(160,110,0,0.42),
+        0 0 90px rgba(255,200,40,0.22),
+        0 0 200px rgba(255,200,40,0.08);
+      animation: wealthyCardPulse 3.2s ease-in-out infinite;
+    }
+
+    @keyframes wealthyCardPulse {
+      0%, 100% {
+        box-shadow:
+          0 0 0 2.5px rgba(255,215,0,0.52),
+          0 0 0 5px rgba(255,215,0,0.12),
+          0 38px 90px rgba(160,110,0,0.42),
+          0 0 90px rgba(255,200,40,0.22),
+          0 0 200px rgba(255,200,40,0.08);
+      }
+      50% {
+        box-shadow:
+          0 0 0 3px rgba(255,215,0,0.68),
+          0 0 0 7px rgba(255,215,0,0.18),
+          0 42px 100px rgba(160,110,0,0.46),
+          0 0 120px rgba(255,200,40,0.30),
+          0 0 240px rgba(255,200,40,0.12);
+      }
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .sc-card::after {
+      background:
+        radial-gradient(circle at 50% 14%, rgba(255,248,200,0.28), transparent 38%),
+        radial-gradient(circle at 30% 70%, rgba(255,230,130,0.10), transparent 30%),
+        linear-gradient(180deg, rgba(255,255,255,0.10), transparent 36%);
+      opacity: 0.7;
+    }
+
+    /* Gold shimmer sweep across the card */
+    .sc-wrap[data-tier-id="wealthy"] .sc-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: linear-gradient(
+        105deg,
+        transparent 30%,
+        rgba(255,248,200,0.18) 42%,
+        rgba(255,235,150,0.28) 50%,
+        rgba(255,248,200,0.18) 58%,
+        transparent 70%
+      );
+      animation: wealthyShimmer 4.5s ease-in-out infinite;
+    }
+
+    @keyframes wealthyShimmer {
+      0%   { transform: translateX(-120%); }
+      40%  { transform: translateX(120%); }
+      100% { transform: translateX(120%); }
+    }
+
+    /* Premium gold badge chip */
+    .sc-wrap[data-tier-id="wealthy"] .sc-badge {
+      background:
+        linear-gradient(145deg, #f5d442, #d4a010 50%, #f0c830);
+      color: #4a3000;
+      border: 1.5px solid rgba(255,235,150,0.72);
+      box-shadow:
+        0 0 18px rgba(255,200,40,0.45),
+        inset 0 1px 0 rgba(255,255,255,0.38);
+      text-shadow: 0 1px 0 rgba(255,255,255,0.32);
+    }
+
+    /* Phase pill — gold treatment */
+    .sc-wrap[data-tier-id="wealthy"] .sc-phase {
+      background: linear-gradient(135deg, rgba(255,215,0,0.28), rgba(218,165,32,0.22));
+      color: rgba(255,240,180,0.95);
+      border: 1px solid rgba(255,215,0,0.30);
+      text-shadow: 0 0 8px rgba(255,200,40,0.40);
+    }
+
+    /* Gold tier name */
+    .sc-wrap[data-tier-id="wealthy"] .sc-tier-name {
+      background: linear-gradient(135deg, #fff8dc, #ffd700, #daa520, #ffd700, #fff8dc);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: wealthyTextShine 3s linear infinite;
+      filter: drop-shadow(0 0 6px rgba(255,200,40,0.40));
+      font-size: 1.42rem;
+    }
+
+    @keyframes wealthyTextShine {
+      0%   { background-position: 0% center; }
+      100% { background-position: 200% center; }
+    }
+
+    /* Flavor text with warm gold tone */
+    .sc-wrap[data-tier-id="wealthy"] .sc-flavor {
+      color: rgba(255,230,160,0.82);
+    }
+
+    /* Gold progress bar */
+    .sc-wrap[data-tier-id="wealthy"] .sc-bar-fill {
+      background: linear-gradient(90deg, #c89628, #f0c830, #ffd700, #f0c830) !important;
+      box-shadow: 0 0 14px 4px rgba(255,200,40,0.55) !important;
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .sc-bar-track {
+      background: rgba(255,215,0,0.14);
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .sc-bar-label {
+      color: rgba(255,230,160,0.90);
+      font-size: 0.72rem;
+    }
+
+    /* Max tier line — crown accent */
+    .sc-wrap[data-tier-id="wealthy"] .sc-next-target {
+      color: rgba(255,215,0,0.82);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
+    /* Gold-tinted footer gradient */
+    .sc-wrap[data-tier-id="wealthy"] .sc-footer {
+      background: linear-gradient(to top,
+        rgba(42,28,0,0.94)  0%,
+        rgba(42,28,0,0.72)  45%,
+        rgba(42,28,0,0)     100%);
+    }
+
+    /* Hover — dramatic gold lift */
+    .sc-wrap[data-tier-id="wealthy"] .sc-card:hover {
+      transform: translateY(-14px) scale(1.024);
+      box-shadow:
+        0 0 0 3px rgba(255,215,0,0.72),
+        0 0 0 8px rgba(255,215,0,0.16),
+        0 48px 110px rgba(140,95,0,0.48),
+        0 0 140px rgba(255,200,40,0.35),
+        0 0 280px rgba(255,200,40,0.12);
+      animation: none;
+    }
+
+    /* Copy section below card */
+    .sc-wrap[data-tier-id="wealthy"] .sc-copy-label {
+      color: #c89628;
+      text-shadow: 0 0 12px rgba(200,150,40,0.20);
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .sc-copy-text {
+      color: #6a5020;
+      font-weight: 600;
+    }
+
+    /* ── WEALTHY POLISH: Platform grounding ────────────────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .sw-ground {
+      box-shadow: 0 4px 14px 2px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.18);
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-shadow {
+      width: 230px;
+      height: 14px;
+      background: radial-gradient(ellipse, rgba(0,0,0,0.38), rgba(0,0,0,0) 68%);
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .sw-sole-shadow {
+      width: 46px;
+      height: 11px;
+      margin-left: -23px;
+      background: radial-gradient(ellipse at 50%, rgba(0,0,0,0.38), transparent 70%);
+    }
+
+    /* Subtle warm glow under platform area */
+    .sc-wrap[data-tier-id="wealthy"] .wealthy-merc::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -4px;
+      width: 180px;
+      height: 12px;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse, rgba(255,200,40,0.12), transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── WEALTHY POLISH: Car nudge — clear Reward pill ────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .wealthy-merc {
+      opacity: 0;
+      transform: translateX(calc(-50% + 18px));
+    }
+
+    /* ── WEALTHY POLISH: Headlight beam enhancement ────────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-grille {
+      width: 8px;
+      height: 12px;
+      background: radial-gradient(circle, rgba(255,255,255,1), rgba(200,225,255,0.90));
+      box-shadow:
+        0 0 6px 3px rgba(220,235,255,0.85),
+        0 0 14px 6px rgba(180,210,255,0.55),
+        0 0 32px 10px rgba(160,195,250,0.30),
+        0 0 56px 18px rgba(140,180,240,0.14);
+      animation: wmercHeadlightFlash 3s ease-in-out infinite;
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-grille::before {
+      content: "";
+      position: absolute;
+      left: -2px;
+      top: 50%;
+      width: 40px;
+      height: 6px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg, rgba(200,225,255,0.40), transparent);
+      border-radius: 0 4px 4px 0;
+      pointer-events: none;
+      filter: blur(3px);
+    }
+
+    /* ── WEALTHY POLISH: Taillight glow enhancement ────────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-splitter {
+      width: 8px;
+      height: 10px;
+      background: radial-gradient(circle, rgba(255,80,70,1), rgba(230,35,30,0.80));
+      box-shadow:
+        0 0 5px 2px rgba(255,60,50,0.75),
+        0 0 14px 5px rgba(240,40,35,0.45),
+        0 0 30px 10px rgba(220,30,25,0.22),
+        0 0 50px 16px rgba(200,20,15,0.10);
+      animation: wmercTaillightPulse 3s ease-in-out infinite;
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-splitter::before {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: 50%;
+      width: 32px;
+      height: 5px;
+      transform: translateY(-50%) scaleX(-1);
+      background: linear-gradient(90deg, rgba(255,60,50,0.35), transparent);
+      border-radius: 0 4px 4px 0;
+      pointer-events: none;
+      filter: blur(3px);
+    }
+
+    /* ── WEALTHY POLISH: Tire/wheel enhancement ────────────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-hl {
+      width: 32px;
+      height: 32px;
+      background: radial-gradient(circle at 42% 38%,
+        #5a5a66 0%,
+        #3a3a44 28%,
+        #1a1a24 52%,
+        #0a0a12 100%);
+      box-shadow:
+        0 0 0 2.5px rgba(80,80,90,0.90),
+        0 0 0 4px rgba(40,40,48,0.95),
+        0 0 0 5.5px rgba(160,160,172,0.25),
+        0 5px 12px 3px rgba(0,0,0,0.48);
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-drl {
+      width: 14px;
+      height: 14px;
+      background: radial-gradient(circle,
+        rgba(230,230,240,0.90) 15%,
+        rgba(180,180,195,0.55) 50%,
+        rgba(120,120,135,0.30) 80%,
+        transparent 100%);
+      box-shadow:
+        0 0 3px rgba(210,210,220,0.40),
+        inset 0 0 2px rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(190,190,200,0.30);
+    }
+
+    .sc-wrap[data-tier-id="wealthy"] .wmerc-hl::after {
+      inset: 4px;
+      background:
+        conic-gradient(from 0deg,
+          rgba(210,210,220,0.28), transparent 18deg,
+          rgba(210,210,220,0.22) 55deg, transparent 72deg,
+          rgba(210,210,220,0.28) 110deg, transparent 128deg,
+          rgba(210,210,220,0.22) 165deg, transparent 182deg,
+          rgba(210,210,220,0.28) 220deg, transparent 238deg,
+          rgba(210,210,220,0.22) 275deg, transparent 292deg,
+          rgba(210,210,220,0.28) 330deg, transparent 348deg,
+          rgba(210,210,220,0.28) 360deg);
+      animation: wmercWheelSpin 4s linear infinite;
+    }
+
+    /* ── WEALTHY POLISH: Background hierarchy (mansion) ────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .wealthy-mansion {
+      opacity: 0;
+      filter: blur(0.6px) contrast(0.92) brightness(0.95);
+    }
+
+    /* ── WEALTHY POLISH: Coin/particle distribution ───────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .scf-c1 { left: 22%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-c2 { left: 36%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-c3 { left: 48%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-c4 { left: 60%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-c5 { left: 72%; opacity: 0.7; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-c6 { left: 42%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-d1 { left: 28%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-d2 { right: auto; left: 64%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-d3 { left: 46%; }
+    .sc-wrap[data-tier-id="wealthy"] .scf-d4 { left: 38%; opacity: 0.75; }
+
+    /* ── WEALTHY POLISH: Capsule fine-tuning ───────────────────────────── */
+    .sc-wrap[data-tier-id="wealthy"] .steward-wrap::before {
+      inset: -10px -6px -24px !important;
+    }
+
+    /* Floating gold sparkle particles overlay */
+    .sc-wrap[data-tier-id="wealthy"] .sc-card .wealthy-sparkles {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: inherit;
+    }
+
+    .wealthy-sparkles .ws {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,240,160,0.95), rgba(255,215,0,0.60) 50%, transparent 70%);
+      animation: wealthySparkleFloat 3.5s ease-in-out infinite;
+      will-change: transform, opacity;
+    }
+
+    .ws-1 { width: 4px; height: 4px; left: 30%; top: 22%; animation-delay: 0s; animation-duration: 3.2s; }
+    .ws-2 { width: 3px; height: 3px; left: 62%; top: 28%; animation-delay: 0.6s; animation-duration: 3.8s; }
+    .ws-3 { width: 5px; height: 5px; left: 44%; top: 16%; animation-delay: 1.2s; animation-duration: 4.1s; }
+    .ws-4 { width: 3px; height: 3px; left: 72%; top: 38%; animation-delay: 1.8s; animation-duration: 3.5s; opacity: 0.7; }
+    .ws-5 { width: 4px; height: 4px; left: 36%; top: 42%; animation-delay: 0.4s; animation-duration: 3.9s; }
+    .ws-6 { width: 3px; height: 3px; left: 56%; top: 50%; animation-delay: 2.1s; animation-duration: 3.3s; }
+    .ws-7 { width: 5px; height: 5px; left: 40%; top: 32%; animation-delay: 0.9s; animation-duration: 4.4s; }
+    .ws-8 { width: 3px; height: 3px; left: 50%; top: 14%; animation-delay: 1.5s; animation-duration: 3.6s; }
+    .ws-9 { width: 3px; height: 3px; left: 20%; top: 34%; animation-delay: 2.4s; animation-duration: 3.1s; opacity: 0.6; }
+    .ws-10 { width: 2px; height: 2px; left: 76%; top: 20%; animation-delay: 0.3s; animation-duration: 4.0s; opacity: 0.5; }
+
+    @keyframes wealthySparkleFloat {
+      0%, 100% { transform: translateY(0) scale(0.6); opacity: 0; }
+      15%      { opacity: 1; transform: translateY(-6px) scale(1); }
+      50%      { opacity: 0.85; transform: translateY(-18px) scale(1.2); }
+      85%      { opacity: 0.6; transform: translateY(-30px) scale(0.8); }
+    }
+
+    /* Crown emblem next to final payoff stage line */
+    .wealthy-crown {
+      display: inline-block;
+      margin-right: 4px;
+      font-size: 0.78rem;
+      filter: drop-shadow(0 0 4px rgba(255,200,40,0.55));
+    }
+
+    .sc-badge {
+      top: 16px;
+      left: 16px;
+      min-width: 50px;
+      padding: 7px 12px 6px;
+      border-radius: 999px;
+    }
+
+    .sc-active-chip {
+      top: 16px;
+      right: 16px;
+    }
+
+    .sc-footer {
+      padding: 60px 20px 20px;
+      gap: 10px;
+    }
+
+    .sc-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sc-phase {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 5px 10px 4px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.14);
+      color: rgba(255,255,255,0.90);
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .sc-tier-name {
+      font-size: 1.28rem;
+    }
+
+    .sc-flavor {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.72);
+      line-height: 1.5;
+    }
+
+    .sc-next-target {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.62);
+    }
+
+    .sc-copy {
+      width: min(100%, 350px);
+      margin: 0 auto;
+      padding: 0 4px;
+      text-align: left;
+    }
+
+    .sc-copy-label {
+      margin-bottom: 7px;
+      color: #224938;
+    }
+
+    .sc-copy-text {
+      display: block;
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: #44584e;
+    }
+
+    .sc-cue {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: #607267;
+    }
+
+    @media (max-width: 1160px) {
+      .showcase-intro {
+        grid-template-columns: 1fr;
+      }
+
+      .showcase-phase-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 860px) {
+      .showcase-intro,
+      .showcase-header {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .showcase-phase-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .showcase-grid {
+        padding: 0 20px;
+      }
+
+      .sc-card,
+      .sc-copy {
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header class="showcase-header">
+  <div>
+    <h1 class="showcase-title">Steward — All States</h1>
+    <p class="showcase-subtitle">10 tiers · hover to lift · animations live</p>
+  </div>
+  <a href="/" class="back-btn">← Dashboard</a>
+</header>
+
+<section class="showcase-intro">
+  <div class="showcase-intro-copy">
+    <span class="showcase-kicker">State Progression System</span>
+    <h2 class="showcase-intro-title">Each tier should feel like a real step in a financial climb.</h2>
+    <p class="showcase-intro-text">Low tiers carry tension and instability. Mid tiers settle into control and momentum. Late tiers get cleaner, steadier, and closer to zero. This page is an illustrative payoff-stage gallery, so sample bars and blurbs are for art direction, not your live breathing room or runway. The dashboard uses the same character look; there, payoff progress leads with dollars to the next payoff stage, thin bars show position inside the current stage only, and breathing-room runway stays separate from asset runway.</p>
+  </div>
+
+  <div class="showcase-phase-grid">
+    <article class="showcase-phase-card pressure">
+      <span class="showcase-phase-label">Pressure</span>
+      <h3 class="showcase-phase-title">Tiers 1 to 3</h3>
+      <p class="showcase-phase-copy">Slouched, unstable, and cramped. Motion stays slightly uneasy so the state feels heavy.</p>
+    </article>
+    <article class="showcase-phase-card momentum">
+      <span class="showcase-phase-label">Momentum</span>
+      <h3 class="showcase-phase-title">Tiers 4 to 7</h3>
+      <p class="showcase-phase-copy">Posture rises, silhouettes clean up, and the motion becomes controlled. Progress starts to feel durable.</p>
+    </article>
+    <article class="showcase-phase-card reward">
+      <span class="showcase-phase-label">Reward</span>
+      <h3 class="showcase-phase-title">Tiers 8 to 10</h3>
+      <p class="showcase-phase-copy">The last stages feel cleaner and more controlled because the target is zero debt, not luxury.</p>
+    </article>
+  </div>
+</section>
+
+<main class="showcase-grid" id="showcase-grid">
+  <!-- Cards injected by JS -->
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     STEWARD CHARACTER TEMPLATE (verbatim from index.html)
+═══════════════════════════════════════════════════════════════════ -->
+<template id="steward-template">
+  <div class="steward-wrap" data-state="surviving" data-motion="survive" data-money-tier="medium">
+    <div class="steward-sparkles" aria-hidden="true">
+      <span class="sparkle s1">✦</span>
+      <span class="sparkle s2">✧</span>
+      <span class="sparkle s3">+</span>
+    </div>
+    <div class="steward-coin" aria-hidden="true"></div>
+    <div class="steward-character" aria-label="Steward the budget mascot">
+      <div class="sw-pose">
+        <div class="sw-ground" aria-hidden="true"></div>
+        <div class="sw-rig">
+          <div class="sw-upper-stack">
+            <div class="sw-hat">
+              <div class="sw-hat-shadow"></div>
+              <div class="sw-hat-crown"></div>
+              <div class="sw-hat-band"></div>
+              <div class="sw-hat-brim"></div>
+              <div class="sw-hat-ding"></div>
+            </div>
+            <div class="sw-head">
+              <div class="sw-cheek sw-cheek-l"></div>
+              <div class="sw-cheek sw-cheek-r"></div>
+              <div class="sw-eyebrow sw-eyebrow-l"></div>
+              <div class="sw-eyebrow sw-eyebrow-r"></div>
+              <div class="sw-eye sw-eye-l">
+                <span class="sw-pupil"></span>
+                <span class="sw-eye-shine"></span>
+                <span class="sw-lid"></span>
+              </div>
+              <div class="sw-eye sw-eye-r">
+                <span class="sw-pupil"></span>
+                <span class="sw-eye-shine"></span>
+                <span class="sw-lid"></span>
+              </div>
+              <div class="sw-monocle" aria-hidden="true">
+                <span class="sw-mono-rim"></span>
+                <span class="sw-mono-glass"></span>
+                <span class="sw-mono-chain"></span>
+                <span class="sw-mono-glint"></span>
+              </div>
+              <div class="sw-nose"></div>
+              <div class="sw-mustache">
+                <span class="sw-stache sw-stache-l"></span>
+                <span class="sw-stache sw-stache-r"></span>
+              </div>
+              <div class="sw-mouth"></div>
+            </div>
+            <div class="sw-neck">
+              <div class="sw-collar sw-collar-l"></div>
+              <div class="sw-collar sw-collar-r"></div>
+              <div class="sw-bowtie"><span class="sw-bow-knot"></span></div>
+            </div>
+            <div class="sw-body">
+              <div class="sw-coat-back"></div>
+              <div class="sw-shoulder sw-shoulder-l"></div>
+              <div class="sw-shoulder sw-shoulder-r"></div>
+              <div class="sw-coat sw-coat-l"></div>
+              <div class="sw-coat sw-coat-r"></div>
+              <div class="sw-lapel sw-lapel-l"></div>
+              <div class="sw-lapel sw-lapel-r"></div>
+              <div class="sw-vest">
+                <span class="sw-btn"></span>
+                <span class="sw-btn"></span>
+                <span class="sw-btn"></span>
+              </div>
+              <div class="sw-pocket" aria-hidden="true"></div>
+              <div class="sw-arm sw-arm-l">
+                <div class="sw-upper-arm sw-upper-arm-l"></div>
+                <div class="sw-forearm sw-forearm-l">
+                  <span class="sw-cuff"></span>
+                  <div class="sw-hand sw-hand-l"></div>
+                </div>
+              </div>
+              <div class="sw-arm sw-arm-r">
+                <div class="sw-upper-arm sw-upper-arm-r"></div>
+                <div class="sw-forearm-wrap">
+                  <div class="sw-cane" aria-hidden="true">
+                    <span class="sw-cane-knob"></span>
+                    <span class="sw-cane-shaft"></span>
+                  </div>
+                  <div class="sw-forearm sw-forearm-r"></div>
+                  <div class="sw-hand sw-hand-r">
+                    <span class="sw-thumb" aria-hidden="true"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="sw-tails" aria-hidden="true">
+              <span class="sw-tail sw-tail-l"></span>
+              <span class="sw-tail sw-tail-r"></span>
+            </div>
+          </div>
+          <div class="sw-pelvis" aria-hidden="true"></div>
+          <div class="sw-legs">
+            <div class="sw-leg sw-leg-l">
+              <div class="sw-thigh sw-thigh-l">
+                <div class="sw-calf sw-calf-l">
+                  <div class="sw-foot sw-foot-l">
+                    <div class="sw-shoe sw-shoe-l"></div>
+                    <div class="sw-sole-shadow" aria-hidden="true"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="sw-leg sw-leg-r">
+              <div class="sw-thigh sw-thigh-r">
+                <div class="sw-calf sw-calf-r">
+                  <div class="sw-foot sw-foot-r">
+                    <div class="sw-shoe sw-shoe-r"></div>
+                    <div class="sw-sole-shadow" aria-hidden="true"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="steward-sign" aria-hidden="true">will budget 4 food :(</div>
+    <div class="steward-money" aria-hidden="true">
+      <span class="sm-c sm-c1"></span><span class="sm-c sm-c2"></span>
+      <span class="sm-c sm-c3"></span><span class="sm-c sm-c4"></span>
+      <span class="sm-c sm-c5"></span>
+      <span class="sm-b sm-b1"></span><span class="sm-b sm-b2"></span>
+      <span class="sm-b sm-b3"></span>
+      <span class="sm-d sm-d1">$</span><span class="sm-d sm-d2">$</span>
+      <span class="sm-d sm-d3">$</span><span class="sm-d sm-d4">$</span>
+      <span class="sm-d sm-d5">$</span><span class="sm-d sm-d6">$</span>
+      <span class="sm-d sm-d7">$</span><span class="sm-d sm-d8">$</span>
+    </div>
+    <div class="steward-coinfall" aria-hidden="true">
+      <div class="scf-c scf-c1"></div><div class="scf-c scf-c2"></div>
+      <div class="scf-c scf-c3"></div><div class="scf-c scf-c4"></div>
+      <div class="scf-c scf-c5"></div><div class="scf-c scf-c6"></div>
+      <span class="scf-d scf-d1">$</span><span class="scf-d scf-d2">$</span>
+      <span class="scf-d scf-d3">$</span><span class="scf-d scf-d4">$</span>
+    </div>
+    <div class="sw-racecar" aria-hidden="true">
+      <div class="rc-body">
+        <div class="rc-gold-trim"></div>
+        <div class="rc-cabin"></div>
+        <div class="rc-win-driver"></div>
+        <div class="rc-win-passenger"></div>
+        <div class="rc-windshield"></div>
+        <div class="rc-rear-win"></div>
+        <div class="rc-spoiler"></div>
+        <div class="rc-stripe"></div>
+        <div class="rc-headlight"></div>
+        <div class="rc-taillight"></div>
+        <div class="rc-grille"></div>
+        <div class="rc-ornament">
+          <div class="rc-orn-base"></div><div class="rc-orn-post"></div>
+          <div class="rc-orn-figure">
+            <div class="rc-orn-head"></div><div class="rc-orn-body"></div>
+            <div class="rc-orn-wing-l"></div><div class="rc-orn-wing-r"></div>
+          </div>
+        </div>
+      </div>
+      <div class="rc-wheel rc-wf"></div>
+      <div class="rc-wheel rc-wr"></div>
+      <div class="rc-exhaust">
+        <span class="rc-puff rp1"></span>
+        <span class="rc-puff rp2"></span>
+        <span class="rc-puff rp3"></span>
+      </div>
+      <div class="rc-coin-shower">
+        <div class="rc-coin rcc1"></div><div class="rc-coin rcc2"></div>
+        <div class="rc-coin rcc3"></div><div class="rc-coin rcc4"></div>
+        <div class="rc-coin rcc5"></div><div class="rc-coin rcc6"></div>
+        <div class="rc-coin rcc7"></div><div class="rc-coin rcc8"></div>
+      </div>
+      <div class="rc-ring rc-ring-1"></div>
+      <div class="rc-ring rc-ring-2"></div>
+      <div class="rc-ring rc-ring-3"></div>
+      <div class="rc-dollar rc-d1">$</div>
+      <div class="rc-dollar rc-d2">$</div>
+      <div class="rc-dollar rc-d3">$</div>
+      <div class="rc-dollar rc-d4">$</div>
+    </div>
+    <svg class="steward-dog-svg"
+         xmlns="http://www.w3.org/2000/svg"
+         viewBox="0 0 80 92"
+         role="img"
+         aria-label="Steward's loyal dog">
+      <defs>
+        <radialGradient id="dgBody" cx="40%" cy="34%" r="60%" gradientUnits="userSpaceOnUse" x1="14" y1="50" x2="60" y2="84">
+          <stop offset="0%"   stop-color="#f2ca70"/>
+          <stop offset="62%"  stop-color="#d4963c"/>
+          <stop offset="100%" stop-color="#b07428"/>
+        </radialGradient>
+        <radialGradient id="dgHead" cx="38%" cy="30%" r="62%" gradientUnits="userSpaceOnUse" x1="18" y1="24" x2="54" y2="56">
+          <stop offset="0%"   stop-color="#f8d890"/>
+          <stop offset="58%"  stop-color="#e8b860"/>
+          <stop offset="100%" stop-color="#c89040"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="36" cy="89" rx="27" ry="4.5" fill="rgba(8,24,16,0.20)"/>
+      <ellipse cx="36" cy="67" rx="22" ry="17" fill="url(#dgBody)"/>
+      <ellipse cx="29" cy="58" rx="13" ry="8.5" fill="rgba(255,232,152,0.20)" transform="rotate(-16 29 58)"/>
+      <g transform="translate(55,66)">
+        <g class="dog-tail">
+          <path d="M0,-2 C7,-13 17,-23 12,-37" stroke="#c4882e" stroke-width="9" stroke-linecap="round" fill="none"/>
+          <ellipse cx="11" cy="-39" rx="7.5" ry="10" fill="#e8b040" transform="rotate(-20 11 -39)"/>
+          <path d="M2,-4 C8,-14 17,-24 13,-36" stroke="rgba(255,222,120,0.45)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+        </g>
+      </g>
+      <rect x="18" y="75" width="11" height="15" rx="5.5" fill="#c88a38"/>
+      <rect x="19" y="75" width="9" height="5"  rx="4"   fill="rgba(255,220,140,0.24)"/>
+      <path d="M20,88 Q24,91 29,88" stroke="rgba(80,44,8,0.28)" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+      <g transform="translate(48.5,75)">
+        <g class="dog-paw-wave">
+          <rect x="-5.5" y="0" width="11" height="15" rx="5.5" fill="#c88a38"/>
+          <rect x="-4.5" y="0" width="9"  height="5"  rx="4"   fill="rgba(255,220,140,0.24)"/>
+          <path d="M-3.5,13 Q0.5,16 5.5,13" stroke="rgba(80,44,8,0.28)" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+        </g>
+      </g>
+      <ellipse cx="36" cy="53" rx="12" ry="9.5" fill="#d49840"/>
+      <rect x="28" y="56" width="16" height="3.5" rx="1.8" fill="#ddb850"/>
+      <ellipse cx="36" cy="38" rx="18" ry="16" fill="url(#dgHead)"/>
+      <ellipse cx="18.5" cy="40" rx="7"   ry="14.5" fill="#a06822" transform="rotate(14 18.5 40)"/>
+      <ellipse cx="53.5" cy="40" rx="7"   ry="14.5" fill="#a06822" transform="rotate(-14 53.5 40)"/>
+      <ellipse cx="18.5" cy="41" rx="4"   ry="9.5"  fill="#c47c34" opacity="0.52" transform="rotate(14 18.5 41)"/>
+      <ellipse cx="53.5" cy="41" rx="4"   ry="9.5"  fill="#c47c34" opacity="0.52" transform="rotate(-14 53.5 41)"/>
+      <circle cx="28.5" cy="35.5" r="5.5" fill="#fdf8ef"/>
+      <circle cx="43.5" cy="35.5" r="5.5" fill="#fdf8ef"/>
+      <circle cx="28.5" cy="36"   r="3.5" fill="#1c1008"/>
+      <circle cx="43.5" cy="36"   r="3.5" fill="#1c1008"/>
+      <circle cx="29.8" cy="34.5" r="1.5" fill="rgba(255,255,255,0.94)"/>
+      <circle cx="44.8" cy="34.5" r="1.5" fill="rgba(255,255,255,0.94)"/>
+      <circle cx="30.8" cy="37.5" r="0.7" fill="rgba(255,255,255,0.48)"/>
+      <circle cx="45.8" cy="37.5" r="0.7" fill="rgba(255,255,255,0.48)"/>
+      <circle cx="21"   cy="41"   r="5"   fill="rgba(225,138,110,0.42)"/>
+      <circle cx="51"   cy="41"   r="5"   fill="rgba(225,138,110,0.42)"/>
+      <ellipse cx="36" cy="44.5" rx="9.5" ry="7" fill="#f2d295"/>
+      <ellipse cx="33" cy="41.5" rx="4"   ry="3" fill="rgba(255,242,192,0.38)"/>
+      <ellipse cx="36" cy="41.5" rx="5"   ry="3.8" fill="#1e140c"/>
+      <circle  cx="33.5" cy="42.4" r="1.3" fill="rgba(0,0,0,0.52)"/>
+      <circle  cx="38.5" cy="42.4" r="1.3" fill="rgba(0,0,0,0.52)"/>
+      <ellipse cx="33.5" cy="40.5" rx="2" ry="1.2" fill="rgba(255,255,255,0.18)"/>
+      <path d="M31.5,47 Q36,53 40.5,47" stroke="none" fill="#e07888" opacity="0.90"/>
+      <path d="M36,47.5 L36,52.5" stroke="rgba(158,38,58,0.52)" stroke-width="1.2" stroke-linecap="round"/>
+      <circle cx="31.5" cy="47" r="1.5" fill="#e07888" opacity="0.72"/>
+      <circle cx="40.5" cy="47" r="1.5" fill="#e07888" opacity="0.72"/>
+      <rect x="26" y="5" width="20" height="17" rx="4" fill="#143224"/>
+      <path d="M29,7.5 Q34,5.5 39,7.5" stroke="rgba(255,255,255,0.14)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      <rect x="26" y="13" width="20" height="9" rx="0" fill="rgba(0,0,0,0.16)"/>
+      <rect x="24" y="18" width="24" height="4.5" rx="1.5" fill="#d9ac50"/>
+      <rect x="33.5" y="18.5" width="5" height="3.5" rx="0.8" fill="#e8c860" opacity="0.82"/>
+      <rect x="21" y="20.5" width="30" height="5.5" rx="2.8" fill="#0d2018"/>
+      <path d="M22,20.5 Q36,19.5 50,20.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.5" fill="none"/>
+      <ellipse cx="30.5" cy="9.5" rx="5.5" ry="3" fill="rgba(255,255,255,0.26)" transform="rotate(-15 30.5 9.5)" opacity="0.68"/>
+    </svg>
+    <div class="wealthy-mansion" aria-hidden="true">
+      <div class="wmn-body"></div>
+      <div class="wmn-roof"></div>
+      <div class="wmn-chimney wmn-ch-l"></div>
+      <div class="wmn-chimney wmn-ch-r"></div>
+      <div class="wmn-wing wmn-wing-l"></div>
+      <div class="wmn-wing wmn-wing-r"></div>
+      <div class="wmn-wing-roof wmn-wr-l"></div>
+      <div class="wmn-wing-roof wmn-wr-r"></div>
+      <div class="wmn-col wmn-col-l"></div>
+      <div class="wmn-col wmn-col-r"></div>
+      <div class="wmn-pediment"></div>
+      <div class="wmn-door"><div class="wmn-door-arch"></div></div>
+      <div class="wmn-window wmn-w1"></div>
+      <div class="wmn-window wmn-w2"></div>
+      <div class="wmn-window wmn-w3"></div>
+      <div class="wmn-window wmn-w4"></div>
+      <div class="wmn-window wmn-w5"></div>
+      <div class="wmn-window wmn-w6"></div>
+      <div class="wmn-window wmn-w7"></div>
+      <div class="wmn-window wmn-w8"></div>
+      <div class="wmn-steps"></div>
+      <div class="wmn-lantern wmn-lan-l"></div>
+      <div class="wmn-lantern wmn-lan-r"></div>
+    </div>
+    <div class="wealthy-merc" aria-hidden="true">
+      <div class="wmerc-shadow"></div>
+      <div class="wmerc-body"></div>
+      <div class="wmerc-hood"></div>
+      <div class="wmerc-grille">
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span>
+      </div>
+      <div class="wmerc-star">★</div>
+      <div class="wmerc-hl wmerc-hl-l"><span class="wmerc-drl"></span></div>
+      <div class="wmerc-hl wmerc-hl-r"><span class="wmerc-drl"></span></div>
+      <div class="wmerc-bumper"></div>
+      <div class="wmerc-intake wmerc-int-l"></div>
+      <div class="wmerc-intake wmerc-int-r"></div>
+      <div class="wmerc-splitter"></div>
+      <div class="wmerc-fender wmerc-fn-l"></div>
+      <div class="wmerc-fender wmerc-fn-r"></div>
+      <div class="wmerc-reflect"></div>
+    </div>
+  </div>
+</template>
+
+<!-- Load modules for the full character rendering system -->
+<script type="module" src="js/main.js"></script>
+<script type="module">
+'use strict';
+
+/* ── All 10 tiers — flavor text + accent colors ────────────────────── */
+const ALL_TIERS = [
+  { id: 'rock_bottom', label: 'Buried', badge: '01',
+    flavor:  'Do not make this beautiful. Make it smaller.',
+    copy:    'Debt north of $79K. The starting line.',
+    next:    '→ Next payoff stage: under $79K',
+    accent:  'rgba(192,57,43,0.72)',
+    threshold: 79000 },
+
+  { id: 'broke',       label: 'Pushing',     badge: '02',
+    flavor:  'The first dent matters. Protect it.',
+    copy:    '$70K–$79K range. The hole is getting shallower.',
+    next:    '→ Next payoff stage: under $70K',
+    accent:  'rgba(180,90,30,0.72)',
+    threshold: 70000 },
+
+  { id: 'struggling',  label: 'Struggling',  badge: '03',
+    flavor:  'The climb is ugly before it is convincing.',
+    copy:    '$60K–$70K. The number is moving.',
+    next:    '→ Next payoff stage: under $60K',
+    accent:  'rgba(190,130,28,0.72)',
+    threshold: 60000 },
+
+  { id: 'surviving',   label: 'Surviving',   badge: '04',
+    flavor:  'Stay alive, stay current, keep cutting.',
+    copy:    '$50K–$60K. Halfway to halfway.',
+    next:    '→ Next payoff stage: under $50K',
+    accent:  'rgba(160,160,28,0.72)',
+    threshold: 50000 },
+
+  { id: 'stabilizing', label: 'Stabilizing', badge: '05',
+    flavor:  'The panic is quieter. Do not confuse quiet with done.',
+    copy:    '$40K–$50K. Five figures feels different.',
+    next:    '→ Next payoff stage: under $40K',
+    accent:  'rgba(80,180,80,0.72)',
+    threshold: 40000 },
+
+  { id: 'stable',      label: 'Stable',      badge: '06',
+    flavor:  'You have footing now. Use it.',
+    copy:    '$30K–$40K. The end is in the distance.',
+    next:    '→ Next payoff stage: under $30K',
+    accent:  'rgba(46,180,110,0.72)',
+    threshold: 30000 },
+
+  { id: 'building',    label: 'Breaking',    badge: '07',
+    flavor:  'Break the pattern before the balance breaks you again.',
+    copy:    '$20K–$30K. Final third underway.',
+    next:    '→ Next payoff stage: under $20K',
+    accent:  'rgba(36,190,140,0.72)',
+    threshold: 20000 },
+
+  { id: 'thriving',    label: 'Closing',     badge: '08',
+    flavor:  'This is where discipline gets boring. Good.',
+    copy:    '$10K–$20K. Most people never reach here.',
+    next:    '→ Next payoff stage: under $10K',
+    accent:  'rgba(36,200,160,0.72)',
+    threshold: 10000 },
+
+  { id: 'winning',     label: 'Finish',      badge: '09',
+    flavor:  'No victory laps before zero.',
+    copy:    'Under $10K. The finish line is visible.',
+    next:    '→ Next payoff stage: debt = $0',
+    accent:  'rgba(218,185,45,0.80)',
+    threshold: 0 },
+
+  { id: 'wealthy',     label: 'Debt Free',   badge: '10',
+    flavor:  'The debt is gone. Now build the life after it.',
+    copy:    'Debt cleared. The climb is complete; the next chapter starts after this.',
+    next:    'Final payoff stage',
+    accent:  'rgba(245,210,55,0.90)',
+    threshold: -Infinity },
+];
+
+/**
+ * Debt-only bar fill: same band math as the dashboard; sample debt at band midpoint for the gallery.
+ * @param {number} tierIndex
+ * @param {number} rockBottomBuffer from /debt-tier-constants.json
+ */
+function showcaseDebtTierBandPct(tierIndex, rockBottomBuffer) {
+  const current = ALL_TIERS[tierIndex];
+  const next = ALL_TIERS[tierIndex + 1];
+  if (!next || current.threshold === -Infinity) {
+    return {
+      pct: 100,
+      caption: 'Final payoff stage · no dollars left to the next threshold · bar is illustrative',
+    };
+  }
+
+  const lower = current.threshold;
+  let upper;
+  if (tierIndex === 0) {
+    upper = lower + rockBottomBuffer;
+  } else {
+    upper = ALL_TIERS[tierIndex - 1].threshold;
+  }
+  const sampleDebt = (upper + lower) / 2;
+  const span = Math.max(upper - lower, 1);
+  const rawPct = Math.min(100, Math.max(0, ((upper - sampleDebt) / span) * 100));
+  const pct = roundDebtTierBandPctClient(rawPct);
+  return {
+    pct: Number.isFinite(pct) ? pct : 0,
+    caption: 'Thin bar: position inside this stage only · live dashboard leads with dollars to the next payoff stage',
+  };
+}
+
+/* ── Per-card showcase centering offsets ─────────────────────────────
+   x = rightward nudge (px), y = upward nudge (negative = up)
+   scale = showcase-specific scene scale
+   Tuned individually per card against the showcase grid. ──────────── */
+const SHOWCASE_OFFSETS = {
+  rock_bottom:  { x: 5,  y: 34, scale: 1.02 },
+  broke:        { x: 4,  y: 36, scale: 1.06 },
+  struggling:   { x: 2,  y: 38, scale: 1.10 },
+  surviving:    { x: 1,  y: 40, scale: 1.15 },
+  stabilizing:  { x: 0,  y: 41, scale: 1.18 },
+  stable:       { x: 0,  y: 42, scale: 1.20 },
+  building:     { x: -1, y: 40, scale: 1.20 },
+  thriving:     { x: -2, y: 46, scale: 1.14 },
+  winning:      { x: -3, y: 40, scale: 0.92 },
+  wealthy:      { x: 3,  y: 46, scale: 0.84 },
+};
+
+/* ── Threshold label (below card) ──────────────────────────────────── */
+function thresholdLabel(tier) {
+  if (tier.threshold === -Infinity) return 'Debt: $0';
+  if (tier.threshold === 0)         return 'Debt: under $10K';
+  return `Debt: over $${(tier.threshold / 1000).toFixed(0)}K`;
+}
+
+/** Sample debt at band midpoint · same gap rule as dashboard (`debtRemaining - currentTier.threshold`). */
+function illustrativeGapHeadline(tier, tierIndex, rockBottomBuffer) {
+  const idx = ALL_TIERS.findIndex(t => t.id === tier.id);
+  const nextT = ALL_TIERS[idx + 1];
+  if (!nextT || tier.threshold === -Infinity) {
+    return typeof formatNextTierGapHeadline === 'function'
+      ? formatNextTierGapHeadline(null)
+      : 'Final payoff stage — no dollars left to the next threshold';
+  }
+  const lower = tier.threshold;
+  let upper;
+  if (tierIndex === 0) upper = lower + rockBottomBuffer;
+  else upper = ALL_TIERS[tierIndex - 1].threshold;
+  const sampleDebt = (upper + lower) / 2;
+  const gap = Math.max(0, sampleDebt - lower);
+  return formatNextTierGapHeadline({ gapDollars: gap, label: nextT.label }, tier);
+}
+
+function nextTierElement(tier, tierIndex, rockBottomBuffer) {
+  const el = document.createElement('p');
+  el.className = 'sc-next-target';
+  if (tier.id === 'wealthy') {
+    el.textContent = typeof formatNextTierGapHeadline === 'function'
+      ? formatNextTierGapHeadline(null)
+      : 'Final payoff stage: no dollars left to the next threshold';
+  } else {
+    el.textContent = illustrativeGapHeadline(tier, tierIndex, rockBottomBuffer);
+  }
+  return el;
+}
+
+/* ── Build one full showcase card ──────────────────────────────────── */
+function buildCard(tier, rockBottomBuffer) {
+  const tierIndex = ALL_TIERS.findIndex(t => t.id === tier.id);
+  const bandDemo = showcaseDebtTierBandPct(tierIndex, rockBottomBuffer);
+  const theme = TIER_META?.[tier.id] || {};
+  const wrap = document.createElement('div');
+  wrap.className = 'sc-wrap';
+  wrap.dataset.tierId = tier.id;
+  wrap.dataset.phase = (theme.phase || 'state').toLowerCase();
+
+  /* State card — gets background gradient from .state-card[data-state] in style.css */
+  const card = document.createElement('div');
+  card.className = 'sc-card state-card';
+  card.dataset.state = tier.id;
+  card.style.setProperty('--sc-accent', theme.accent || tier.accent);
+
+  /* Character mount — larger top tiers get a small showcase-only fit adjustment */
+  const mount = document.createElement('div');
+  mount.className = 'sc-mount';
+  mount.dataset.showcaseState = tier.id;
+  mount.appendChild(buildSteward(tier.id));
+
+  const stewardWrap = mount.querySelector('.steward-wrap');
+  const off = SHOWCASE_OFFSETS[tier.id];
+  if (off && stewardWrap) {
+    stewardWrap.style.transform = `translate3d(${off.x}px, ${off.y}px, 0) scale(${off.scale})`;
+    stewardWrap.style.transformOrigin = 'center bottom';
+  }
+
+  card.appendChild(mount);
+
+  /* Badge chip — top-left */
+  const badge = document.createElement('div');
+  badge.className = 'sc-badge';
+  badge.textContent = tier.badge;
+  card.appendChild(badge);
+
+  /* Footer overlay */
+  const footer = document.createElement('div');
+  footer.className = 'sc-footer';
+
+  const topRow = document.createElement('div');
+  topRow.className = 'sc-top-row';
+
+  const phaseEl = document.createElement('span');
+  phaseEl.className = 'sc-phase';
+  phaseEl.textContent = theme.phase || 'State';
+  topRow.appendChild(phaseEl);
+  footer.appendChild(topRow);
+
+  const nameEl = document.createElement('p');
+  nameEl.className = 'sc-tier-name';
+  nameEl.textContent = tier.label;
+  footer.appendChild(nameEl);
+
+  const flavorEl = document.createElement('p');
+  flavorEl.className = 'sc-flavor';
+  flavorEl.textContent = tier.flavor;
+  footer.appendChild(flavorEl);
+
+  const barRow = document.createElement('div');
+  barRow.className = 'sc-bar-row';
+  const track = document.createElement('div');
+  track.className = 'sc-bar-track';
+  const fill = document.createElement('div');
+  fill.className = 'sc-bar-fill';
+  fill.style.width = `${bandDemo.pct}%`;
+  fill.style.boxShadow = `0 0 10px 3px ${theme.accent || tier.accent}`;
+  track.title =
+    'Illustrative gallery: thin bar is position inside this stage only. Live dashboard headline is dollars to the next payoff stage—not breathing room.';
+  track.appendChild(fill);
+  const barLabel = document.createElement('span');
+  barLabel.className = 'sc-bar-label';
+  barLabel.textContent = '·';
+  barLabel.title = 'Stage bar only · not the dollar gap to the next payoff stage';
+  barRow.appendChild(track);
+  barRow.appendChild(barLabel);
+  footer.appendChild(barRow);
+  const barCap = document.createElement('p');
+  barCap.className = 'sc-bar-caption';
+  barCap.textContent = bandDemo.caption;
+  footer.appendChild(barCap);
+
+  footer.appendChild(nextTierElement(tier, tierIndex, rockBottomBuffer));
+
+  card.appendChild(footer);
+
+
+  wrap.appendChild(card);
+
+  const copyWrap = document.createElement('div');
+  copyWrap.className = 'sc-copy';
+
+  const copyLabel = document.createElement('span');
+  copyLabel.className = 'sc-copy-label';
+  copyLabel.textContent = `Payoff stage · ${thresholdLabel(tier)} · ${theme.phase || 'State'}`;
+  copyWrap.appendChild(copyLabel);
+
+  const copyText = document.createElement('span');
+  copyText.className = 'sc-copy-text';
+  copyText.textContent = tier.copy;
+  copyWrap.appendChild(copyText);
+
+  const cueText = document.createElement('span');
+  cueText.className = 'sc-cue';
+  cueText.textContent = theme.cue || tier.flavor;
+  copyWrap.appendChild(cueText);
+
+  wrap.appendChild(copyWrap);
+  return wrap;
+}
+
+/* ── Mount all 10 cards (buffer from debt-tier-constants.json) ─────── */
+const grid = document.getElementById('showcase-grid');
+document.title = 'Steward | Debt tier gallery';
+const showcaseTitle = document.querySelector('.showcase-title');
+const showcaseSubtitle = document.querySelector('.showcase-subtitle');
+const backButton = document.querySelector('.back-btn');
+if (showcaseTitle) showcaseTitle.textContent = 'Steward | Debt tier gallery';
+if (showcaseSubtitle) {
+  showcaseSubtitle.textContent =
+    'Illustrative gallery · live dashboard: dollars to the next payoff stage first · thin bars = position inside this stage only';
+}
+if (backButton) backButton.textContent = 'Back to dashboard';
+
+function markActiveFromApi() {
+  return fetch('/api/status')
+    .then(r => (r.ok ? r.json() : null))
+    .then(data => {
+      if (!data?.ready || !data?.tier?.id) return;
+      const activeTierId = data.tier.id;
+      const activeWrap = document.querySelector(`[data-tier-id="${activeTierId}"]`);
+      if (!activeWrap) return;
+
+      const card = activeWrap.querySelector('.sc-card');
+      if (card) card.classList.add('is-active');
+
+      const chip = document.createElement('div');
+      chip.className = 'sc-active-chip';
+      chip.textContent = 'You are here';
+      card.appendChild(chip);
+
+      const stats = data.stats;
+      const nextTier = data.nextTier;
+      const fill = activeWrap.querySelector('.sc-bar-fill');
+      const label = activeWrap.querySelector('.sc-bar-label');
+      const track = activeWrap.querySelector('.sc-bar-track');
+      const nextTargetEl = activeWrap.querySelector('.sc-next-target');
+      const barDisplay =
+        stats && typeof debtTierBandBarDisplay === 'function' ? debtTierBandBarDisplay(stats) : null;
+      if (barDisplay && fill && Number.isFinite(barDisplay.displayPct)) {
+        fill.style.width = `${barDisplay.displayPct}%`;
+        if (label) {
+          label.textContent = '·';
+          label.hidden = false;
+          label.title = 'Stage bar only · not the dollar gap to the next payoff stage';
+        }
+        if (nextTargetEl && typeof formatNextTierGapHeadline === 'function') {
+          if (activeTierId === 'wealthy') {
+            nextTargetEl.textContent = formatNextTierGapHeadline(null);
+          } else if (nextTier) {
+            nextTargetEl.textContent = formatNextTierGapHeadline(nextTier, activeTierId);
+          } else {
+            nextTargetEl.textContent = formatNextTierGapHeadline(null);
+          }
+        }
+        if (track) {
+          track.title =
+            'Live data: thin bar is position inside this stage only. Dollars to the next payoff stage are below—not breathing room.';
+        }
+      }
+
+      if (typeof syncDebtTierBandDebugOverlay === 'function' && barDisplay && stats) {
+        syncDebtTierBandDebugOverlay(stats, barDisplay.rawPct, barDisplay.displayPct);
+      }
+
+      activeWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    })
+    .catch(() => {});
+}
+
+function mountShowcaseGrid(rockBottomBuffer) {
+  ALL_TIERS.forEach(tier => grid.appendChild(buildCard(tier, rockBottomBuffer)));
+  markActiveFromApi();
+}
+
+fetch('debt-tier-constants.json')
+  .then(r => (r.ok ? r.json() : {}))
+  .then(j => {
+    const buf = Number(j.ROCK_BOTTOM_BAND_BUFFER);
+    mountShowcaseGrid(Number.isFinite(buf) ? buf : 10000);
+  })
+  .catch(() => mountShowcaseGrid(10000));
+</script>
+
+</body>
+</html>

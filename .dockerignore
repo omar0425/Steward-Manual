@@ -1,0 +1,14 @@
+node_modules
+.env
+*.db
+*.db-shm
+*.db-wal
+logs
+*.log
+*.bat
+*.vbs
+*.ps1
+.claude
+docs
+test
+scripts
