@@ -1,0 +1,2171 @@
+/* /steward-vnext — preview climb layout (inherits style.css) */
+
+.steward-vnext-page {
+  background: linear-gradient(180deg, var(--forest-50, #f4f8f5) 0%, rgba(244, 248, 245, 0.92) 38%, #eef4ef 100%);
+}
+
+/* Page rhythm: align section gaps without changing grid columns from style.css */
+.dashboard.dashboard--vnext {
+  gap: clamp(22px, 2.6vw, 30px);
+  padding-bottom: 44px;
+}
+
+.vnext-top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(244, 248, 245, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(29, 74, 60, 0.12);
+}
+
+.vnext-top-nav-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.vnext-nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--forest-900, #0f241c);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.vnext-nav-brand img {
+  display: block;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+.vnext-nav-brand:hover {
+  color: var(--forest-700, #2d5c4a);
+}
+
+.vnext-top-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.vnext-nav-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--forest-700, #2d5c4a);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 74, 60, 0.22);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.vnext-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.vnext-nav-links a {
+  color: var(--forest-800, #1d4a3c);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.vnext-nav-links a:hover {
+  border-bottom-color: rgba(29, 74, 60, 0.35);
+}
+
+.vnext-nav-current {
+  color: var(--ink-500, #5a7060);
+  font-weight: 700;
+}
+
+/* ── Hero: unified shell, dominant card, primary dollars callout ───── */
+.dashboard--vnext .hero-section {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: auto;
+  padding: clamp(22px, 3.5vw, 34px);
+}
+
+.dashboard--vnext .hero-section::after {
+  bottom: 96px;
+  opacity: 0.55;
+}
+
+.dashboard--vnext .vnext-hero-shell {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.12fr) minmax(260px, 0.92fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "frame story"
+    "caption story";
+  gap: clamp(8px, 1.5vw, 14px) clamp(18px, 3vw, 36px);
+  align-items: start;
+  width: 100%;
+  padding: clamp(14px, 2.2vw, 22px);
+  border-radius: clamp(28px, 4vw, 36px);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.55), transparent 42%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(29, 74, 60, 0.1);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 18px 48px rgba(16, 41, 32, 0.08);
+}
+
+.dashboard--vnext .hero-stage-column {
+  grid-area: frame;
+  justify-self: center;
+  width: 100%;
+  max-width: 460px;
+}
+
+.dashboard--vnext .hero-stage-frame {
+  width: 100%;
+  max-width: none;
+  padding: clamp(10px, 1.8vw, 16px);
+  border-radius: clamp(32px, 4vw, 40px);
+}
+
+.dashboard--vnext .hero-state-card {
+  transform: translateZ(0) scale(1.035);
+  box-shadow:
+    0 28px 64px rgba(16, 41, 32, 0.22),
+    0 6px 18px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+
+.dashboard--vnext .vnext-card-caption {
+  grid-area: caption;
+  margin-top: -4px;
+  padding: 0 4px 2px;
+  text-align: center;
+  max-width: 460px;
+  width: 100%;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.dashboard--vnext .vnext-card-caption .eyebrow {
+  margin: 0;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  opacity: 0.92;
+}
+
+.dashboard--vnext .vnext-card-caption .hero-chip-row {
+  justify-content: center;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  max-width: 100%;
+}
+
+.dashboard--vnext .vnext-card-caption #hero-tier-label {
+  margin: 0;
+  font-size: clamp(1.65rem, 3.1vw, 2.25rem);
+  line-height: 1.05;
+  max-width: 14ch;
+  font-weight: 800;
+  color: var(--forest-950, #0d2218);
+}
+
+.dashboard--vnext .vnext-card-caption .hero-tier-behavior {
+  margin: 6px 0 0;
+  text-align: center;
+  max-width: 36ch;
+}
+
+.dashboard--vnext .hero-story-column {
+  grid-area: story;
+  align-self: center;
+  gap: clamp(8px, 1.2vw, 12px);
+  max-width: 420px;
+}
+
+.dashboard--vnext .vnext-climb-prompt {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500, #5a7060);
+  margin: 0 0 2px;
+  line-height: 1.35;
+}
+
+.dashboard--vnext .vnext-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.vnext-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--forest-900, #143126);
+  background: rgba(29, 74, 60, 0.1);
+  border: 1px solid rgba(29, 74, 60, 0.18);
+}
+
+.vnext-hero-freshness {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(77, 134, 199, 0.12);
+  color: var(--forest-800, #1d4a3c);
+}
+.vnext-hero-freshness.is-stale {
+  background: rgba(180, 90, 70, 0.14);
+}
+.vnext-hero-freshness.is-aged {
+  background: rgba(199, 154, 58, 0.16);
+}
+
+/* Supporting context — next stage only; the hero card carries the full escape headline */
+.dashboard--vnext .vnext-tier-gap-callout {
+  margin: 4px 0 8px;
+  padding: 10px 14px 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(29, 74, 60, 0.1);
+  border-left: 3px solid rgba(29, 74, 60, 0.22);
+  box-shadow: 0 6px 18px rgba(16, 41, 32, 0.05);
+}
+
+.dashboard--vnext .vnext-gap-callout-k {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-500, #5a7060);
+  margin-bottom: 4px;
+}
+
+.dashboard--vnext .vnext-gap-callout-v {
+  margin: 0;
+  font-size: clamp(0.95rem, 1.65vw, 1.15rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  color: var(--ink-700, #3d4f45);
+}
+
+.dashboard--vnext .hero-state-card .card-footer-top {
+  position: relative;
+}
+
+.dashboard--vnext .vnext-card-caption #hero-tier-label {
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.05;
+  max-width: 16ch;
+}
+
+.vnext-tier-accolade {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink-600, #4a5c50);
+  margin: 0;
+  max-width: 38ch;
+}
+
+.dashboard--vnext .hero-desc {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ink-600, #4a5c50);
+}
+
+.dashboard--vnext .hero-stability-lead,
+.dashboard--vnext .hero-mood-copy {
+  font-size: 0.9rem;
+  opacity: 0.95;
+}
+
+/* Injected supporting metrics: paid down + asset runway — clearly secondary */
+.dashboard--vnext .hero-context-strip {
+  margin-top: 4px;
+  padding: 3px;
+  gap: 4px;
+  background: rgba(16, 38, 28, 0.045);
+  border-color: rgba(16, 38, 28, 0.07);
+}
+
+.dashboard--vnext .hero-context-cell {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.dashboard--vnext .hero-context-label {
+  font-size: 0.54rem;
+  opacity: 0.88;
+}
+
+.dashboard--vnext .hero-context-value {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ink-600, #4a5c50);
+}
+
+/* “This turn” — largest account deltas; sits after .hero-context-strip (JS) so cumulative paydown stays first */
+.dashboard--vnext .vnext-hero-turn-accounts {
+  margin: 6px 0 0;
+  padding: 8px 10px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(29, 74, 60, 0.1);
+  max-width: 36ch;
+}
+
+.dashboard--vnext .vnext-hero-turn-accounts-k {
+  margin: 0 0 6px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-500, #5a7060);
+}
+
+.dashboard--vnext .vnext-hero-turn-accounts-list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  list-style: disc;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink-700, #3d4f45);
+}
+
+.dashboard--vnext .vnext-hero-turn-accounts-list:empty {
+  display: none;
+}
+
+.dashboard--vnext .vnext-hero-turn-accounts-net {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--forest-800, #1d4a3c);
+}
+
+.dashboard--vnext .vnext-hero-turn-accounts-net:empty {
+  display: none;
+}
+
+/* Long liquidity copy lives on the financial board; keep the hero calm */
+.dashboard--vnext .hero-axes-hint,
+.dashboard--vnext .hero-liquidity-runway,
+.dashboard--vnext .hero-guard-hint {
+  display: none;
+}
+
+.vnext-nav-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.82rem;
+}
+
+.vnext-nav-dot {
+  opacity: 0.45;
+  user-select: none;
+}
+
+.vnext-classic-link {
+  font-weight: 700;
+  color: var(--forest-700, #2d5c4a);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(29, 74, 60, 0.22);
+}
+.vnext-classic-link:hover {
+  border-bottom-color: rgba(29, 74, 60, 0.45);
+}
+
+/* Bridge: hero → progress (narrative handoff) */
+.dashboard--vnext .vnext-hero-progress-connector {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.8vw, 22px);
+  width: 100%;
+  max-width: 1120px;
+  margin: clamp(10px, 1.6vw, 16px) auto clamp(6px, 1.2vw, 12px);
+  padding: clamp(10px, 1.8vw, 16px) 24px clamp(8px, 1.4vw, 14px);
+  box-sizing: border-box;
+}
+
+.dashboard--vnext .vnext-hero-progress-connector-line {
+  flex: 1;
+  max-width: min(180px, 26vw);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(29, 74, 60, 0.12),
+    rgba(29, 74, 60, 0.32),
+    rgba(29, 74, 60, 0.12),
+    transparent
+  );
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.dashboard--vnext .vnext-hero-progress-connector-label {
+  margin: 0;
+  flex: 0 1 auto;
+  text-align: center;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--forest-900, #143126);
+  line-height: 1.3;
+  max-width: 32ch;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(29, 74, 60, 0.14);
+  box-shadow: 0 4px 14px rgba(16, 41, 32, 0.06);
+}
+
+.dashboard--vnext.is-near-stage-finish .vnext-hero-progress-connector-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(29, 74, 60, 0.16),
+    rgba(29, 74, 60, 0.4),
+    rgba(29, 74, 60, 0.16),
+    transparent
+  );
+}
+
+.dashboard--vnext.is-near-stage-finish .vnext-hero-progress-connector-label {
+  border-color: rgba(29, 74, 60, 0.22);
+  box-shadow: 0 5px 18px rgba(16, 41, 32, 0.09);
+}
+
+/* Today — daily nudge (headline + localStorage vs in-band % only) */
+.dashboard--vnext .vnext-today-move {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+  padding: clamp(8px, 1.15vw, 12px) clamp(14px, 2vw, 18px);
+  border-radius: 12px;
+  background: rgba(29, 74, 60, 0.04);
+  border: 1px solid rgba(29, 74, 60, 0.14);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+.dashboard--vnext .vnext-today-label {
+  margin: 0 0 2px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(0.65rem, 1.05vw, 0.72rem);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(20, 49, 38, 0.55);
+  line-height: 1.2;
+}
+
+.dashboard--vnext .vnext-today-primary {
+  margin: 0 0 2px;
+  max-width: 48ch;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(1.02rem, 1.95vw, 1.14rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.32;
+  color: rgba(8, 25, 18, 0.94);
+}
+
+.dashboard--vnext .vnext-today-amount {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #081912;
+}
+
+.dashboard--vnext .vnext-today-bridge {
+  margin-top: 1px;
+}
+
+.dashboard--vnext .vnext-today-gap-line {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 0.7rem;
+  line-height: 1.36;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgba(20, 49, 38, 0.52);
+}
+
+.dashboard--vnext .vnext-today-feedback {
+  margin: 0.32em 0 0;
+  max-width: 52ch;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  font-weight: 500;
+  color: rgba(20, 49, 38, 0.58);
+}
+
+.dashboard--vnext .vnext-today-feedback[hidden] {
+  display: none !important;
+}
+
+.dashboard--vnext .vnext-today-streak {
+  margin: 0.22em 0 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  font-weight: 500;
+  color: rgba(20, 49, 38, 0.45);
+}
+
+.dashboard--vnext .vnext-today-streak[hidden] {
+  display: none !important;
+}
+
+/* Next move — command layer (headline + stage copy only; no extra math) */
+.dashboard--vnext .vnext-next-move {
+  grid-column: 1 / -1;
+  margin-top: clamp(4px, 0.65vw, 8px);
+  padding: clamp(14px, 1.9vw, 20px) clamp(16px, 2.4vw, 26px);
+  border-radius: 16px;
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.82)),
+    linear-gradient(120deg, rgba(29, 74, 60, 0.1), rgba(29, 74, 60, 0.04));
+  border: 1px solid rgba(29, 74, 60, 0.28);
+  border-left: 4px solid rgba(20, 58, 45, 0.88);
+  box-shadow:
+    0 8px 26px rgba(16, 41, 32, 0.09),
+    0 1px 0 rgba(255, 255, 255, 0.88) inset;
+}
+
+.dashboard--vnext .vnext-next-move-title {
+  margin: 0 0 8px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(0.76rem, 1.25vw, 0.86rem);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(20, 49, 38, 0.78);
+  line-height: 1.2;
+}
+
+.dashboard--vnext .vnext-next-move-primary {
+  margin: 0;
+  max-width: 48ch;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(1.18rem, 2.4vw, 1.34rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.28;
+  color: #081912;
+}
+
+.dashboard--vnext.is-near-stage-finish .vnext-next-move-primary {
+  color: #050f0c;
+  transform: scale(1.02);
+  transform-origin: 0 50%;
+  transition: color 0.25s ease, transform 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard--vnext.is-near-stage-finish .vnext-next-move-primary {
+    transform: none;
+  }
+}
+
+.dashboard--vnext .vnext-next-move-context {
+  display: none;
+  margin: 0;
+  max-width: 56ch;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ink-500, #5a7060);
+}
+
+.dashboard--vnext .vnext-next-move-secondary {
+  display: none;
+  margin: 0;
+  max-width: 56ch;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--ink-600, #4a5c50);
+}
+
+/* Bridge: progress → financial section — PROOF band: validation, not filler */
+.dashboard--vnext .vnext-financial-bridge {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 1120px;
+  margin: clamp(32px, 4.2vw, 48px) auto 0;
+  padding: clamp(36px, 4.6vw, 52px) 24px clamp(16px, 2vw, 20px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+  border-top: 3px solid rgba(29, 74, 60, 0.38);
+  box-shadow:
+    0 -14px 36px rgba(16, 41, 32, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  background:
+    linear-gradient(180deg, rgba(29, 74, 60, 0.14), rgba(29, 74, 60, 0.04) 45%, transparent 78%);
+}
+
+.dashboard--vnext .vnext-financial-bridge-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: clamp(22px, 3vw, 32px) clamp(26px, 3.4vw, 36px);
+  border-radius: 22px;
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.99), rgba(255, 255, 255, 0.62)),
+    rgba(29, 74, 60, 0.07);
+  border: 1px solid rgba(29, 74, 60, 0.32);
+  border-left: 6px solid rgba(29, 74, 60, 0.68);
+  box-shadow:
+    0 24px 56px rgba(16, 41, 32, 0.16),
+    0 2px 0 rgba(255, 255, 255, 0.88) inset;
+}
+
+.dashboard--vnext .vnext-financial-bridge-rule {
+  flex: 1;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(29, 74, 60, 0.32), transparent);
+}
+
+.dashboard--vnext .vnext-financial-bridge-proofline {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px 10px;
+  margin: 0;
+  text-align: center;
+  min-width: min(100%, 280px);
+}
+
+.dashboard--vnext .vnext-financial-bridge-label {
+  font-size: clamp(1rem, 1.75vw, 1.12rem);
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--forest-950, #0d2218);
+  line-height: 1.15;
+}
+
+.dashboard--vnext .vnext-financial-bridge-emdash {
+  font-weight: 600;
+  color: rgba(29, 74, 60, 0.38);
+  font-size: 1.1rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.dashboard--vnext .vnext-financial-bridge-sub {
+  font-size: clamp(0.94rem, 1.55vw, 1.06rem);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--forest-900, #143126);
+  line-height: 1.3;
+  max-width: 32ch;
+}
+
+.dashboard--vnext .vnext-financial-bridge-hint {
+  margin: 0;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-600, #4a5c50);
+  text-align: center;
+  max-width: 48ch;
+  align-self: center;
+  opacity: 0.94;
+}
+
+/* Data strip: align with section stack (hero → … → data) */
+.dashboard--vnext .vnext-data-strip {
+  padding-top: clamp(18px, 2.2vw, 22px);
+}
+
+.vnext-data-strip-head {
+  margin: 0 0 10px;
+}
+
+.vnext-data-strip-eyebrow {
+  margin: 0;
+  opacity: 0.9;
+}
+
+/* Tier rail — compact ladder, clear past / current / future */
+.dashboard--vnext .hero-tier-rail {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px 4px 14px;
+  margin-top: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.dashboard--vnext .hero-tier-step {
+  flex: 0 0 auto;
+  min-width: 100px;
+  max-width: 124px;
+  padding: 8px 8px 6px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(29, 74, 60, 0.09);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  opacity: 0.5;
+  filter: saturate(0.92);
+  transition: opacity 160ms ease, transform 160ms ease, filter 160ms ease, border-color 160ms ease;
+}
+
+.dashboard--vnext .hero-tier-step.is-current {
+  opacity: 1;
+  filter: none;
+  border-style: solid;
+  border-color: rgba(29, 74, 60, 0.38);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 0 0 1px rgba(29, 74, 60, 0.06),
+    0 8px 22px rgba(16, 41, 32, 0.12);
+  transform: translateY(-1px);
+  z-index: 1;
+}
+
+.dashboard--vnext .hero-tier-step.is-complete {
+  opacity: 0.58;
+  border-style: dashed;
+  border-color: rgba(29, 74, 60, 0.16);
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Upcoming tiers: visible but quieter than current */
+.dashboard--vnext .hero-tier-step.is-next:not(.is-current) {
+  opacity: 0.66;
+  border-color: rgba(29, 74, 60, 0.12);
+}
+
+.dashboard--vnext .hero-tier-step:not(.is-current):not(.is-complete):not(.is-next) {
+  opacity: 0.42;
+}
+
+.dashboard--vnext .hero-tier-step-badge {
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.dashboard--vnext .hero-tier-step-label {
+  font-size: 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard--vnext .hero-tier-step-phase {
+  font-size: 0.55rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-500, #5a7060);
+}
+
+@media (max-width: 900px) {
+  .dashboard--vnext .vnext-hero-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas:
+      "frame"
+      "caption"
+      "story";
+  }
+
+  .dashboard--vnext .hero-story-column {
+    max-width: none;
+  }
+
+  .dashboard--vnext .hero-state-card {
+    transform: translateZ(0) scale(1.02);
+  }
+}
+
+@media (max-width: 820px) {
+  .dashboard--vnext .vnext-financial-bridge {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .dashboard--vnext .vnext-financial-bridge-card {
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 12px 14px;
+  }
+
+  .dashboard--vnext .vnext-financial-bridge-rule {
+    display: none;
+  }
+
+  .dashboard--vnext .vnext-financial-bridge-proofline {
+    width: 100%;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .dashboard--vnext .vnext-financial-bridge-emdash {
+    display: none;
+  }
+
+  .dashboard--vnext .vnext-financial-bridge-sub {
+    max-width: 36ch;
+  }
+
+  .dashboard--vnext .vnext-hero-progress-connector {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .dashboard--vnext .vnext-hero-progress-connector-line {
+    max-width: 48px;
+  }
+}
+
+/* ── Full payoff journey (cumulative tier axis from /api/status stats.debtTierJourney) ─ */
+.dashboard--vnext .vnext-journey-panel {
+  grid-column: 1 / -1;
+  padding: clamp(18px, 2.4vw, 24px) clamp(22px, 3vw, 28px);
+  border-radius: clamp(18px, 2.2vw, 22px);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12));
+  border: 1px solid rgba(29, 74, 60, 0.12);
+  box-shadow: 0 10px 28px rgba(16, 41, 32, 0.06);
+}
+
+.dashboard--vnext .vnext-journey-panel[hidden] {
+  display: none !important;
+}
+
+.dashboard--vnext .vnext-journey-header {
+  margin-bottom: 14px;
+}
+
+.dashboard--vnext .vnext-journey-eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(20, 49, 38, 0.48);
+}
+
+.dashboard--vnext .vnext-journey-title {
+  margin: 0 0 8px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.15rem, 2.4vw, 1.35rem);
+  font-weight: 800;
+  color: var(--forest-900, #0f241c);
+  letter-spacing: -0.02em;
+}
+
+.dashboard--vnext .vnext-journey-sub {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--ink-500, #5a7060);
+}
+
+.dashboard--vnext .vnext-journey-visual[hidden] {
+  display: none !important;
+}
+
+.dashboard--vnext .vnext-journey-track {
+  position: relative;
+  height: 14px;
+  margin-top: 16px;
+  border-radius: 999px;
+  background: rgba(29, 74, 60, 0.1);
+  box-shadow: inset 0 1px 2px rgba(16, 38, 28, 0.12);
+  overflow: visible;
+}
+
+.dashboard--vnext .vnext-journey-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.dashboard--vnext .vnext-journey-tick {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  transform: translateX(-50%);
+  background: rgba(29, 74, 60, 0.18);
+}
+
+.dashboard--vnext .vnext-journey-tick.is-next-boundary {
+  width: 2px;
+  background: rgba(29, 74, 60, 0.42);
+  z-index: 2;
+}
+
+.dashboard--vnext .vnext-journey-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(45, 92, 74, 0.35), rgba(45, 120, 95, 0.85));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: width 0.35s ease;
+  z-index: 1;
+}
+
+.dashboard--vnext .vnext-journey-line {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 0;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.dashboard--vnext .vnext-journey-line[hidden] {
+  display: none !important;
+}
+
+.dashboard--vnext .vnext-journey-line--next::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--forest-700, #2d5c4a);
+  border-radius: 1px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.dashboard--vnext .vnext-journey-line--next::after {
+  content: 'Next tier';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--forest-800, #1d4a3c);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(29, 74, 60, 0.18);
+}
+
+.dashboard--vnext .vnext-journey-line--goal {
+  left: 100%;
+}
+
+.dashboard--vnext .vnext-journey-line--goal::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(180, 120, 40, 0.95);
+  border-radius: 1px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.dashboard--vnext .vnext-journey-line--goal::after {
+  content: 'Goal';
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(100, 70, 20, 0.95);
+  background: rgba(255, 252, 245, 0.98);
+  border: 1px solid rgba(180, 120, 40, 0.35);
+}
+
+.dashboard--vnext .vnext-journey-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--forest-700, #2d5c4a);
+  box-shadow: 0 1px 4px rgba(16, 41, 32, 0.25);
+  transform: translateX(-50%);
+  z-index: 4;
+  transition: left 0.35s ease;
+}
+
+.dashboard--vnext .vnext-journey-endcaps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(20, 49, 38, 0.45);
+}
+
+.dashboard--vnext .vnext-journey-copy-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+@media (max-width: 520px) {
+  .dashboard--vnext .vnext-journey-copy-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard--vnext .vnext-journey-stat {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--forest-900, #0f241c);
+  line-height: 1.35;
+}
+
+.dashboard--vnext .vnext-journey-stat .vnext-journey-money {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Progress in this stage (elevated module — same fillProgressNarrative + bar as live) ─ */
+.dashboard--vnext .vnext-stage-progress-shell {
+  grid-column: 1 / -1;
+  padding: clamp(22px, 2.7vw, 28px) clamp(22px, 3vw, 28px) clamp(14px, 1.9vw, 20px);
+}
+
+.dashboard--vnext .vnext-progress-section-header {
+  margin-bottom: 6px;
+}
+
+/* Align primary section kickers (financial + checkpoints + data) */
+.dashboard--vnext .financial-board .board-eyebrow-row .board-eyebrow {
+  margin-bottom: 0;
+}
+
+/* Breathing room — thin secondary meter (bar = progress toward API breathingRoomGoalMonths, default 2.0 mo) */
+.dashboard--vnext .vnext-breathing-room {
+  margin: 4px 0 16px;
+  padding: 10px 12px 12px;
+  border-radius: 11px;
+  background: rgba(16, 38, 28, 0.028);
+  border: 1px solid rgba(29, 74, 60, 0.1);
+}
+
+.dashboard--vnext .vnext-breathing-room[hidden] {
+  display: none !important;
+}
+
+.dashboard--vnext .vnext-breathing-room-title {
+  margin: 0 0 7px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgba(20, 49, 38, 0.5);
+  line-height: 1.2;
+}
+
+.dashboard--vnext .vnext-breathing-room-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(29, 74, 60, 0.09);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(16, 38, 28, 0.1);
+}
+
+.dashboard--vnext .vnext-breathing-room-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: rgba(90, 112, 96, 0.5);
+  transition: width 0.32s ease;
+}
+
+.dashboard--vnext .vnext-breathing-room.is-exposed .vnext-breathing-room-fill {
+  background: rgba(150, 82, 88, 0.58);
+}
+
+.dashboard--vnext .vnext-breathing-room.is-stabilizing .vnext-breathing-room-fill {
+  background: rgba(95, 120, 75, 0.52);
+}
+
+.dashboard--vnext .vnext-breathing-room.is-fortified .vnext-breathing-room-fill {
+  background: rgba(50, 110, 88, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard--vnext .vnext-breathing-room-fill {
+    transition: none;
+  }
+}
+
+.dashboard--vnext .vnext-breathing-room-readout {
+  margin: 7px 0 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-600, #4a5c50);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.dashboard--vnext .vnext-breathing-room-caption {
+  margin: 5px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  font-weight: 500;
+  color: rgba(20, 49, 38, 0.46);
+  max-width: 50ch;
+}
+
+.dashboard--vnext .vnext-progress-section-title {
+  margin: 0 0 8px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(1.05rem, 2vw, 1.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--forest-950, #0d2218);
+}
+
+.dashboard--vnext .vnext-progress-header-note {
+  margin: 0 0 10px;
+  max-width: 48ch;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-500, #5a7060);
+}
+
+.dashboard--vnext .vnext-board-progress.board-block {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.dashboard--vnext .vnext-board-progress {
+  margin-top: 0;
+}
+
+/* Dollars + bar read as one actionable unit */
+.dashboard--vnext .vnext-progress-goal-band {
+  position: relative;
+  padding: 18px 20px 20px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.58), transparent 55%),
+    rgba(16, 38, 28, 0.045);
+  border: 1px solid rgba(29, 74, 60, 0.16);
+  box-shadow:
+    0 12px 32px rgba(16, 41, 32, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Tier lane + stage-gap dollars support the bar; full escape sentence stays on the hero card */
+.dashboard--vnext .vnext-progress-goal-band .board-progress-head {
+  margin-bottom: 10px;
+}
+
+/* Micro cue above bar (collapsed when not in near-finish state — no permanent blank band) */
+.dashboard--vnext .vnext-progress-finish-cue {
+  margin: 0;
+  padding: 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  color: rgba(74, 92, 80, 0.92);
+  pointer-events: none;
+  transition:
+    max-height 0.28s ease,
+    opacity 0.28s ease,
+    margin-bottom 0.28s ease;
+}
+
+.dashboard--vnext.is-near-stage-finish .vnext-progress-finish-cue {
+  max-height: 2.25rem;
+  opacity: 1;
+  margin-bottom: 6px;
+}
+
+/* Near-finish: subtle “tension” on the in-band bar (filled portion only) */
+@keyframes vnext-progress-fill-near {
+  0%,
+  100% {
+    filter: brightness(1.03) saturate(1.08);
+  }
+  50% {
+    filter: brightness(1.07) saturate(1.14);
+  }
+}
+
+.dashboard--vnext.is-near-stage-finish .vnext-progress-bar-for-goal .progress-bar-fill {
+  animation: vnext-progress-fill-near 3.4s ease-in-out infinite;
+  filter: brightness(1.04) saturate(1.1);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.32),
+    0 0 28px rgba(196, 71, 92, 0.48),
+    inset -12px 0 18px rgba(255, 255, 255, 0.22);
+}
+
+.dashboard--vnext.is-near-stage-finish .vnext-progress-bar-for-goal .progress-bar-fill::after {
+  box-shadow:
+    0 0 0 1px rgba(163, 35, 64, 0.35),
+    0 0 18px rgba(255, 255, 255, 0.55),
+    0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard--vnext.is-near-stage-finish .vnext-progress-bar-for-goal .progress-bar-fill {
+    animation: none;
+  }
+}
+
+/* Supporting: in-stage bar — % caption under (aria-valuenow → readout in JS) */
+.dashboard--vnext .vnext-progress-bar-for-goal {
+  margin-top: 0;
+  height: 16px;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 3px rgba(16, 38, 28, 0.12),
+    0 0 0 1px rgba(29, 74, 60, 0.08),
+    0 4px 12px rgba(16, 41, 32, 0.06);
+}
+
+.dashboard--vnext .vnext-inband-readout-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 2px 0;
+  border: none;
+  border-top: 1px solid rgba(29, 74, 60, 0.1);
+}
+
+/* In-band % is the sighted readout for this module (gap dollars live in the hero). */
+.dashboard--vnext .vnext-inband-pct-readout {
+  font-size: clamp(0.95rem, 1.8vw, 1.06rem);
+  font-weight: 800;
+  color: var(--forest-900, #143126);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  letter-spacing: -0.01em;
+}
+
+/* Snapshot narrative from render(): optional detail — bar + % stay the scan path */
+.dashboard--vnext .vnext-board-progress .progress-lead {
+  margin-top: 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--forest-900, #173326);
+  max-width: 52ch;
+  opacity: 0.92;
+}
+
+.dashboard--vnext .vnext-board-progress .progress-line {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink-700, #44584e);
+  max-width: 58ch;
+  opacity: 0.95;
+}
+
+.dashboard--vnext .vnext-board-progress .progress-hint {
+  margin-top: 4px;
+  font-size: 0.62rem;
+  font-weight: 500;
+  font-style: normal;
+  line-height: 1.4;
+  color: var(--ink-500, #5a7060);
+  max-width: 54ch;
+  opacity: 0.48;
+}
+
+/* Milestone (nextTier.nextCopy): slightly stronger than generic hints so it scans */
+.dashboard--vnext .vnext-board-progress .progress-milestone-next.progress-hint {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--ink-600, #4a5e52);
+  max-width: 58ch;
+  opacity: 0.92;
+}
+
+/* Stale-data guard: readable but still helper-weight (not a headline) */
+.dashboard--vnext .vnext-board-progress #progress-stale-note {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-style: normal;
+  line-height: 1.45;
+  color: var(--ink-600, #4a5e52);
+  max-width: 58ch;
+  opacity: 0.9;
+}
+
+.dashboard--vnext .vnext-board-progress .paid-row {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(29, 74, 60, 0.1);
+}
+
+.dashboard--vnext .vnext-board-progress .paid-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-500, #5a7060);
+}
+
+/* ── Monthly checkpoints (supporting — quieter than hero + financial board) ─ */
+.dashboard--vnext .vnext-checkpoints-shell {
+  grid-column: 1 / -1;
+  padding: clamp(22px, 2.6vw, 26px) clamp(22px, 3vw, 28px) clamp(22px, 2.6vw, 26px);
+  border-top: 3px solid rgba(29, 74, 60, 0.12);
+}
+
+.vnext-checkpoints-header {
+  margin-bottom: 12px;
+}
+
+.vnext-checkpoints-eyebrow {
+  opacity: 0.88;
+  margin: 0 0 5px;
+}
+
+.vnext-checkpoints-title {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(1.02rem, 1.9vw, 1.14rem);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--forest-950, #0d2218);
+}
+
+.vnext-checkpoints-intro {
+  margin: 0 0 16px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ink-600, #4a5c50);
+  max-width: 72ch;
+}
+
+.vnext-checkpoint-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.vnext-checkpoint-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title badge"
+    "detail detail";
+  gap: 6px 14px;
+  padding: 15px 16px 15px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(29, 74, 60, 0.14);
+  border-left: 4px solid rgba(29, 74, 60, 0.35);
+  box-shadow:
+    0 6px 18px rgba(16, 41, 32, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.vnext-checkpoint-row.is-clear {
+  border-left-color: rgba(46, 125, 95, 0.65);
+}
+
+.vnext-checkpoint-row.is-due {
+  border-left-color: rgba(199, 120, 48, 0.75);
+}
+
+.vnext-checkpoint-row.is-upcoming {
+  border-left-color: rgba(77, 134, 199, 0.62);
+}
+
+.vnext-checkpoint-title {
+  grid-area: title;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--forest-900, #143126);
+}
+
+.vnext-checkpoint-badge {
+  grid-area: badge;
+  align-self: start;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 74, 60, 0.14);
+  background: rgba(29, 74, 60, 0.06);
+  color: var(--forest-800, #1d4a3c);
+  white-space: nowrap;
+}
+
+.vnext-checkpoint-detail {
+  grid-area: detail;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--ink-500, #5a7060);
+}
+
+.vnext-checkpoint-row.is-clear .vnext-checkpoint-badge {
+  background: rgba(46, 125, 95, 0.12);
+  border-color: rgba(46, 125, 95, 0.22);
+  color: var(--forest-800, #1d4a3c);
+}
+
+.vnext-checkpoint-row.is-due .vnext-checkpoint-badge {
+  background: rgba(199, 120, 48, 0.14);
+  border-color: rgba(199, 120, 48, 0.28);
+  color: #6a3f12;
+}
+
+.vnext-checkpoint-row.is-upcoming .vnext-checkpoint-badge {
+  background: rgba(77, 134, 199, 0.12);
+  border-color: rgba(77, 134, 199, 0.22);
+  color: #254a6e;
+}
+
+/* ── Explore the climb (showcase-style tier cards — vnext only; no illustrative progress bars) ─ */
+.dashboard--vnext .board-progress-head .tier-lane {
+  display: none;
+}
+
+.dashboard--vnext .board-progress-head {
+  gap: 0;
+}
+
+.dashboard--vnext .vnext-explore-climb {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: clamp(18px, 2.4vw, 26px) 0 4px;
+}
+
+.dashboard--vnext .vnext-explore-climb-header {
+  max-width: min(1120px, 100%);
+  margin: 0 auto 18px;
+  padding: 0 clamp(16px, 3vw, 28px);
+}
+
+.dashboard--vnext .vnext-explore-climb-eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500, #5a7060);
+}
+
+.dashboard--vnext .vnext-explore-climb-title {
+  margin: 0 0 8px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.35rem, 2.4vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--forest-950, #0d2218);
+}
+
+.dashboard--vnext .vnext-explore-climb-guide {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-500, #5a7060);
+  max-width: 48ch;
+}
+
+.dashboard--vnext .vnext-explore-climb-sub {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--ink-600, #4a5c50);
+  max-width: 58ch;
+  opacity: 0.92;
+}
+
+.dashboard--vnext .vnext-explore-climb-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  padding: 8px clamp(16px, 3vw, 28px) 20px;
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 2%,
+    #000 98%,
+    transparent 100%
+  );
+}
+
+.dashboard--vnext .vnext-explore-climb-track {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 20px;
+  width: max-content;
+  min-height: 0;
+}
+
+.dashboard--vnext .vnext-sc-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  scroll-snap-align: start;
+  flex-shrink: 0;
+  padding-bottom: 6px;
+}
+
+.dashboard--vnext .vnext-sc-wrap[data-tier-id='wealthy'] {
+  --vnext-sc-accent: rgba(245, 210, 55, 0.9);
+}
+
+@keyframes vnextScActivePulse {
+  0%,
+  100% {
+    box-shadow:
+      0 6px 22px rgba(0, 0, 0, 0.2),
+      0 2px 6px rgba(0, 0, 0, 0.12),
+      0 0 0 2px var(--vnext-sc-accent, rgba(255, 255, 255, 0.35)),
+      0 0 16px 2px var(--vnext-sc-accent, rgba(255, 255, 255, 0.16));
+  }
+  50% {
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.24),
+      0 2px 6px rgba(0, 0, 0, 0.12),
+      0 0 0 3px var(--vnext-sc-accent, rgba(255, 255, 255, 0.5)),
+      0 0 26px 5px var(--vnext-sc-accent, rgba(255, 255, 255, 0.24));
+  }
+}
+
+.dashboard--vnext .vnext-sc-card {
+  --vnext-sc-accent: rgba(72, 192, 122, 0.55);
+  position: relative;
+  width: 252px;
+  height: 400px;
+  border-radius: 20px;
+  overflow: hidden;
+  padding-top: 42px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.dashboard--vnext .vnext-sc-card:hover {
+  transform: translateY(-6px) scale(1.012);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.26), 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+.dashboard--vnext .vnext-sc-card.is-active {
+  animation: vnextScActivePulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard--vnext .vnext-sc-card.is-active {
+    animation: none;
+    box-shadow:
+      0 8px 28px rgba(0, 0, 0, 0.22),
+      0 0 0 3px var(--vnext-sc-accent, rgba(255, 255, 255, 0.45));
+  }
+}
+
+.dashboard--vnext .vnext-sc-card.is-active:hover {
+  animation: none;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.28),
+    0 0 0 3px var(--vnext-sc-accent, rgba(255, 255, 255, 0.5));
+}
+
+.dashboard--vnext .vnext-sc-mount {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  padding-top: 36px;
+}
+
+.dashboard--vnext .vnext-sc-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 12;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.95);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  padding: 5px 12px 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}
+
+.dashboard--vnext .vnext-sc-active-chip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 12;
+  background: var(--vnext-sc-accent, rgba(255, 255, 255, 0.25));
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 9px 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.dashboard--vnext .vnext-sc-active-chip[hidden] {
+  display: none !important;
+}
+
+.dashboard--vnext .vnext-sc-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 11;
+  padding: 48px 14px 14px;
+  background: linear-gradient(
+    to top,
+    rgba(4, 14, 9, 0.92) 0%,
+    rgba(4, 14, 9, 0.72) 48%,
+    rgba(4, 14, 9, 0) 100%
+  );
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.dashboard--vnext .vnext-sc-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.dashboard--vnext .vnext-sc-phase {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 9px 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dashboard--vnext .vnext-sc-tier-name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.97);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.dashboard--vnext .vnext-sc-flavor {
+  font-size: 0.76rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.dashboard--vnext .vnext-sc-footnote {
+  margin: 4px 0 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.dashboard--vnext .vnext-sc-wrap .wealthy-sparkles {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.dashboard--vnext .wealthy-sparkles .ws {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 240, 160, 0.95), rgba(255, 215, 0, 0.6) 50%, transparent 70%);
+  animation: vnextWealthySparkleFloat 3.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.dashboard--vnext .ws-1 {
+  width: 4px;
+  height: 4px;
+  left: 30%;
+  top: 22%;
+  animation-delay: 0s;
+  animation-duration: 3.2s;
+}
+.dashboard--vnext .ws-2 {
+  width: 3px;
+  height: 3px;
+  left: 62%;
+  top: 28%;
+  animation-delay: 0.6s;
+  animation-duration: 3.8s;
+}
+.dashboard--vnext .ws-3 {
+  width: 5px;
+  height: 5px;
+  left: 44%;
+  top: 16%;
+  animation-delay: 1.2s;
+  animation-duration: 4.1s;
+}
+.dashboard--vnext .ws-4 {
+  width: 3px;
+  height: 3px;
+  left: 72%;
+  top: 38%;
+  animation-delay: 1.8s;
+  animation-duration: 3.5s;
+  opacity: 0.7;
+}
+.dashboard--vnext .ws-5 {
+  width: 4px;
+  height: 4px;
+  left: 36%;
+  top: 42%;
+  animation-delay: 0.4s;
+  animation-duration: 3.9s;
+}
+.dashboard--vnext .ws-6 {
+  width: 3px;
+  height: 3px;
+  left: 56%;
+  top: 50%;
+  animation-delay: 2.1s;
+  animation-duration: 3.3s;
+}
+.dashboard--vnext .ws-7 {
+  width: 5px;
+  height: 5px;
+  left: 40%;
+  top: 32%;
+  animation-delay: 0.9s;
+  animation-duration: 4.4s;
+}
+.dashboard--vnext .ws-8 {
+  width: 3px;
+  height: 3px;
+  left: 50%;
+  top: 14%;
+  animation-delay: 1.5s;
+  animation-duration: 3.6s;
+}
+.dashboard--vnext .ws-9 {
+  width: 3px;
+  height: 3px;
+  left: 20%;
+  top: 34%;
+  animation-delay: 2.4s;
+  animation-duration: 3.1s;
+  opacity: 0.6;
+}
+.dashboard--vnext .ws-10 {
+  width: 2px;
+  height: 2px;
+  left: 76%;
+  top: 20%;
+  animation-delay: 0.3s;
+  animation-duration: 4s;
+  opacity: 0.5;
+}
+
+@keyframes vnextWealthySparkleFloat {
+  0%,
+  100% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translateY(-18px) scale(1.2);
+  }
+  85% {
+    opacity: 0.6;
+    transform: translateY(-30px) scale(0.8);
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard--vnext .vnext-sc-card {
+    width: min(252px, 78vw);
+  }
+}
+
+/* ── Dark mode overrides for vNext sections ────────────────────── */
+
+:root.dark .steward-vnext-page {
+  background: linear-gradient(180deg, #0f1a15 0%, rgba(15, 26, 21, 0.92) 38%, #111e18 100%);
+}
+
+:root.dark .dashboard--vnext .vnext-explore-climb-header {
+  color: var(--forest-900);
+}
+
+:root.dark .dashboard--vnext .vnext-sc-card {
+  background: linear-gradient(165deg, rgba(26, 44, 35, 0.9), rgba(20, 36, 28, 0.85));
+  border-color: rgba(120, 180, 150, 0.14);
+}
+
+:root.dark .dashboard--vnext .vnext-sc-card.is-current {
+  border-color: rgba(120, 180, 150, 0.3);
+  box-shadow: 0 0 0 2px rgba(120, 180, 150, 0.1), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root.dark .dashboard--vnext .vnext-journey-panel {
+  background:
+    linear-gradient(145deg, rgba(26, 44, 35, 0.5), rgba(22, 38, 30, 0.12));
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-journey-track {
+  background: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-stage-progress-shell {
+  background:
+    linear-gradient(145deg, rgba(26, 44, 35, 0.5), rgba(22, 38, 30, 0.12));
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-today-move {
+  background: rgba(22, 38, 30, 0.6);
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-next-move {
+  background: rgba(22, 38, 30, 0.6);
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-financial-bridge-card {
+  background: rgba(22, 38, 30, 0.6);
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .financial-board {
+  background:
+    linear-gradient(145deg, rgba(26, 44, 35, 0.5), rgba(22, 38, 30, 0.12));
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-breathing-room {
+  background: rgba(16, 30, 24, 0.5);
+  border-color: rgba(120, 180, 150, 0.1);
+}
+
+:root.dark .dashboard--vnext .vnext-checkpoints-shell {
+  background:
+    linear-gradient(145deg, rgba(26, 44, 35, 0.5), rgba(22, 38, 30, 0.12));
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-checkpoint-row {
+  border-color: rgba(120, 180, 150, 0.08);
+}
+
+:root.dark .dashboard--vnext .vnext-data-strip {
+  background:
+    linear-gradient(145deg, rgba(26, 44, 35, 0.5), rgba(22, 38, 30, 0.12));
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-tier-gap-callout {
+  background: rgba(22, 38, 30, 0.6);
+  border-color: rgba(120, 180, 150, 0.12);
+}
+
+:root.dark .dashboard--vnext .vnext-hero-chip {
+  background: rgba(22, 38, 30, 0.7);
+  border-color: rgba(120, 180, 150, 0.15);
+}
+
+:root.dark .dashboard--vnext .data-strip-actions button {
+  background: rgba(22, 38, 30, 0.8);
+  border-color: rgba(120, 180, 150, 0.2);
+  color: var(--forest-900);
+}
+
+:root.dark .dashboard--vnext .data-strip-actions button:hover {
+  background: rgba(30, 50, 40, 0.9);
+  border-color: rgba(120, 180, 150, 0.3);
+}
+
+/* ── Consolidated shell: additional mobile refinements ──────────── */
+
+@media (max-width: 620px) {
+  .vnext-top-nav-inner {
+    padding: 10px 16px;
+  }
+
+  .vnext-nav-brand-text {
+    font-size: 0.95rem;
+  }
+
+  .vnext-nav-links a {
+    font-size: 0.78rem;
+    padding: 5px 10px;
+  }
+
+  .dashboard--vnext .vnext-card-caption {
+    padding: 0 4px;
+  }
+
+  .dashboard--vnext .vnext-card-caption h1 {
+    font-size: clamp(1.3rem, 5vw, 1.8rem);
+  }
+
+  .dashboard--vnext .vnext-hero-chips {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .dashboard--vnext .vnext-tier-gap-callout {
+    padding: 10px 14px;
+  }
+
+  .dashboard--vnext .vnext-explore-climb-header {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .dashboard--vnext .vnext-today-move {
+    padding: 16px 18px;
+  }
+
+  .dashboard--vnext .vnext-next-move {
+    padding: 16px 18px;
+  }
+
+  .dashboard--vnext .vnext-next-move-primary {
+    font-size: clamp(1rem, 4vw, 1.2rem);
+  }
+
+  .dashboard--vnext .vnext-checkpoints-shell {
+    padding: 16px 18px;
+  }
+
+  .dashboard--vnext .vnext-checkpoint-row {
+    padding: 12px 14px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .dashboard--vnext .vnext-data-strip {
+    padding: 16px 18px;
+  }
+
+  .dashboard--vnext .data-strip-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .dashboard--vnext .data-strip-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dashboard--vnext .data-strip-actions button {
+    width: 100%;
+  }
+
+  .dashboard--vnext .vnext-breathing-room {
+    padding: 8px 10px 10px;
+  }
+
+  .play-meta-actions {
+    padding: 0 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .vnext-top-nav-inner {
+    padding: 8px 12px;
+  }
+
+  .dashboard.dashboard--vnext {
+    gap: 14px;
+    padding-bottom: 32px;
+  }
+
+  .dashboard--vnext .hero-section {
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .dashboard--vnext .hero-stage-frame {
+    min-height: 440px;
+    padding: 6px;
+  }
+
+  .dashboard--vnext .hero-state-card {
+    min-height: 420px;
+    border-radius: 22px;
+  }
+
+  .dashboard--vnext .vnext-stage-progress-shell,
+  .dashboard--vnext .vnext-journey-panel,
+  .dashboard--vnext .financial-board {
+    padding: 14px 14px 12px;
+    border-radius: 18px;
+  }
+
+  .dashboard--vnext .board-health-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard--vnext .board-primary {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dashboard--vnext .board-primary-rule {
+    display: none;
+  }
+
+  .dashboard--vnext .board-primary-nw {
+    text-align: left;
+    padding-top: 10px;
+    border-top: 1px solid rgba(21, 43, 34, 0.14);
+  }
+}

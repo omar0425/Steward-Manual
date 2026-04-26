@@ -1,0 +1,59 @@
+{
+  "_readme": "Supplemental climb / gallery tone only. Tier ids, thresholds, and primary copy come from the API (services/tiers.js). This file adds stage-group framing and optional emotional lines for the /steward-vnext preview and can be loaded by showcase later.",
+  "stageGroups": {
+    "Pressure": {
+      "label": "Pressure",
+      "blurb": "Early climb — tension, traction, and proving the trend."
+    },
+    "Momentum": {
+      "label": "Momentum",
+      "blurb": "Mid climb — rhythm, control, and compounding proof."
+    },
+    "Reward": {
+      "label": "Reward",
+      "blurb": "Late climb: finish lines, discipline, and life after debt."
+    }
+  },
+  "tiers": {
+    "rock_bottom": {
+      "stageGroup": "Pressure",
+      "climbTagline": "You are at the floor of the climb. The only way out is through."
+    },
+    "broke": {
+      "stageGroup": "Pressure",
+      "climbTagline": "The first real dent — proof the system can move."
+    },
+    "struggling": {
+      "stageGroup": "Pressure",
+      "climbTagline": "Momentum is fragile but real; protect the trend."
+    },
+    "surviving": {
+      "stageGroup": "Momentum",
+      "climbTagline": "The floor steadies — consistency starts to compound."
+    },
+    "stabilizing": {
+      "stageGroup": "Momentum",
+      "climbTagline": "The climb feels calmer; guard the rhythm."
+    },
+    "stable": {
+      "stageGroup": "Momentum",
+      "climbTagline": "You can see the other side — stay disciplined."
+    },
+    "building": {
+      "stageGroup": "Momentum",
+      "climbTagline": "Identity shifts — you are building, not just surviving."
+    },
+    "thriving": {
+      "stageGroup": "Reward",
+      "climbTagline": "Rare air — defend what you earned."
+    },
+    "winning": {
+      "stageGroup": "Reward",
+      "climbTagline": "The finish line is visible — close it out."
+    },
+    "wealthy": {
+      "stageGroup": "Reward",
+      "climbTagline": "Debt at zero: the climb becomes maintenance, then rebuilding."
+    }
+  }
+}

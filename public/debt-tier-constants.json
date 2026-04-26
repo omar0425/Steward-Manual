@@ -1,0 +1,4 @@
+{
+  "ROCK_BOTTOM_BAND_BUFFER": 10000,
+  "_readme": "Single source for Rock Bottom fixed band width. services/tiers.js requires this file; showcase loads it via fetch. See docs/debt-tier-progress-team-summary.md."
+}

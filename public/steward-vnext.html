@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Split dev only: point API at another origin, e.g. <meta name="steward-api-origin" content="http://localhost:3000" /> -->
+  <title>Steward — The climb</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/steward-vnext.css" />
+</head>
+<body class="steward-vnext-page" data-app-mode="start">
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     START GAME (session gate — does not reset financial data)
+═══════════════════════════════════════════════════════════════════ -->
+<div id="start-game-screen" class="start-game-screen" role="dialog" aria-modal="true" aria-labelledby="start-game-title">
+  <div class="start-game-inner">
+    <p class="start-game-brand">Steward</p>
+    <h1 id="start-game-title" class="start-game-title">Start Game</h1>
+    <p class="start-game-subtitle">Begin this run and track your progress.</p>
+    <div id="start-game-character" class="start-game-character" aria-hidden="true"></div>
+    <p class="start-game-clock" id="start-game-clock" aria-live="polite"></p>
+    <button type="button" class="start-game-btn" id="start-game-btn">Start Game</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     LOADING STATE
+═══════════════════════════════════════════════════════════════════ -->
+<div id="loading-screen" class="loading-screen">
+  <div class="loading-inner">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Pulling your financial data…</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     BOOT ERROR (shown only in data-app-mode="error")
+═══════════════════════════════════════════════════════════════════ -->
+<div id="app-error-screen" class="app-error-screen" role="alert" aria-live="assertive">
+  <div class="app-error-inner">
+    <p class="app-error-title">Couldn’t load Steward</p>
+    <p class="app-error-text" id="app-error-text"></p>
+    <p class="app-error-hint">We’ll retry automatically. Check that the server is running (<code>npm start</code> in the steward folder).</p>
+  </div>
+</div>
+
+<header class="vnext-top-nav app-shell" aria-label="Preview navigation">
+  <div class="vnext-top-nav-inner">
+    <a href="/" class="vnext-nav-brand" aria-label="Steward — home (same tab)">
+      <img src="/favicon.svg" width="28" height="28" alt="" />
+      <span class="vnext-nav-brand-text">Steward</span>
+    </a>
+    <div class="vnext-top-nav-right">
+      <span class="vnext-nav-badge">vNext</span>
+      <nav class="vnext-nav-links">
+        <a href="/">Main (Play)</a>
+        <a href="/classic">Classic</a>
+        <a href="/showcase">Tier gallery</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     DASHBOARD (vnext — same data wiring as live dashboard)
+═══════════════════════════════════════════════════════════════════ -->
+<main class="dashboard dashboard--vnext app-shell" id="dashboard-vnext">
+
+  <!-- ── HERO ─────────────────────────────────────────────────────── -->
+  <section class="hero-section" id="hero-section">
+    <div class="vnext-hero-shell">
+      <div class="hero-stage-column">
+        <div class="hero-stage-frame">
+          <div id="hero-state-card" class="state-card hero-state-card" data-state="rock_bottom">
+          <!-- Badge chip top-left -->
+          <div class="card-badge-chip" id="card-badge-chip">01</div>
+          <!-- Character -->
+          <div class="card-stage">
+            <div id="hero-steward-mount"></div>
+          </div>
+          <!-- Card footer overlay -->
+          <div
+            class="card-footer"
+            role="group"
+            aria-labelledby="card-tier-gap-headline card-tier-name"
+            aria-describedby="hero-card-footer-a11y-desc"
+          >
+            <div class="card-footer-top">
+              <span class="card-tier-gap-headline" id="card-tier-gap-headline">→ —</span>
+              <span class="card-tier-name" id="card-tier-name">Rock Bottom</span>
+            </div>
+            <p class="sr-only" id="hero-card-footer-a11y-desc">
+              Primary cue: dollar gap to escape your current payoff stage is the first line; stage name follows. The thin bar is only your position within this stage—not breathing room or how much debt you have paid down overall.
+            </p>
+            <div class="card-footer-bar" aria-hidden="true">
+              <div class="card-bar-track">
+                <div class="card-bar-fill" id="card-bar-fill"></div>
+              </div>
+              <span class="card-bar-inband-pct" id="card-bar-inband-pct">0%</span>
+            </div>
+            <span class="card-footer-debt" id="card-footer-debt">— remaining</span>
+          </div>
+          </div>
+        </div>
+      </div>
+      <div class="vnext-card-caption">
+        <p class="eyebrow" id="hero-badge">01 — Rock Bottom</p>
+        <h1 id="hero-tier-label">Rock Bottom</h1>
+        <p class="hero-tier-behavior" id="hero-tier-behavior">Reduce debt and protect cash. Survival comes first.</p>
+      </div>
+      <div class="hero-story-column">
+        <p class="vnext-climb-prompt" id="vnext-climb-prompt">Your position on the climb</p>
+        <div class="vnext-hero-chips">
+          <span class="vnext-stage-chip" id="vnext-stage-group-chip" hidden></span>
+          <span class="vnext-hero-freshness" id="vnext-hero-freshness"></span>
+        </div>
+        <div
+          class="vnext-tier-gap-callout"
+          role="region"
+          aria-labelledby="vnext-gap-callout-label vnext-tier-gap-callout-value"
+        >
+          <span class="vnext-gap-callout-k" id="vnext-gap-callout-label">Next payoff stage</span>
+          <p class="vnext-gap-callout-v" id="vnext-tier-gap-callout-value">—</p>
+        </div>
+        <p class="hero-desc" id="hero-tier-copy">In the hole. The meter is running.</p>
+        <div
+          class="vnext-hero-turn-accounts"
+          id="vnext-hero-turn-accounts"
+          hidden
+          aria-live="polite"
+        >
+          <p class="vnext-hero-turn-accounts-k">This turn</p>
+          <ul class="vnext-hero-turn-accounts-list" id="vnext-hero-turn-accounts-list"></ul>
+          <p class="vnext-hero-turn-accounts-net" id="vnext-hero-turn-accounts-net"></p>
+        </div>
+        <p class="vnext-tier-accolade" id="vnext-tier-accolade" hidden></p>
+        <p class="vnext-nav-secondary">
+          <a href="/showcase" class="showcase-link">Explore all 10 debt tiers</a>
+          <span class="vnext-nav-dot" aria-hidden="true">·</span>
+          <a href="/classic" class="vnext-classic-link">Classic dashboard layout</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Explore the climb — full ladder (visual; live pace is in the progress module below) -->
+  <section
+    class="vnext-explore-climb"
+    aria-labelledby="vnext-explore-climb-title"
+  >
+    <header class="vnext-explore-climb-header">
+      <p class="vnext-explore-climb-eyebrow">The full ladder</p>
+      <h2 class="vnext-explore-climb-title" id="vnext-explore-climb-title">Explore the climb</h2>
+      <p class="vnext-explore-climb-guide">This is the full path — you're here now.</p>
+      <p class="vnext-explore-climb-sub">
+        Context for every payoff stage. Dollars and in-stage pace are in the hero and progress sections below.
+      </p>
+    </header>
+    <div
+      class="vnext-explore-climb-scroll"
+      role="region"
+      aria-label="Payoff stages along the climb"
+      tabindex="0"
+    >
+      <div class="vnext-explore-climb-track" id="vnext-explore-climb-track"></div>
+    </div>
+  </section>
+
+  <div class="vnext-hero-progress-connector" aria-hidden="true">
+    <span class="vnext-hero-progress-connector-line"></span>
+    <p class="vnext-hero-progress-connector-label">Track your pace in this stage</p>
+    <span class="vnext-hero-progress-connector-line"></span>
+  </div>
+
+  <section
+    class="vnext-journey-panel stats-panel panel"
+    id="vnext-journey-panel"
+    aria-labelledby="vnext-journey-title"
+    hidden
+  >
+    <header class="vnext-journey-header">
+      <p class="vnext-journey-eyebrow">Full payoff path</p>
+      <h2 class="vnext-journey-title" id="vnext-journey-title">One journey to debt-free</h2>
+      <p class="vnext-journey-sub">
+        Linear scale from the top of the ladder to $0. Tier ticks match payoff-stage thresholds; the dot is your
+        current debt position. The stage bar below is pace inside today’s band only.
+      </p>
+    </header>
+    <div class="vnext-journey-visual" id="vnext-journey-visual">
+      <div
+        class="vnext-journey-track"
+        role="img"
+        aria-label="Cumulative payoff journey toward zero debt"
+        id="vnext-journey-track"
+      >
+        <div class="vnext-journey-ticks" id="vnext-journey-ticks" aria-hidden="true"></div>
+        <div class="vnext-journey-fill" id="vnext-journey-fill"></div>
+        <div class="vnext-journey-line vnext-journey-line--next" id="vnext-journey-line-next"></div>
+        <div class="vnext-journey-line vnext-journey-line--goal" id="vnext-journey-line-goal"></div>
+        <div class="vnext-journey-marker" id="vnext-journey-marker"></div>
+      </div>
+      <div class="vnext-journey-endcaps" aria-hidden="true">
+        <span class="vnext-journey-endcap">High debt</span>
+        <span class="vnext-journey-endcap vnext-journey-endcap--goal">$0 debt</span>
+      </div>
+      <div class="vnext-journey-copy-row">
+        <p class="vnext-journey-stat" id="vnext-journey-stat-next">—</p>
+        <p class="vnext-journey-stat" id="vnext-journey-stat-goal">—</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PROGRESS IN THIS STAGE (same board-progress IDs as live — one render() path) ─ -->
+  <section
+    class="stats-panel panel vnext-stage-progress-shell"
+    aria-labelledby="vnext-stage-progress-title"
+  >
+    <header class="vnext-progress-section-header">
+      <h2 class="vnext-progress-section-title" id="vnext-stage-progress-title">Pace inside this payoff stage</h2>
+      <p class="vnext-progress-header-note">Bar and % are your position in this stage only — not total debt paid down.</p>
+    </header>
+    <div class="board-block board-progress vnext-board-progress">
+      <div class="vnext-progress-goal-band">
+        <div class="board-progress-head">
+          <div class="tier-lane">
+            <span class="tier-pill" id="next-tier-current">—</span>
+            <span class="tier-lane-arrow" aria-hidden="true">→</span>
+            <span class="tier-pill tier-pill-target" id="next-tier-target">—</span>
+          </div>
+          <div class="board-tier-gap-line">
+            <span class="board-tier-gap-field-label" id="board-tier-gap-label">Stage gap</span>
+            <span class="board-tier-gap-headline" id="board-tier-gap-headline">—</span>
+          </div>
+        </div>
+        <p class="progress-milestone-next progress-hint" id="progress-milestone-next" hidden></p>
+        <p class="sr-only" id="command-progress-widget-a11y-desc">
+          The hero card states your full escape gap in words. Here, Stage gap shows the same dollar figure only. The thin bar below is only your position inside this payoff stage—not total debt paid down or breathing room.
+        </p>
+        <p class="vnext-progress-finish-cue" id="vnext-progress-finish-cue" aria-hidden="true"></p>
+        <div
+          class="progress-bar-track progress-bar-track--command vnext-progress-bar-for-goal"
+          role="progressbar"
+          aria-labelledby="vnext-stage-progress-title board-tier-gap-label board-tier-gap-headline"
+          aria-describedby="command-progress-widget-a11y-desc"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          id="command-progress-widget"
+        >
+          <div class="progress-bar-fill" id="command-progress-bar-fill"></div>
+        </div>
+        <p class="progress-next-move" id="progress-next-move" hidden></p>
+        <div class="vnext-inband-readout-row">
+          <span class="vnext-inband-pct-readout" id="vnext-inband-pct-readout" aria-live="polite"></span>
+        </div>
+      </div>
+      <p class="progress-lead" id="progress-story-lead"></p>
+      <p class="progress-line" id="progress-lifetime-climb"></p>
+      <p class="progress-line" id="progress-story-delta"></p>
+      <p class="progress-line" id="progress-story-pace"></p>
+      <p class="progress-hint" id="progress-story-hint"></p>
+      <p class="progress-hint" id="progress-stale-note" hidden></p>
+      <p class="progress-hint" id="progress-restructure-note" hidden></p>
+      <div class="climb-last-pull-summary" id="climb-last-pull-summary" hidden>
+        <p class="progress-hint climb-last-pull-label">This turn</p>
+        <div class="climb-last-pull-accounts" id="progress-last-pull-accounts"></div>
+        <p class="progress-hint climb-last-pull-line climb-last-pull-net" id="progress-last-pull-net-line"></p>
+        <p class="progress-hint climb-last-pull-line climb-last-pull-lifetime" id="progress-last-pull-lifetime-line"></p>
+      </div>
+      <div class="paid-row">
+        <span class="paid-label"></span>
+        <span class="paid-value" id="stat-debt-paid">—</span>
+        <span class="paid-feedback" id="paid-down-feedback" hidden></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Today — lightweight daily nudge (filled from board headline + progress % in steward-vnext.js only) -->
+  <section
+    class="stats-panel panel vnext-today-move"
+    aria-labelledby="vnext-today-move-label"
+  >
+    <p class="vnext-today-label" id="vnext-today-move-label">Today</p>
+    <p class="vnext-today-primary" id="vnext-today-primary"></p>
+    <div class="vnext-today-bridge" id="vnext-today-bridge">
+      <p class="vnext-today-gap-line" id="vnext-today-gap-line"></p>
+    </div>
+    <p class="vnext-today-feedback" id="vnext-today-feedback" hidden></p>
+    <p class="vnext-today-streak" id="vnext-today-streak" aria-live="polite" hidden></p>
+  </section>
+
+  <!-- Command layer: one clear next move (copy from board headline + stage context only) -->
+  <section
+    class="stats-panel panel vnext-next-move"
+    aria-labelledby="vnext-next-move-title"
+  >
+    <h2 class="vnext-next-move-title" id="vnext-next-move-title">Your next move</h2>
+    <p class="vnext-next-move-primary" id="vnext-next-move-primary"></p>
+    <p class="vnext-next-move-context" id="vnext-next-move-context" hidden></p>
+    <p class="vnext-next-move-secondary" id="vnext-next-move-secondary" hidden></p>
+  </section>
+
+  <div class="vnext-financial-bridge">
+    <div class="vnext-financial-bridge-card" aria-hidden="true">
+      <span class="vnext-financial-bridge-rule"></span>
+      <p class="vnext-financial-bridge-proofline">
+        <span class="vnext-financial-bridge-label">Proof</span>
+        <span class="vnext-financial-bridge-emdash" aria-hidden="true">—</span>
+        <span class="vnext-financial-bridge-sub">Full ledger follows</span>
+      </p>
+      <span class="vnext-financial-bridge-rule"></span>
+    </div>
+    <p class="vnext-financial-bridge-hint">Same numbers as the live dashboard—grouped here so you can cross-check quickly.</p>
+  </div>
+
+  <!-- ── FINANCIAL BOARD (command center — same data, stronger structure) ─ -->
+  <section class="stats-panel command-center financial-board panel" id="financial-board">
+    <div class="board-eyebrow-row">
+      <p class="board-eyebrow">Financial position</p>
+      <div class="board-axis-chips" id="board-axis-chips">
+        <span class="board-stability-pill board-axis-debt" id="board-debt-axis" title="Payoff stage follows debt remaining. The headline is dollars to the next payoff stage—not breathing room.">Payoff stage: —</span>
+        <span class="board-stability-pill board-axis-liquidity" id="board-liquidity-pill">Breathing room: —</span>
+      </div>
+    </div>
+    <p class="board-axes-hint" id="board-axes-hint"></p>
+    <p class="board-runway-line" id="board-runway-line"></p>
+    <p class="board-guard-note" id="board-guard-note" hidden></p>
+    <p class="board-stability-note" id="board-stability-note"></p>
+
+    <div class="board-primary">
+      <div class="board-primary-debt">
+        <span class="board-label board-label-debt">Debt remaining</span>
+        <span class="board-figure board-figure-debt debt-value" id="stat-debt-remaining">—</span>
+      </div>
+      <div class="board-primary-rule" aria-hidden="true"></div>
+      <div class="board-primary-nw">
+        <span class="board-label board-label-nw">Net worth</span>
+        <span class="board-figure board-figure-nw networth-value" id="stat-net-worth">—</span>
+      </div>
+    </div>
+
+    <div class="vnext-breathing-room-old" hidden>
+      <p class="vnext-breathing-room-title">Breathing Room</p>
+      <div
+        class="vnext-breathing-room-track"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+        aria-label="Breathing room"
+        aria-valuetext=""
+        id="vnext-breathing-room-track"
+      >
+        <div class="vnext-breathing-room-fill" id="vnext-breathing-room-fill"></div>
+      </div>
+      <p class="vnext-breathing-room-readout" id="vnext-breathing-room-readout-old"></p>
+      <p class="vnext-breathing-room-caption">
+        Progress toward the Breathing Room goal (2.0 mo spendable cushion). Same cushion ÷ monthly expenses as the liquidity chip.
+      </p>
+    </div>
+
+    <div class="board-block board-health">
+      <p class="board-health-title">Breathing room &amp; cash flow</p>
+      <div class="board-health-grid">
+        <div class="health-cell">
+          <span class="health-label">Monthly income</span>
+          <span class="health-value health-in" id="stat-income">—</span>
+        </div>
+        <div class="health-cell">
+          <span class="health-label">Monthly expenses</span>
+          <span class="health-value health-out" id="stat-expenses">—</span>
+        </div>
+        <div class="health-cell">
+          <span class="health-label">Cash / assets</span>
+          <span class="health-value" id="stat-assets">—</span>
+        </div>
+        <div class="health-cell">
+          <span class="health-label" title="Months of expenses YNAB total on-budget assets could cover (last full month of expenses). Counts investments and other non-cash balances, so it is often higher than breathing-room runway.">Asset runway (YNAB)</span>
+          <span class="health-value" id="stat-months-ahead">—</span>
+        </div>
+      </div>
+      <div class="board-health-foot">
+        <div class="inv-line">
+          <span class="inv-label">Investments</span>
+          <span class="inv-value" id="stat-investments">—</span>
+        </div>
+        <p class="inv-sub" id="stat-brok-sub" hidden></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MONTHLY DATA CHECKPOINTS (vnext — date logic mirrors API nextScheduledTimes anchors) ─ -->
+  <section
+    class="stats-panel panel vnext-checkpoints-shell"
+    aria-labelledby="vnext-checkpoints-title"
+  >
+    <header class="vnext-checkpoints-header">
+      <p class="board-eyebrow vnext-checkpoints-eyebrow">Sync cadence</p>
+      <h2 class="vnext-checkpoints-title" id="vnext-checkpoints-title">Control checkpoints</h2>
+    </header>
+    <p class="vnext-checkpoints-intro" id="vnext-checkpoints-intro"></p>
+    <ul class="vnext-checkpoint-list" id="vnext-checkpoint-list"></ul>
+  </section>
+
+  <!-- ── DATA / SYNC (compact utility — does not compete with numbers) ─ -->
+  <section class="data-strip panel vnext-data-strip" id="data-engine">
+    <header class="vnext-data-strip-head">
+      <p class="board-eyebrow vnext-data-strip-eyebrow">Live feeds</p>
+    </header>
+    <div class="data-strip-grid">
+      <div class="data-chip">
+        <span class="data-chip-k">YNAB last pull</span>
+        <span class="data-chip-v" id="data-ynab-pulled">—</span>
+      </div>
+      <div class="data-chip">
+        <span class="data-chip-k">Brokerage</span>
+        <span class="data-chip-v" id="data-brok-pulled">—</span>
+      </div>
+      <div class="data-chip">
+        <span class="data-chip-k">Next auto-pull</span>
+        <span class="data-chip-v" id="data-next-pull">—</span>
+      </div>
+      <div class="data-chip data-chip-fresh">
+        <span class="data-chip-k">Freshness</span>
+        <span class="freshness-badge" id="freshness-badge">—</span>
+      </div>
+    </div>
+    <div class="data-strip-actions">
+      <button type="button" class="refresh-btn refresh-btn-compact" id="refresh-ynab-btn" onclick="manualRefresh('ynab')">↻ YNAB</button>
+      <button type="button" class="refresh-btn refresh-btn-compact refresh-btn-secondary" id="refresh-brok-btn" onclick="manualRefresh('brokerage')">↻ Brokerage</button>
+    </div>
+    <p class="refresh-msg refresh-msg-compact" id="refresh-msg"></p>
+    <p class="data-strip-session" id="data-session-time" hidden></p>
+    <p class="data-strip-foot">Auto-pulls: 1st · 15th · last of month (6 AM). Manual refresh up to 3/hour per source (rolling).</p>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     STEWARD CHARACTER TEMPLATE
+     — CSS variables, SVG paths, and animations copied verbatim
+       from steward.html design system
+═══════════════════════════════════════════════════════════════════ -->
+<template id="steward-template">
+  <div class="steward-wrap" data-state="surviving" data-motion="survive" data-money-tier="medium">
+    <div class="steward-sparkles" aria-hidden="true">
+      <span class="sparkle s1">✦</span>
+      <span class="sparkle s2">✧</span>
+      <span class="sparkle s3">+</span>
+    </div>
+    <div class="steward-coin" aria-hidden="true"></div>
+    <div class="steward-character" aria-label="Steward the budget mascot">
+      <div class="sw-pose">
+        <div class="sw-ground" aria-hidden="true"></div>
+        <div class="sw-rig">
+          <div class="sw-upper-stack">
+            <div class="sw-hat">
+              <div class="sw-hat-shadow"></div>
+              <div class="sw-hat-crown"></div>
+              <div class="sw-hat-band"></div>
+              <div class="sw-hat-brim"></div>
+              <div class="sw-hat-ding"></div>
+            </div>
+            <div class="sw-head">
+              <div class="sw-cheek sw-cheek-l"></div>
+              <div class="sw-cheek sw-cheek-r"></div>
+              <div class="sw-eyebrow sw-eyebrow-l"></div>
+              <div class="sw-eyebrow sw-eyebrow-r"></div>
+              <div class="sw-eye sw-eye-l">
+                <span class="sw-pupil"></span>
+                <span class="sw-eye-shine"></span>
+                <span class="sw-lid"></span>
+              </div>
+              <div class="sw-eye sw-eye-r">
+                <span class="sw-pupil"></span>
+                <span class="sw-eye-shine"></span>
+                <span class="sw-lid"></span>
+              </div>
+              <div class="sw-monocle" aria-hidden="true">
+                <span class="sw-mono-rim"></span>
+                <span class="sw-mono-glass"></span>
+                <span class="sw-mono-chain"></span>
+                <span class="sw-mono-glint"></span>
+              </div>
+              <div class="sw-nose"></div>
+              <div class="sw-mustache">
+                <span class="sw-stache sw-stache-l"></span>
+                <span class="sw-stache sw-stache-r"></span>
+              </div>
+              <div class="sw-mouth"></div>
+            </div>
+            <div class="sw-neck">
+              <div class="sw-collar sw-collar-l"></div>
+              <div class="sw-collar sw-collar-r"></div>
+              <div class="sw-bowtie"><span class="sw-bow-knot"></span></div>
+            </div>
+            <div class="sw-body">
+              <div class="sw-coat-back"></div>
+              <div class="sw-shoulder sw-shoulder-l"></div>
+              <div class="sw-shoulder sw-shoulder-r"></div>
+              <div class="sw-coat sw-coat-l"></div>
+              <div class="sw-coat sw-coat-r"></div>
+              <div class="sw-lapel sw-lapel-l"></div>
+              <div class="sw-lapel sw-lapel-r"></div>
+              <div class="sw-vest">
+                <span class="sw-btn"></span>
+                <span class="sw-btn"></span>
+                <span class="sw-btn"></span>
+              </div>
+              <div class="sw-pocket" aria-hidden="true"></div>
+              <div class="sw-arm sw-arm-l">
+                <div class="sw-upper-arm sw-upper-arm-l"></div>
+                <div class="sw-forearm sw-forearm-l">
+                  <span class="sw-cuff"></span>
+                  <div class="sw-hand sw-hand-l"></div>
+                </div>
+              </div>
+              <div class="sw-arm sw-arm-r">
+                <div class="sw-upper-arm sw-upper-arm-r"></div>
+                <div class="sw-forearm-wrap">
+                  <div class="sw-cane" aria-hidden="true">
+                    <span class="sw-cane-knob"></span>
+                    <span class="sw-cane-shaft"></span>
+                  </div>
+                  <div class="sw-forearm sw-forearm-r"></div>
+                  <div class="sw-hand sw-hand-r">
+                    <span class="sw-thumb" aria-hidden="true"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="sw-tails" aria-hidden="true">
+              <span class="sw-tail sw-tail-l"></span>
+              <span class="sw-tail sw-tail-r"></span>
+            </div>
+          </div>
+          <div class="sw-pelvis" aria-hidden="true"></div>
+          <div class="sw-legs">
+            <div class="sw-leg sw-leg-l">
+              <div class="sw-thigh sw-thigh-l">
+                <div class="sw-calf sw-calf-l">
+                  <div class="sw-foot sw-foot-l">
+                    <div class="sw-shoe sw-shoe-l"></div>
+                    <div class="sw-sole-shadow" aria-hidden="true"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="sw-leg sw-leg-r">
+              <div class="sw-thigh sw-thigh-r">
+                <div class="sw-calf sw-calf-r">
+                  <div class="sw-foot sw-foot-r">
+                    <div class="sw-shoe sw-shoe-r"></div>
+                    <div class="sw-sole-shadow" aria-hidden="true"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="steward-sign" aria-hidden="true">will budget 4 food :(</div>
+    <div class="steward-money" aria-hidden="true">
+      <span class="sm-c sm-c1"></span><span class="sm-c sm-c2"></span>
+      <span class="sm-c sm-c3"></span><span class="sm-c sm-c4"></span>
+      <span class="sm-c sm-c5"></span>
+      <span class="sm-b sm-b1"></span><span class="sm-b sm-b2"></span>
+      <span class="sm-b sm-b3"></span>
+      <span class="sm-d sm-d1">$</span><span class="sm-d sm-d2">$</span>
+      <span class="sm-d sm-d3">$</span><span class="sm-d sm-d4">$</span>
+      <span class="sm-d sm-d5">$</span><span class="sm-d sm-d6">$</span>
+      <span class="sm-d sm-d7">$</span><span class="sm-d sm-d8">$</span>
+    </div>
+    <div class="steward-coinfall" aria-hidden="true">
+      <div class="scf-c scf-c1"></div><div class="scf-c scf-c2"></div>
+      <div class="scf-c scf-c3"></div><div class="scf-c scf-c4"></div>
+      <div class="scf-c scf-c5"></div><div class="scf-c scf-c6"></div>
+      <span class="scf-d scf-d1">$</span><span class="scf-d scf-d2">$</span>
+      <span class="scf-d scf-d3">$</span><span class="scf-d scf-d4">$</span>
+    </div>
+    <div class="sw-racecar" aria-hidden="true">
+      <div class="rc-body">
+        <div class="rc-gold-trim"></div>
+        <div class="rc-cabin"></div>
+        <div class="rc-win-driver"></div>
+        <div class="rc-win-passenger"></div>
+        <div class="rc-windshield"></div>
+        <div class="rc-rear-win"></div>
+        <div class="rc-spoiler"></div>
+        <div class="rc-stripe"></div>
+        <div class="rc-headlight"></div>
+        <div class="rc-taillight"></div>
+        <div class="rc-grille"></div>
+        <div class="rc-ornament">
+          <div class="rc-orn-base"></div><div class="rc-orn-post"></div>
+          <div class="rc-orn-figure">
+            <div class="rc-orn-head"></div><div class="rc-orn-body"></div>
+            <div class="rc-orn-wing-l"></div><div class="rc-orn-wing-r"></div>
+          </div>
+        </div>
+      </div>
+      <div class="rc-wheel rc-wf"></div>
+      <div class="rc-wheel rc-wr"></div>
+      <div class="rc-exhaust">
+        <span class="rc-puff rp1"></span>
+        <span class="rc-puff rp2"></span>
+        <span class="rc-puff rp3"></span>
+      </div>
+      <div class="rc-coin-shower">
+        <div class="rc-coin rcc1"></div><div class="rc-coin rcc2"></div>
+        <div class="rc-coin rcc3"></div><div class="rc-coin rcc4"></div>
+        <div class="rc-coin rcc5"></div><div class="rc-coin rcc6"></div>
+        <div class="rc-coin rcc7"></div><div class="rc-coin rcc8"></div>
+      </div>
+      <div class="rc-ring rc-ring-1"></div>
+      <div class="rc-ring rc-ring-2"></div>
+      <div class="rc-ring rc-ring-3"></div>
+      <div class="rc-dollar rc-d1">$</div>
+      <div class="rc-dollar rc-d2">$</div>
+      <div class="rc-dollar rc-d3">$</div>
+      <div class="rc-dollar rc-d4">$</div>
+    </div>
+    <svg class="steward-dog-svg"
+         xmlns="http://www.w3.org/2000/svg"
+         viewBox="0 0 80 92"
+         role="img"
+         aria-label="Steward's loyal dog">
+      <defs>
+        <radialGradient id="dgBody" cx="40%" cy="34%" r="60%" gradientUnits="userSpaceOnUse" x1="14" y1="50" x2="60" y2="84">
+          <stop offset="0%"   stop-color="#f2ca70"/>
+          <stop offset="62%"  stop-color="#d4963c"/>
+          <stop offset="100%" stop-color="#b07428"/>
+        </radialGradient>
+        <radialGradient id="dgHead" cx="38%" cy="30%" r="62%" gradientUnits="userSpaceOnUse" x1="18" y1="24" x2="54" y2="56">
+          <stop offset="0%"   stop-color="#f8d890"/>
+          <stop offset="58%"  stop-color="#e8b860"/>
+          <stop offset="100%" stop-color="#c89040"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="36" cy="89" rx="27" ry="4.5" fill="rgba(8,24,16,0.20)"/>
+      <ellipse cx="36" cy="67" rx="22" ry="17" fill="url(#dgBody)"/>
+      <ellipse cx="29" cy="58" rx="13" ry="8.5" fill="rgba(255,232,152,0.20)" transform="rotate(-16 29 58)"/>
+      <g transform="translate(55,66)">
+        <g class="dog-tail">
+          <path d="M0,-2 C7,-13 17,-23 12,-37" stroke="#c4882e" stroke-width="9" stroke-linecap="round" fill="none"/>
+          <ellipse cx="11" cy="-39" rx="7.5" ry="10" fill="#e8b040" transform="rotate(-20 11 -39)"/>
+          <path d="M2,-4 C8,-14 17,-24 13,-36" stroke="rgba(255,222,120,0.45)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+        </g>
+      </g>
+      <rect x="18" y="75" width="11" height="15" rx="5.5" fill="#c88a38"/>
+      <rect x="19" y="75" width="9" height="5"  rx="4"   fill="rgba(255,220,140,0.24)"/>
+      <path d="M20,88 Q24,91 29,88" stroke="rgba(80,44,8,0.28)" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+      <g transform="translate(48.5,75)">
+        <g class="dog-paw-wave">
+          <rect x="-5.5" y="0" width="11" height="15" rx="5.5" fill="#c88a38"/>
+          <rect x="-4.5" y="0" width="9"  height="5"  rx="4"   fill="rgba(255,220,140,0.24)"/>
+          <path d="M-3.5,13 Q0.5,16 5.5,13" stroke="rgba(80,44,8,0.28)" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+        </g>
+      </g>
+      <ellipse cx="36" cy="53" rx="12" ry="9.5" fill="#d49840"/>
+      <rect x="28" y="56" width="16" height="3.5" rx="1.8" fill="#ddb850"/>
+      <ellipse cx="36" cy="38" rx="18" ry="16" fill="url(#dgHead)"/>
+      <ellipse cx="18.5" cy="40" rx="7"   ry="14.5" fill="#a06822" transform="rotate(14 18.5 40)"/>
+      <ellipse cx="53.5" cy="40" rx="7"   ry="14.5" fill="#a06822" transform="rotate(-14 53.5 40)"/>
+      <ellipse cx="18.5" cy="41" rx="4"   ry="9.5"  fill="#c47c34" opacity="0.52" transform="rotate(14 18.5 41)"/>
+      <ellipse cx="53.5" cy="41" rx="4"   ry="9.5"  fill="#c47c34" opacity="0.52" transform="rotate(-14 53.5 41)"/>
+      <circle cx="28.5" cy="35.5" r="5.5" fill="#fdf8ef"/>
+      <circle cx="43.5" cy="35.5" r="5.5" fill="#fdf8ef"/>
+      <circle cx="28.5" cy="36"   r="3.5" fill="#1c1008"/>
+      <circle cx="43.5" cy="36"   r="3.5" fill="#1c1008"/>
+      <circle cx="29.8" cy="34.5" r="1.5" fill="rgba(255,255,255,0.94)"/>
+      <circle cx="44.8" cy="34.5" r="1.5" fill="rgba(255,255,255,0.94)"/>
+      <circle cx="30.8" cy="37.5" r="0.7" fill="rgba(255,255,255,0.48)"/>
+      <circle cx="45.8" cy="37.5" r="0.7" fill="rgba(255,255,255,0.48)"/>
+      <circle cx="21"   cy="41"   r="5"   fill="rgba(225,138,110,0.42)"/>
+      <circle cx="51"   cy="41"   r="5"   fill="rgba(225,138,110,0.42)"/>
+      <ellipse cx="36" cy="44.5" rx="9.5" ry="7" fill="#f2d295"/>
+      <ellipse cx="33" cy="41.5" rx="4"   ry="3" fill="rgba(255,242,192,0.38)"/>
+      <ellipse cx="36" cy="41.5" rx="5"   ry="3.8" fill="#1e140c"/>
+      <circle  cx="33.5" cy="42.4" r="1.3" fill="rgba(0,0,0,0.52)"/>
+      <circle  cx="38.5" cy="42.4" r="1.3" fill="rgba(0,0,0,0.52)"/>
+      <ellipse cx="33.5" cy="40.5" rx="2" ry="1.2" fill="rgba(255,255,255,0.18)"/>
+      <path d="M31.5,47 Q36,53 40.5,47" stroke="none" fill="#e07888" opacity="0.90"/>
+      <path d="M36,47.5 L36,52.5" stroke="rgba(158,38,58,0.52)" stroke-width="1.2" stroke-linecap="round"/>
+      <circle cx="31.5" cy="47" r="1.5" fill="#e07888" opacity="0.72"/>
+      <circle cx="40.5" cy="47" r="1.5" fill="#e07888" opacity="0.72"/>
+      <rect x="26" y="5" width="20" height="17" rx="4" fill="#143224"/>
+      <path d="M29,7.5 Q34,5.5 39,7.5" stroke="rgba(255,255,255,0.14)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      <rect x="26" y="13" width="20" height="9" rx="0" fill="rgba(0,0,0,0.16)"/>
+      <rect x="24" y="18" width="24" height="4.5" rx="1.5" fill="#d9ac50"/>
+      <rect x="33.5" y="18.5" width="5" height="3.5" rx="0.8" fill="#e8c860" opacity="0.82"/>
+      <rect x="21" y="20.5" width="30" height="5.5" rx="2.8" fill="#0d2018"/>
+      <path d="M22,20.5 Q36,19.5 50,20.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.5" fill="none"/>
+      <ellipse cx="30.5" cy="9.5" rx="5.5" ry="3" fill="rgba(255,255,255,0.26)" transform="rotate(-15 30.5 9.5)" opacity="0.68"/>
+    </svg>
+    <div class="wealthy-mansion" aria-hidden="true">
+      <div class="wmn-body"></div>
+      <div class="wmn-roof"></div>
+      <div class="wmn-chimney wmn-ch-l"></div>
+      <div class="wmn-chimney wmn-ch-r"></div>
+      <div class="wmn-wing wmn-wing-l"></div>
+      <div class="wmn-wing wmn-wing-r"></div>
+      <div class="wmn-wing-roof wmn-wr-l"></div>
+      <div class="wmn-wing-roof wmn-wr-r"></div>
+      <div class="wmn-col wmn-col-l"></div>
+      <div class="wmn-col wmn-col-r"></div>
+      <div class="wmn-pediment"></div>
+      <div class="wmn-door"><div class="wmn-door-arch"></div></div>
+      <div class="wmn-window wmn-w1"></div>
+      <div class="wmn-window wmn-w2"></div>
+      <div class="wmn-window wmn-w3"></div>
+      <div class="wmn-window wmn-w4"></div>
+      <div class="wmn-window wmn-w5"></div>
+      <div class="wmn-window wmn-w6"></div>
+      <div class="wmn-window wmn-w7"></div>
+      <div class="wmn-window wmn-w8"></div>
+      <div class="wmn-steps"></div>
+      <div class="wmn-lantern wmn-lan-l"></div>
+      <div class="wmn-lantern wmn-lan-r"></div>
+    </div>
+    <div class="wealthy-merc" aria-hidden="true">
+      <div class="wmerc-shadow"></div>
+      <div class="wmerc-body"></div>
+      <div class="wmerc-hood"></div>
+      <div class="wmerc-grille">
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span><span class="wmerc-slat"></span>
+        <span class="wmerc-slat"></span>
+      </div>
+      <div class="wmerc-star">★</div>
+      <div class="wmerc-hl wmerc-hl-l"><span class="wmerc-drl"></span></div>
+      <div class="wmerc-hl wmerc-hl-r"><span class="wmerc-drl"></span></div>
+      <div class="wmerc-bumper"></div>
+      <div class="wmerc-intake wmerc-int-l"></div>
+      <div class="wmerc-intake wmerc-int-r"></div>
+      <div class="wmerc-splitter"></div>
+      <div class="wmerc-fender wmerc-fn-l"></div>
+      <div class="wmerc-fender wmerc-fn-r"></div>
+      <div class="wmerc-reflect"></div>
+    </div>
+  </div>
+</template>
+
+<script type="module" src="/js/main.js"></script>
+<script src="/steward-vnext.js"></script>
+</body>
+</html>
