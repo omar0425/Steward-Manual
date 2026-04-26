@@ -14,7 +14,7 @@ db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
 
 // ── Schema ────────────────────────────────────────────────────────────────────
-// Migration: safety-relevant YNAB liquid (on-budget cash-like accounts); older rows NULL
+// Migration: safety-relevant liquid column; older rows NULL
 const _snapshotsExists = db
   .prepare(
     `SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'snapshots' LIMIT 1`,
@@ -90,26 +90,29 @@ function insertSnapshot(data) {
 }
 
 function latestSnapshot(source) {
+  if (source) {
+    return db.prepare(
+      `SELECT * FROM snapshots WHERE source = ? ORDER BY pulled_at DESC LIMIT 1`
+    ).get(source) || null;
+  }
   return db.prepare(
-    `SELECT * FROM snapshots WHERE source = ? ORDER BY pulled_at DESC LIMIT 1`
-  ).get(source) || null;
+    `SELECT * FROM snapshots ORDER BY pulled_at DESC LIMIT 1`
+  ).get() || null;
 }
 
 function latestCombined() {
-  const ynab = latestSnapshot('ynab');
-  if (!ynab) return null;
-  const brok = latestSnapshot('brokerage');
-  const investment_value = brok ? brok.investment_value : 0;
-  return { ...ynab, investment_value };
+  const snap = latestSnapshot();
+  if (!snap) return null;
+  return snap;
 }
 
 function recentSnapshots(limit = 60) {
   return db.prepare(
-    `SELECT * FROM snapshots WHERE source = 'ynab' ORDER BY pulled_at DESC LIMIT ?`
+    `SELECT * FROM snapshots ORDER BY pulled_at DESC LIMIT ?`
   ).all(limit);
 }
 
-// ── Per-account debt (YNAB liability balances, magnitude in dollars) ─────────
+// ── Per-account debt (liability balances, magnitude in dollars) ─────────────
 // Used to diff climb metrics without treating removed accounts as paydown.
 
 function getAllDebtAccountBalances() {
@@ -227,13 +230,13 @@ function setTurnStart(at, balanceMap) {
   db.prepare(`INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)`).run(TURN_START_BAL_KEY, JSON.stringify(obj));
 }
 
-// ── Game-start snapshot (write-once, seeded from first real YNAB pull) ────────
+// ── Game-start snapshot (write-once, seeded from first snapshot) ──────────────
 
 const GAME_START_DEBT_KEY = 'game_start_debt';
 const GAME_START_AT_KEY   = 'game_start_at';
 
 /**
- * Record the very first YNAB-reported total debt and date — never overwrites.
+ * Record the very first total debt and date — never overwrites.
  * Call this on every pull; INSERT OR IGNORE makes it a no-op after the first time.
  */
 function setGameStartIfAbsent(debtRemaining, pulledAt) {
@@ -303,14 +306,14 @@ function setConfigIfAbsent(key, value) {
   return getConfig(key);
 }
 
-/** All YNAB + brokerage snapshot rows (net worth history, last pull pointers). */
+/** All snapshot rows (net worth history, last pull pointers). */
 function deleteAllSnapshots() {
   return db.prepare('DELETE FROM snapshots').run();
 }
 
 /**
- * Full game reset — clears all DB-backed gameplay history so the next manual
- * YNAB sync starts a clean game.
+ * Full game reset — clears all DB-backed gameplay history so the next
+ * snapshot starts a clean game.
  *
  * CLEARS: snapshots, debt account history/balances, and all config keys that
  * encode game state (baseline, paid-down counter, turn window, game-start,
@@ -332,7 +335,7 @@ function resetAllGameState() {
     'notifications_sent',
     'turn_start_at',
     'turn_start_balances',
-    'brokerage_summary_cache',
+
   ];
   const del = db.prepare(`DELETE FROM config WHERE key = ?`);
   db.exec('BEGIN');

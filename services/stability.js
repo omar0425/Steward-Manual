@@ -4,54 +4,8 @@
  * Secondary "stability" layer: savings / liquidity / runway on top of debt tier.
  * Debt tier remains the primary axis (see services/tiers.js).
  *
- * Terminology: the liquidity middle band uses stability.id "stabilizing" (API, narratives,
- * CSS .is-stabilizing). The user-facing label for that id is "Steady" — not the debt tier
- * name "Stabilizing" (badge 05 in services/tiers.js).
- *
- * ── Inputs (real data only) ─────────────────────────────────────────
- * - ynabSafetyLiquid: on-budget cash-like YNAB balances (+ small partial credit for
- *   select on-budget other types). See ynab.safetyRelevantLiquidFromAccounts().
- *   Older snapshots may omit this; see legacy fallback below.
- * - ynabTotalAssets: full positive balance sum (net worth / UI); used only when
- *   safety_liquid is missing, with scoring.legacyFallback flagged and a slight
- *   under-weight so illiquid net worth does not over-credit stability.
- * - monthly_expenses: last full month from YNAB.
- * - Brokerage cash + 35% of holdings (volatile) when linked.
- * - debt_remaining: YNAB liability sum.
- *
- * ── Score (0–100) ─────────────────────────────────────────────────
- *   scoreRaw = min(100, runwayPoints + bufferPoints)
- *   Then optional runway guards clamp scoreRaw so label matches survival reality
- *   (see GUARD_*); clamps are score-level only, not a separate architecture.
- *
- *   runwayPoints = min(RUNWAY_POINTS_CAP,
- *     (effectiveRunwayMonths / RUNWAY_MONTHS_AT_CAP) * RUNWAY_POINTS_CAP)
- *   effectiveRunwayMonths = effectiveCushion / monthlyExpenses  (null if no expenses)
- *
- *   Buffer (debt > 0): diminishing return on cushion vs debt so buffer informs
- *   stability without dominating across tiny debt or huge debt ranges.
- *   debtDenom = max(debtRemaining, MIN_DEBT_FOR_BUFFER_RATIO)
- *   rawRatio = effectiveCushion / debtDenom
- *   bufferPoints = BUFFER_POINTS_CAP * min(1, sqrt(rawRatio / BUFFER_RATIO_REFERENCE))
- *   Debt-free: bufferPoints = BUFFER_POINTS_CAP (modifier saturated).
- *
- *   effectiveCushion = ynabLiquidForStability + brokerageCash + INVESTED_WEIGHT * brokerageHoldings
- *   ynabLiquidForStability = safety_liquid OR (legacyFallback: total_assets * LEGACY_FALLBACK_LIQUID_WEIGHT)
- *
- * ── Label bands (applied to final `score`; inclusive boundaries) ────
- *   Exposed:      score < 36
- *   Steady:       36 <= score < 68  (id remains `stabilizing` for API/state)
- *   Fortified:    score >= 68
- *
- * ── Runway guards (score clamps; align label with liquidity runway) ─
- *   Exposed floor:   very low months of cover → score capped just below the Steady band.
- *   Fortified floor: strong months of cover → score floored to Fortified band.
- *   Exposed wins if both could apply. Tuned to sit on top of the same runway signal
- *   already in runwayPoints (avoids large jumps in normal cases).
- *
- * ── Legacy snapshots ───────────────────────────────────────────────
- *   If ynabSafetyLiquid is null/undefined/non-finite, ynabTotalAssets (weighted)
- *   fills the YNAB slice and scoring.legacyFallback is true.
+ * Manual edition: stability is computed but not displayed on the dashboard.
+ * All inputs default to 0 since the app is debt-only.
  */
 
 const INVESTED_WEIGHT = 0.35;
@@ -147,20 +101,17 @@ function bufferPointsFromCushionDebt(effectiveCushion, debtRemaining) {
 
 /**
  * @param {object} input
- * @param {number|null|undefined} input.ynabSafetyLiquid  narrow liquid from YNAB pull
- * @param {number} input.ynabTotalAssets  all positive balances (fallback + net worth)
+ * @param {number|null|undefined} input.safetyLiquid  narrow liquid balances
+ * @param {number} input.totalAssets  all positive balances (fallback + net worth)
  * @param {number} input.monthlyExpenses
  * @param {number} input.debtRemaining
- * @param {number|null} input.monthsAheadYnab
- * @param {boolean} input.brokerageEnabled
- * @param {number} input.brokerageCash
- * @param {number} input.brokerageHoldings
+ * @param {number|null} input.monthsAhead
  * @returns {{ id: string, label: string, ... }} id is always exposed | stabilizing | fortified;
  *   middle band id stabilizing is shown to users as label Steady.
  */
 function computeStability(input) {
-  const totalAssetsAll = Math.max(0, n(input.ynabTotalAssets));
-  const safetyRaw = input.ynabSafetyLiquid;
+  const totalAssetsAll = Math.max(0, n(input.totalAssets || input.ynabTotalAssets));
+  const safetyRaw = input.safetyLiquid != null ? input.safetyLiquid : input.ynabSafetyLiquid;
   const legacyFallback = safetyRaw == null || !Number.isFinite(Number(safetyRaw));
   const ynabLiquidForStability = legacyFallback
     ? totalAssetsAll * LEGACY_FALLBACK_LIQUID_WEIGHT
@@ -168,9 +119,8 @@ function computeStability(input) {
 
   const monthlyExpenses = Math.max(0, n(input.monthlyExpenses));
   const debtRemaining = Math.max(0, n(input.debtRemaining));
-  const brokerageOn = Boolean(input.brokerageEnabled);
-  const brCash = brokerageOn ? Math.max(0, n(input.brokerageCash)) : 0;
-  const brHold = brokerageOn ? Math.max(0, n(input.brokerageHoldings)) : 0;
+  const brCash = 0;
+  const brHold = 0;
 
   const liquidLike = ynabLiquidForStability + brCash;
   const investedCredit = INVESTED_WEIGHT * brHold;
@@ -277,15 +227,13 @@ function computeStability(input) {
     },
     effectiveRunwayMonths:
       effectiveRunwayMonths == null ? null : Math.round(effectiveRunwayMonths * 100) / 100,
-    monthsAheadYnab:
-      input.monthsAheadYnab == null || !Number.isFinite(n(input.monthsAheadYnab))
+    monthsAhead:
+      (input.monthsAhead || input.monthsAheadYnab) == null || !Number.isFinite(n(input.monthsAhead || input.monthsAheadYnab))
         ? null
-        : Math.round(n(input.monthsAheadYnab) * 100) / 100,
+        : Math.round(n(input.monthsAhead || input.monthsAheadYnab) * 100) / 100,
     components: {
-      ynabSafetyLiquid: Math.round(ynabLiquidForStability * 100) / 100,
-      ynabTotalAssets: Math.round(totalAssetsAll * 100) / 100,
-      brokerageCash: Math.round(brCash * 100) / 100,
-      brokerageHoldings: Math.round(brHold * 100) / 100,
+      safetyLiquid: Math.round(ynabLiquidForStability * 100) / 100,
+      totalAssets: Math.round(totalAssetsAll * 100) / 100,
       investedCredit: Math.round(investedCredit * 100) / 100,
       effectiveCushion: Math.round(effectiveCushion * 100) / 100,
       bufferVsDebt: bufferVsDebt == null ? null : Math.round(bufferVsDebt * 10000) / 10000,

@@ -55,16 +55,9 @@ const DASHBOARD_ONBOARDING_STEPS = [
     resolveTarget: () => onboardingResolveDashboardTarget('#stat-cumulative-paydown'),
   },
   {
-    lead: 'Breathing Room is separate from payoff progress.',
+    lead: 'Update your balances anytime.',
     body: [
-      'It is spendable cushion divided by expenses. Protect it while paying debt; the app also shows Asset runway (YNAB) as a broader runway measure.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#board-liquidity-pill'),
-  },
-  {
-    lead: 'Data comes from your connected sources.',
-    body: [
-      'Timestamps show YNAB, brokerage, next auto-pull, and freshness. Use manual refresh before any big decision.',
+      'Enter your latest balances whenever you make a payment, then hit Update Balances. The app tracks every change.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('.data-strip'),
   },

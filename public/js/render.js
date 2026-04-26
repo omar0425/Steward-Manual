@@ -6,7 +6,7 @@ import {
   formatRunway, fmtDollar, fmtDate, fmtSignedDollar,
   formatNetWorthValue, formatNextTierGapHeadline, formatNextTierGapBoardAmount,
   formatNextTierGapMoneyPrefix, nextMoveGuidance,
-  TOOLTIP_ASSET_RUNWAY_YNAB, TOOLTIP_LIQUID_CUSHION_RUNWAY,
+  TOOLTIP_LIQUID_CUSHION_RUNWAY,
   WEALTHY_EXPOSED_HERO_PRIMARY,
   formatHeroBreathingRoomLine,
   formatBoardRunwayHelperLine, liquidityGuardExplanation, buildLiquidityPillTooltip,
@@ -176,61 +176,11 @@ function buildAprForm(panel) {
   (firstEmpty || firstInput)?.focus();
 }
 
-function renderBrokerageFootnote(brokerage, stats) {
+function renderBrokerageFootnote() {
   const sub = document.getElementById('stat-brok-sub');
   if (!sub) return;
-
-  if (!stats.brokerageEnabled) {
-    sub.hidden = true;
-    sub.textContent = '';
-    sub.classList.remove('is-warn');
-    return;
-  }
-
-  if (!brokerage || brokerage.fetchFailed) {
-    sub.hidden = false;
-    sub.classList.add('is-warn');
-    sub.textContent = 'Could not load brokerage summary from the server.';
-    return;
-  }
-
-  if (brokerage.connected === false) {
-    sub.hidden = true;
-    sub.textContent = '';
-    sub.classList.remove('is-warn');
-    return;
-  }
-
-  if (brokerage.lastError && brokerage.lastError.message) {
-    sub.hidden = false;
-    const infoOnly = brokerage.lastError.code === 'NOT_YET_SYNCED';
-    sub.classList.toggle('is-warn', !infoOnly);
-    sub.textContent = brokerage.lastError.message;
-    return;
-  }
-
-  sub.classList.remove('is-warn');
-  const parts = [];
-  if (brokerage.lastSuccessAt) {
-    parts.push(`Last sync ${fmtDate(brokerage.lastSuccessAt)}`);
-  }
-  const c = brokerage.cash;
-  const h = brokerage.holdingsValue;
-  if (brokerage.lastSuccessAt) {
-    parts.push(`Cash ${fmtDollar(c)} · Holdings ${fmtDollar(h)}`);
-  }
-  if (brokerage.lastSuccessAt && Number.isFinite(brokerage.dayChange)) {
-    const pctStr = Number.isFinite(brokerage.dayChangePct)
-      ? ` (${brokerage.dayChangePct >= 0 ? '+' : ''}${brokerage.dayChangePct.toFixed(2)}%)`
-      : '';
-    parts.push(`Today ${fmtSignedDollar(brokerage.dayChange)}${pctStr}`);
-  }
-  if (Number.isFinite(brokerage.unrealizedGainLoss) && brokerage.unrealizedGainLoss !== 0) {
-    parts.push(`Unrealized ${fmtSignedDollar(brokerage.unrealizedGainLoss)}`);
-  }
-
-  sub.textContent = parts.filter(Boolean).join(' · ');
-  sub.hidden = !sub.textContent;
+  sub.hidden = true;
+  sub.textContent = '';
 }
 
 const VNEXT_HERO_TURN_ACCOUNTS_TOP = 3;
@@ -473,7 +423,7 @@ function fillProgressNarrative({
   } else if (delta > 0) {
     deltaEl.textContent = `Snapshot window: aggregate debt down about ${fmtDollar(delta)} since your earliest snapshot (${timeAgo(
       oldest.pulled_at,
-    )}). This is YNAB total debt, not your cumulative paydown line.`;
+    )}). This is total debt, not your cumulative paydown line.`;
   } else if (delta < 0) {
     deltaEl.textContent = `Snapshot window: aggregate debt up ${fmtDollar(-delta)} since your earliest snapshot (often borrowing or new accounts). Cumulative paydown does not decrease from this.`;
   } else {
@@ -563,7 +513,7 @@ function fillProgressNarrative({
   }
 }
 
-export function render(status, snapshots, brokerage) {
+export function render(status, snapshots) {
   if (!status.ready) return;
 
   upgradeDashboardLayout();
@@ -746,7 +696,7 @@ export function render(status, snapshots, brokerage) {
   const heroRunway = document.getElementById('hero-stat-runway');
   if (heroRunway) {
     heroRunway.textContent = runwayText;
-    heroRunway.title = TOOLTIP_ASSET_RUNWAY_YNAB;
+    heroRunway.title = '';
   }
 
   // Momentum streak
@@ -894,21 +844,14 @@ export function render(status, snapshots, brokerage) {
   if (statAssetsEl) statAssetsEl.textContent = fmtDollar(stats.totalAssets);
   const invEl = document.getElementById('stat-investments');
   if (invEl) {
-    if (stats.brokerageEnabled) {
-      invEl.textContent = fmtDollar(stats.investmentValue);
-      invEl.classList.remove('is-muted');
-      invEl.removeAttribute('title');
-    } else {
-      invEl.textContent = 'Not linked';
-      invEl.classList.add('is-muted');
-      invEl.title = 'Brokerage not linked';
-    }
+    invEl.textContent = '—';
+    invEl.classList.add('is-muted');
   }
-  renderBrokerageFootnote(brokerage, stats);
+  renderBrokerageFootnote();
   const statMonthsAhead = document.getElementById('stat-months-ahead');
   if (statMonthsAhead) {
     statMonthsAhead.textContent = runwayText;
-    statMonthsAhead.title = TOOLTIP_ASSET_RUNWAY_YNAB;
+    statMonthsAhead.title = '';
   }
   const statIncomeEl = document.getElementById('stat-income');
   if (statIncomeEl) statIncomeEl.textContent = fmtDollar(stats.monthlyIncome);
@@ -952,14 +895,13 @@ export function render(status, snapshots, brokerage) {
   const boardAxesHint = document.getElementById('board-axes-hint');
   if (boardAxesHint) {
     boardAxesHint.textContent =
-      'The escape goal is the hero headline. Below, the bar is only your position inside this stage. Breathing room is separate.';
+      'The escape goal is the hero headline. Below, the bar is only your position inside this stage.';
   }
 
   const boardRunwayLine = document.getElementById('board-runway-line');
   if (boardRunwayLine) {
     boardRunwayLine.textContent = formatBoardRunwayHelperLine(stats.monthsAhead, stab);
-    boardRunwayLine.title =
-      'Two runways: breathing room is spendable-style cushion ÷ expenses (the chip). Asset runway (YNAB) is all on-budget assets ÷ expenses—often higher when investments dominate.';
+    boardRunwayLine.title = '';
   }
 
   const boardGuardNote = document.getElementById('board-guard-note');
@@ -980,17 +922,15 @@ export function render(status, snapshots, brokerage) {
       (stab.components && stab.components.investedWeightUsed != null ? stab.components.investedWeightUsed
         : 0.35) * 100,
     );
-    const parts = [
-      `How breathing room is measured: spendable-style cushion (on-budget cash-like YNAB balances, brokerage cash, and ${invPct}% of brokerage holdings) divided by your last full month of expenses in YNAB.`,
-    ];
+    const parts = [];
     if (stab.scoring && stab.scoring.legacyFallback) {
       parts.push('Using a broader asset estimate until the next pull; refresh when you can.');
     }
     boardStabNote.textContent = parts.join(' ');
   }
 
-  const ynabPulledEl = document.getElementById('data-ynab-pulled');
-  if (ynabPulledEl) ynabPulledEl.textContent = fmtDate(meta.ynabPulledAt);
+  const lastSnapEl = document.getElementById('data-last-snapshot');
+  if (lastSnapEl) lastSnapEl.textContent = fmtDate(meta.lastSnapshotAt || meta.ynabPulledAt);
   const brokPulledEl = document.getElementById('data-brok-pulled');
   if (brokPulledEl) brokPulledEl.textContent = '--';
   const nextPullEl = document.getElementById('data-next-pull');

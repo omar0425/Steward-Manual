@@ -2,7 +2,7 @@
 
 /**
  * When the HTML shell is served from another dev origin (e.g. Vite on :3002), point fetches at the
- * Steward Node process (e.g. http://localhost:3000) so status / snapshots / brokerage stay single-backend.
+ * Steward Node process (e.g. http://localhost:3000) so status / snapshots stay single-backend.
  * Set: `window.__STEWARD_API_ORIGIN__ = 'http://localhost:3000'` or meta `steward-api-origin`.
  * Use value `same` (or `__STEWARD_API_ORIGIN__ = 'same'`) to always use `location.origin` (matches auto-picked PORT).
  */

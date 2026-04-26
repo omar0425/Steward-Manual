@@ -90,19 +90,15 @@ router.get('/status', (req, res) => {
           pctInBand: bandProg.pctInBand,
         };
 
-  // No brokerage in manual edition
   const investmentValue = snap.investment_value || 0;
   const adjustedNetWorth = snap.total_assets + investmentValue - snap.total_debt;
 
   const stabilityRaw = computeStability({
-    ynabSafetyLiquid: snap.safety_liquid,
-    ynabTotalAssets: snap.total_assets,
+    safetyLiquid: snap.safety_liquid,
+    totalAssets: snap.total_assets,
     monthlyExpenses: snap.monthly_expenses,
     debtRemaining: snap.debt_remaining,
-    monthsAheadYnab: snap.months_ahead,
-    brokerageEnabled: false,
-    brokerageCash: 0,
-    brokerageHoldings: 0,
+    monthsAhead: snap.months_ahead,
   });
   const stabilityNarr = stabilityNarrative(tierObj.id, stabilityRaw);
   const stability = {
@@ -217,7 +213,7 @@ router.get('/status', (req, res) => {
       safetyLiquid:     snap.safety_liquid,
       totalDebt:        snap.total_debt,
       investmentValue:  investmentValue,
-      brokerageEnabled: false,
+
       monthsAhead:      snap.months_ahead,
       monthlyIncome:    snap.monthly_income,
       monthlyExpenses:  snap.monthly_expenses,
@@ -241,8 +237,7 @@ router.get('/status', (req, res) => {
         }
       : null,
     meta: {
-      ynabPulledAt:        snap.pulled_at,
-      brokeragePulledAt:   null,
+      lastSnapshotAt:     snap.pulled_at,
       freshness,
       nextScheduled:       null,
     },
@@ -274,14 +269,14 @@ router.get('/status', (req, res) => {
   res.json(payload);
 });
 
-// ── POST /api/snapshot (MANUAL ENTRY — replaces YNAB pull) ────────────────────
+// ── POST /api/snapshot (MANUAL ENTRY) ────────────────────────────────────────
 //
 // Body: {
 //   totalAssets:    number,    (liquid + savings — what you own)
 //   totalDebt:      number,    (total liabilities)
 //   monthlyIncome:  number,    (optional, default 0)
 //   monthlyExpenses:number,    (optional, default 0)
-//   investmentValue:number,    (optional, default 0 — brokerage/investment value)
+//   investmentValue:number,    (optional, default 0)
 //   debtAccounts: [            (optional — individual debt accounts)
 //     { id: "cc-visa", name: "Visa", balance: 4500 },
 //     { id: "car-loan", name: "Car Loan", balance: 12000 },
@@ -343,10 +338,10 @@ router.post('/snapshot', (req, res) => {
     const { getTier } = require('../services/tiers');
     const tierObj = getTier(debtRemaining);
 
-    // Insert snapshot (same schema as YNAB pulls)
+    // Insert snapshot
     const netWorth = roundMoney(assets + invest - (debt > debtRemaining ? debt : debtRemaining));
     insertSnapshot({
-      source:           'ynab',   // keep 'ynab' source for compatibility with existing queries
+      source:           'manual',
       pulled_at:        now,
       net_worth:        netWorth,
       total_assets:     assets,
@@ -368,7 +363,7 @@ router.post('/snapshot', (req, res) => {
       replaceDebtAccountBalances(debtBalanceMap);
       appendDebtAccountHistory(debtBalanceMap);
 
-      // Apply climb metrics (same logic as YNAB pull)
+      // Apply climb metrics
       applyClimbMetricsOnPull(debtRemaining, debtBalanceMap, prevBalances);
 
       // Build display rows for the debt sync debug
@@ -425,7 +420,7 @@ router.post('/snapshot', (req, res) => {
 
 router.post('/start-game', (req, res) => {
   try {
-    const snap = latestSnapshot('ynab');
+    const snap = latestSnapshot();
     if (!snap) {
       return res.status(503).json({
         ok: false,
@@ -536,18 +531,6 @@ router.post('/config/notifications-sent', express.json(), (req, res) => {
   }
   res.json({ ok: true, sent });
 });
-
-// ── Stub: POST /api/refresh/ynab (no-op in manual edition) ────────────────────
-// The frontend boot.js calls manualRefresh('ynab') — return a friendly message.
-
-router.post('/refresh/ynab', (req, res) => {
-  res.json({
-    ok: true,
-    message: 'Manual edition — use the entry form to add a snapshot instead.',
-  });
-});
-
-// ── Stub: GET /api/brokerage (no-op in manual edition) ────────────────────────
 
 router.get('/brokerage', (req, res) => {
   res.json({

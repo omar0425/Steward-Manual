@@ -2,7 +2,7 @@
 
 import { TIER_FLOW, TIER_META, TIER_INDEX } from './tiers.js';
 import { getDashboardRoot, isClassicLayoutDashboardDoc } from './shell.js';
-import { TOOLTIP_ASSET_RUNWAY_YNAB } from './format.js';
+import { TOOLTIP_ASSET_RUNWAY } from './format.js';
 
 let currentTierTheme = TIER_FLOW[0];
 
@@ -181,8 +181,8 @@ export function upgradeDashboardLayout() {
 
     const runway = document.createElement('div');
     runway.className = 'hero-context-cell';
-    runway.title = TOOLTIP_ASSET_RUNWAY_YNAB;
-    runway.innerHTML = '<span class="hero-context-label">Asset runway (YNAB)</span>';
+    runway.title = TOOLTIP_ASSET_RUNWAY;
+    runway.innerHTML = '<span class="hero-context-label">Runway</span>';
     const runwayVal = document.createElement('span');
     runwayVal.className = 'hero-context-value';
     runwayVal.id = 'hero-stat-runway';

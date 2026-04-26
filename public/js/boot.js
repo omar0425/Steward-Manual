@@ -250,8 +250,6 @@ async function load(options = {}) {
       readJsonRes(statusRes, '/api/status'),
       readJsonRes(snapsRes, '/api/snapshots'),
     ]);
-    const brokerage = null;
-
     if (!status.ready) {
       if (startupBootComplete) {
         transitionTo(AppMode.LOADING, 'status no longer ready — wait for next sync');
@@ -279,7 +277,7 @@ async function load(options = {}) {
     }
 
     await refreshDebtPanelData();
-    render(status, snapshots, brokerage);
+    render(status, snapshots);
     checkPayoffMilestones(status);
 
     // After a reset the commitment gate runs before data exists, so
@@ -332,26 +330,6 @@ async function load(options = {}) {
 }
 
 /* \u2500\u2500 Manual refresh \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-export async function manualRefresh(source) {
-  const btn = document.getElementById(`refresh-${source === 'ynab' ? 'ynab' : 'brok'}-btn`);
-  const msg = document.getElementById('refresh-msg');
-  if (!btn || !msg) return;
-  btn.disabled = true;
-  msg.textContent = `Refreshing ${source.toUpperCase()}\u2026`;
-
-  try {
-    const res = await fetch(stewardApiUrl(`/api/refresh/${source}`), { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
-    const succeeded = res.ok && data.ok !== false && !data.error;
-    if (succeeded) {
-      msg.textContent = data.message || 'Done.';
-      await load({ refresh: true, manual: true });
-    } else {
-      msg.textContent = data.error || data.message || 'Error refreshing.';
-    }
-  } catch (err) {
-    msg.textContent = 'Network error.';
-  }
-
-  btn.disabled = false;
+export async function manualRefresh() {
+  await load({ refresh: true, manual: true });
 }

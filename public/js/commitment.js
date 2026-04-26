@@ -87,7 +87,7 @@ export function initPlayClearLocalBtn() {
   btn.addEventListener('click', () => {
     if (
       !window.confirm(
-        "Clear local session?\n\nThis only clears this browser's commitment, onboarding, and current play session state. It does not delete database history or YNAB data.",
+        "Clear local session?\n\nThis only clears this browser's commitment, onboarding, and current play session state. It does not delete your database history.",
       )
     ) {
       return;
@@ -103,7 +103,7 @@ export function initPlayResetBtn() {
   btn.addEventListener('click', async () => {
     if (
       !window.confirm(
-        'Reset game?\n\nThis deletes the game database history: snapshots, debt account history, baseline, paid-down counter, game start, turn window, climb metrics, notifications, and cached play data.\n\nYour preferences are kept. Sync YNAB manually when ready to begin the new game.',
+        'Reset game?\n\nThis deletes the game database history: snapshots, debt account history, baseline, paid-down counter, game start, turn window, climb metrics, notifications, and cached play data.\n\nYour preferences are kept. Add your debts again when ready to begin the new game.',
       )
     ) {
       return;

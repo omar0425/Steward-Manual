@@ -100,7 +100,7 @@ function getTier(debtRemaining) {
  * Calculate next-tier info.
  *
  * @param {number} debtRemaining  Current debt in dollars
- * @param {Array}  snapshots      Recent YNAB snapshots, newest first
+ * @param {Array}  snapshots      Recent snapshots, newest first
  * @returns {object}
  */
 function nextTierInfo(debtRemaining, snapshots = []) {

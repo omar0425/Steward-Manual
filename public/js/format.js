@@ -127,9 +127,7 @@ export function nextMoveGuidance(nextTier) {
 
 /* ── Breathing room / liquidity ─────────────────────────────────── */
 
-/** YNAB total on-budget assets ÷ last full month of expenses (hero + grid). Not the breathing-room score. */
-export const TOOLTIP_ASSET_RUNWAY_YNAB =
-  'Asset runway: how many months of spending your total on-budget YNAB assets could cover, using your last full month of expenses. Includes investments and other non-cash balances, so it is often higher than spendable cash.';
+export const TOOLTIP_ASSET_RUNWAY = '';
 
 /** Spendable-style cushion ÷ expenses; same signal as the Breathing room chip (Exposed / Steady / Fortified). */
 export const TOOLTIP_LIQUID_CUSHION_RUNWAY =
@@ -163,7 +161,7 @@ export function resolveBreathingRoomGoalState(stab) {
 export function formatHeroBreathingRoomLine(stab, classicLayout) {
   const br = resolveBreathingRoomGoalState(stab);
   if (br.runwayMonths == null) {
-    return `Target: ${br.goalMonths.toFixed(1)} mo Breathing Room — add monthly expenses in YNAB to measure.`;
+    return `Target: ${br.goalMonths.toFixed(1)} mo Breathing Room.`;
   }
   if (br.reached) {
     return `${br.runwayMonths.toFixed(1)} mo spendable cushion — Breathing Room goal reached (${br.goalMonths.toFixed(1)} mo).`;
@@ -181,7 +179,7 @@ export function formatBoardRunwayHelperLine(monthsAheadYnab, stab) {
   const br = resolveBreathingRoomGoalState(stab);
   let primary;
   if (br.runwayMonths == null) {
-    primary = `Breathing Room goal is ${br.goalMonths.toFixed(1)} mo spendable cushion. Add monthly expenses in YNAB to measure runway.`;
+    primary = `Breathing Room goal is ${br.goalMonths.toFixed(1)} mo spendable cushion.`;
   } else if (br.reached) {
     primary = `Breathing room runway: ${br.runwayMonths.toFixed(1)} mo spendable cushion — Breathing Room goal reached (${br.goalMonths.toFixed(1)} mo target).`;
   } else {
@@ -189,7 +187,7 @@ export function formatBoardRunwayHelperLine(monthsAheadYnab, stab) {
       br.gapMonths != null && Number.isFinite(br.gapMonths) ? br.gapMonths.toFixed(1) : (br.goalMonths - br.runwayMonths).toFixed(1);
     primary = `Breathing room runway: ${br.runwayMonths.toFixed(1)} mo spendable cushion · ${gapStr} mo to goal (${br.goalMonths.toFixed(1)} mo).`;
   }
-  return `${primary} Asset runway (YNAB) is ${ynab === '--' ? '—' : ynab} in the grid; it is often higher because many assets are not spendable cash.`;
+  return primary;
 }
 
 /** Hero primary line when payoff stage is max (Debt Free) but breathing room is Exposed. */
@@ -211,7 +209,7 @@ export function buildLiquidityPillTooltip(stab) {
   const goalLine = `Breathing Room product goal: ${br.goalMonths.toFixed(1)} mo on this same spendable-cushion runway.`;
   const bits = [
     'Payoff stage shows debt progress; this chip is breathing room (liquidity) only.',
-    'Breathing room is spendable-style cushion ÷ monthly expenses—not asset runway (all YNAB assets ÷ expenses).',
+    'Breathing room is spendable-style cushion ÷ monthly expenses.',
     goalLine,
     stab.score != null
       ? `Liquidity score ${stab.score}/100 combines months of cover with cushion versus debt.`
@@ -238,7 +236,7 @@ export function formatPaidDownDisplay(paidShown, paidTooltip) {
   if (!Number.isFinite(n) || n <= 0) {
     return {
       text: 'Start your climb',
-      title: `${CUMULATIVE_PROGRESS_SUBTEXT}\n\n${paidTooltip}\n\nTracked so far: $0 — your first reduction between YNAB pulls will show here.`,
+      title: `${CUMULATIVE_PROGRESS_SUBTEXT}\n\n${paidTooltip}\n\nTracked so far: $0 — your first balance reduction will show here.`,
     };
   }
   return { text: `You've reduced ${fmtDollar(n)}`, title: `${CUMULATIVE_PROGRESS_SUBTEXT}\n\n${paidTooltip}` };
@@ -464,7 +462,7 @@ export function paceQualitative(avgMonthly) {
 
 /**
  * Cumulative paydown from GET /api/status (`cumulativePaidDown`). Server persists monotonic
- * totals on each YNAB sync — do not merge with snapshots here.
+ * totals on each snapshot — do not merge with snapshots here.
  */
 export function cumulativePaidDownFromStats(stats) {
   const raw = stats.cumulativePaidDown ?? stats.debtPaid;
@@ -551,7 +549,7 @@ export function paidDownDetailTooltip(stats) {
     lines.push(`Baseline (peak anchor): ${fmtDollar(baseline)}.`);
   }
   lines.push(
-    'Cumulative paydown: sum of decreases in total tracked debt between YNAB pulls (never decreases).',
+    'Cumulative paydown: sum of decreases in total tracked debt between snapshots (never decreases).',
   );
   const nd = Number(stats.cumulativeNewDebtAdded);
   const net = Number(stats.netImprovement);

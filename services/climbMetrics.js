@@ -2,7 +2,7 @@
 
 /**
  * Persistent cumulative debt climb metrics (separate from tier/stage band math).
- * Updated on each successful YNAB pull from **per-account** debt deltas so that
+ * Updated on each snapshot from **per-account** debt deltas so that
  * removing a liability account is not counted as paydown.
  */
 
@@ -137,11 +137,11 @@ function summarizePerAccountDebtDeltas(prev, curr) {
 /**
  * Human-readable rows for last pull: change in debt magnitude per account.
  * Positive delta = balance owed increased; negative = paydown. New accounts: full balance as positive.
- * Removed accounts: negative prior magnitude (no YNAB name — label generically).
+ * Removed accounts: negative prior magnitude (label generically).
  *
  * @param {Map<string, number>} previousByAccountId
  * @param {Map<string, number>} currentByAccountId
- * @param {Array<{ id?: string, name?: string }>} [accounts] Current YNAB accounts (for names).
+ * @param {Array<{ id?: string, name?: string }>} [accounts] Current debt accounts (for names).
  * @returns {{ name: string, delta: number, kind: 'decreased' | 'increased' | 'new' | 'removed' }[]}
  */
 function perAccountDebtDeltaDisplayRows(previousByAccountId, currentByAccountId, accounts) {
@@ -187,7 +187,7 @@ function perAccountDebtDeltaDisplayRows(previousByAccountId, currentByAccountId,
   return rows;
 }
 
-/** Last successful YNAB pull debt-sync summary (for logs / optional API debug). */
+/** Last debt-sync summary (for logs / optional API debug). */
 let lastDebtSyncDebug = null;
 
 function getLastDebtSyncDebug() {
@@ -239,7 +239,7 @@ function getLastDebtSyncDebugForStatus() {
  *
  * @param {number} debtRemaining  Aggregate debt (sum of liability balances), same as snapshots.
  * @param {Map<string, number>} previousByAccountId  From `debt_account_balances` (may be empty).
- * @param {Map<string, number>} currentByAccountId  Built from current YNAB accounts.
+ * @param {Map<string, number>} currentByAccountId  Built from current debt accounts.
  * @returns {object} climbAction, analysis, map_seeded_before, aggregate_debt_remaining
  */
 function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAccountId) {

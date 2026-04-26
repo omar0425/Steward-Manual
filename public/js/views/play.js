@@ -109,7 +109,7 @@ function buildLoadingScreen() {
       el('div', { class: 'loading-spinner' }),
       el('p', { class: 'loading-text' }, 'Enter your numbers to get started\u2026'),
       el('p', { class: 'loading-cta' },
-        el('button', { type: 'button', class: 'loading-sync-btn', id: 'loading-ynab-sync-btn' }, 'Add Snapshot'),
+        el('button', { type: 'button', class: 'loading-sync-btn', id: 'loading-sync-btn' }, 'Add Your Debts'),
       ),
     ),
   );
@@ -217,55 +217,6 @@ function buildHeroSection() {
   return section;
 }
 
-function buildBrokeragePanel() {
-  const section = el('section', { class: 'section-panel brokerage-card brokerage-card--section', id: 'hero-brokerage-card' });
-  section.innerHTML = `
-    <p class="brokerage-card-label">Brokerage</p>
-    <div class="brokerage-card-grid">
-      <div class="brokerage-card-cell brokerage-card-cell--primary">
-        <span class="brokerage-card-k">Portfolio value</span>
-        <span class="brokerage-card-v" id="hero-brokerage-total">\u2014</span>
-      </div>
-      <div class="brokerage-card-cell">
-        <span class="brokerage-card-k">Cash</span>
-        <span class="brokerage-card-v" id="hero-brokerage-cash">\u2014</span>
-      </div>
-      <div class="brokerage-card-cell">
-        <span class="brokerage-card-k">Holdings</span>
-        <span class="brokerage-card-v" id="hero-brokerage-holdings">\u2014</span>
-      </div>
-      <div class="brokerage-card-cell">
-        <span class="brokerage-card-k">Breathing credit</span>
-        <span class="brokerage-card-v" id="hero-brokerage-credit">\u2014</span>
-      </div>
-    </div>
-    <p class="brokerage-card-foot" id="hero-brokerage-foot">\u2014</p>
-  `;
-  return section;
-}
-
-function buildCashflowPanel() {
-  const section = el('section', { class: 'section-panel cashflow-panel cashflow-panel--solo', style: 'padding:0; overflow:hidden;' });
-  section.innerHTML = `
-    <div class="cf-half">
-      <p class="cf-section-label" style="margin-bottom:14px;">Cash Flow</p>
-      <div class="cf-row">
-        <span class="cf-row-label">Monthly income</span>
-        <span class="cf-val pos" id="stat-income-display">\u2014</span>
-      </div>
-      <div class="cf-row">
-        <span class="cf-row-label">Monthly expenses</span>
-        <span class="cf-val neg" id="stat-expenses-display">\u2014</span>
-      </div>
-      <div class="cf-row">
-        <span class="cf-row-label">Monthly surplus</span>
-        <span class="cf-val gold" id="stat-cashflow">\u2014</span>
-      </div>
-    </div>
-  `;
-  return section;
-}
-
 function buildNetWorthChart() {
   const section = el('section', { class: 'section-panel' });
   section.innerHTML = `
@@ -358,52 +309,6 @@ function buildStageProgressDetail() {
   return section;
 }
 
-function buildStabilityNarrative() {
-  const section = el('section', { class: 'section-panel' });
-  section.innerHTML = `
-    <p class="section-label" style="margin-bottom:16px;">Situation read</p>
-    <div class="narrative-grid">
-      <div class="narrative-block">
-        <p class="narrative-label">Assessment</p>
-        <p class="narrative-lead" id="hero-stability-lead"></p>
-        <p class="narrative-mood" id="hero-mood-copy"></p>
-      </div>
-      <div class="narrative-block">
-        <p class="narrative-label">Next milestone</p>
-        <p class="narrative-milestone" id="hero-stability-milestone"></p>
-        <p class="narrative-mood" id="hero-next-action" style="margin-top:10px;"></p>
-      </div>
-    </div>
-  `;
-  return section;
-}
-
-function buildHealthGrid() {
-  const section = el('section', { class: 'section-panel' });
-  section.innerHTML = `
-    <p class="section-label" style="margin-bottom:16px;">Cash &amp; Runway</p>
-    <div class="health-grid" id="board-health-grid">
-      <div class="health-cell">
-        <span class="health-label">Monthly income</span>
-        <span class="health-value health-in" id="stat-income">\u2014</span>
-      </div>
-      <div class="health-cell">
-        <span class="health-label">Monthly expenses</span>
-        <span class="health-value health-out" id="stat-expenses">\u2014</span>
-      </div>
-      <div class="health-cell">
-        <span class="health-label">Cash / assets</span>
-        <span class="health-value" id="stat-assets">\u2014</span>
-      </div>
-      <div class="health-cell">
-        <span class="health-label">Asset runway</span>
-        <span class="health-value" id="stat-months-ahead">\u2014</span>
-      </div>
-    </div>
-  `;
-  return section;
-}
-
 function buildCumulativePaydownTrophy() {
   const section = el('section', { class: 'section-panel' });
   section.innerHTML = `
@@ -463,14 +368,14 @@ function buildDataStrip() {
   section.innerHTML = `
     <div class="data-chip">
       <span class="data-chip-k">Last snapshot</span>
-      <span class="data-chip-v" id="data-ynab-pulled">\u2014</span>
+      <span class="data-chip-v" id="data-last-snapshot">\u2014</span>
     </div>
     <div class="data-chip">
       <span class="data-chip-k">Freshness</span>
       <span class="data-chip-v fresh freshness-dot" id="freshness-badge">\u2014</span>
     </div>
     <div class="data-strip-actions">
-      <button class="refresh-btn" type="button" id="refresh-ynab-btn" onclick="document.getElementById('manual-entry-panel').scrollIntoView({behavior:'smooth'})">\u270e Update Numbers</button>
+      <button class="refresh-btn" type="button" id="refresh-update-btn" onclick="document.getElementById('manual-entry-panel').scrollIntoView({behavior:'smooth'})">\u270e Update Numbers</button>
     </div>
     <p class="data-strip-msg" id="refresh-msg"></p>
     <p class="data-strip-foot">Manual edition \u00b7 Enter your numbers and save a snapshot whenever your balances change</p>

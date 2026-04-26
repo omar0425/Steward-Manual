@@ -87,11 +87,24 @@ function renderSavedDebtsList(debtLines) {
         <span class="saved-debt-dollar">$</span>
         <input type="number" class="saved-debt-balance-input" step="0.01" min="0" value="${acct.balance}" />
       </div>
+      <button type="button" class="saved-debt-remove" aria-label="Remove ${acct.name}" title="Remove">&times;</button>
     `;
 
     // Live total update on input
     const input = row.querySelector('.saved-debt-balance-input');
     input.addEventListener('input', () => updateSavedTotal());
+
+    // Remove debt row
+    row.querySelector('.saved-debt-remove').addEventListener('click', () => {
+      row.remove();
+      updateSavedTotal();
+      // If no saved debts remain, hide the list
+      const remaining = rowsEl.querySelectorAll('.saved-debt-row');
+      if (remaining.length === 0) {
+        listEl.style.display = 'none';
+        if (heading) heading.textContent = 'Add your debts';
+      }
+    });
 
     rowsEl.appendChild(row);
   }
@@ -119,6 +132,89 @@ function updateSavedTotal() {
     if (Number.isFinite(val) && val >= 0) total += val;
   }
   totalEl.textContent = fmtDollar(total);
+}
+
+/* ── Paydown confirmation summary ─────────────────────────────────────────── */
+
+function buildPaydownSummary(accounts) {
+  const rows = document.querySelectorAll('#saved-debts-rows .saved-debt-row');
+  const changes = [];
+  let totalPaid = 0;
+
+  for (const row of rows) {
+    const name = row.dataset.name;
+    const prev = parseFloat(row.dataset.prevBalance);
+    const input = row.querySelector('.saved-debt-balance-input');
+    const curr = parseFloat(input.value);
+    if (!Number.isFinite(prev) || !Number.isFinite(curr)) continue;
+    const delta = prev - curr;
+    if (Math.abs(delta) >= 0.01) {
+      changes.push({ name, prev, curr, delta });
+      if (delta > 0) totalPaid += delta;
+    }
+  }
+
+  // Check for removed debts
+  const currentIds = new Set(accounts.map(a => a.id));
+  for (const row of rows) {
+    const id = row.dataset.accountId;
+    if (!currentIds.has(id)) {
+      const name = row.dataset.name;
+      const prev = parseFloat(row.dataset.prevBalance);
+      changes.push({ name, prev, curr: 0, delta: prev, removed: true });
+      totalPaid += prev;
+    }
+  }
+
+  return { changes, totalPaid };
+}
+
+function showPaydownConfirmation(summary, onConfirm) {
+  // Remove any existing dialog
+  const existing = document.getElementById('paydown-confirm-dialog');
+  if (existing) existing.remove();
+
+  if (summary.changes.length === 0) {
+    onConfirm();
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'paydown-confirm-dialog';
+  overlay.className = 'paydown-confirm-overlay';
+
+  let linesHtml = summary.changes.map(c => {
+    const arrow = '\u2192';
+    if (c.removed) {
+      return `<div class="paydown-line paydown-removed"><span class="paydown-name">${c.name}</span> <span class="paydown-detail">removed</span></div>`;
+    }
+    const dir = c.delta > 0 ? 'paydown-paid' : 'paydown-added';
+    const label = c.delta > 0 ? `paid $${Math.abs(c.delta).toLocaleString()}` : `+$${Math.abs(c.delta).toLocaleString()} added`;
+    return `<div class="paydown-line ${dir}"><span class="paydown-name">${c.name}</span> <span class="paydown-detail">$${c.prev.toLocaleString()} ${arrow} $${c.curr.toLocaleString()} (${label})</span></div>`;
+  }).join('');
+
+  overlay.innerHTML = `
+    <div class="paydown-confirm-card">
+      <h3 class="paydown-confirm-title">Confirm changes</h3>
+      <div class="paydown-confirm-lines">${linesHtml}</div>
+      ${summary.totalPaid > 0 ? `<div class="paydown-confirm-total">Total paid down: <strong>$${summary.totalPaid.toLocaleString()}</strong></div>` : ''}
+      <div class="paydown-confirm-actions">
+        <button type="button" class="paydown-confirm-cancel">Cancel</button>
+        <button type="button" class="paydown-confirm-save">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('.paydown-confirm-save').addEventListener('click', () => {
+    overlay.remove();
+    onConfirm();
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
 }
 
 /* ── Save snapshot ────────────────────────────────────────────────────────── */
@@ -181,7 +277,7 @@ export function initManualEntryForm() {
   });
 
   // Wire up the loading screen button
-  const loadingBtn = document.getElementById('loading-ynab-sync-btn');
+  const loadingBtn = document.getElementById('loading-sync-btn');
   if (loadingBtn) {
     const newBtn = loadingBtn.cloneNode(true);
     loadingBtn.parentNode.replaceChild(newBtn, loadingBtn);
@@ -207,19 +303,36 @@ export function initManualEntryForm() {
     await saveSnapshot(allAccounts, formMsg, saveBtn);
   });
 
-  // "Update Balances" — saves updated balances from the saved debts list
+  // "Update Balances" — shows confirmation summary then saves
   if (updateBtn) {
-    updateBtn.addEventListener('click', async () => {
+    updateBtn.addEventListener('click', () => {
       const updatedAccounts = collectSavedDebtUpdates();
-      // Also include any new accounts in the add form
       const newAccounts = collectDebtAccounts();
       const allAccounts = [...updatedAccounts, ...newAccounts];
-      await saveSnapshot(allAccounts, msg, updateBtn);
+      const summary = buildPaydownSummary(allAccounts);
+      showPaydownConfirmation(summary, async () => {
+        await saveSnapshot(allAccounts, msg, updateBtn);
+      });
     });
   }
 
   // Prefill from last snapshot
   prefillFromLastSnapshot();
+}
+
+function showFirstTimeHint() {
+  const container = document.getElementById('debt-accounts-entries');
+  const existing = document.getElementById('first-time-hint');
+  if (existing || !container) return;
+
+  const hint = document.createElement('div');
+  hint.id = 'first-time-hint';
+  hint.className = 'first-time-hint';
+  hint.innerHTML = `
+    <p class="first-time-hint-title">Start by adding your debts</p>
+    <p class="first-time-hint-text">Click <strong>"+ Add Account"</strong> above to enter each credit card, loan, or liability. Once saved, you'll be able to track your paydown progress over time.</p>
+  `;
+  container.parentNode.insertBefore(hint, container);
 }
 
 function prefillFromLastSnapshot() {
@@ -232,7 +345,11 @@ function prefillFromLastSnapshot() {
       // Render saved debts list if we have debt account data
       if (s.debtAccountLines && s.debtAccountLines.length > 0) {
         renderSavedDebtsList(s.debtAccountLines);
+      } else {
+        showFirstTimeHint();
       }
     })
-    .catch(() => { /* no prefill on error */ });
+    .catch(() => {
+      showFirstTimeHint();
+    });
 }

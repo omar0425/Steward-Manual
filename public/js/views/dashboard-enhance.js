@@ -62,31 +62,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     cfEl.className = 'cf-val ' + (surplus >= 0 ? 'gold' : 'neg');
   }
 
-  /* Brokerage summary under hero cards */
-  const brokerCard = document.getElementById('hero-brokerage-card');
-  if (brokerCard && stats) {
-    const brokerTotal = document.getElementById('hero-brokerage-total');
-    const brokerCash = document.getElementById('hero-brokerage-cash');
-    const brokerHoldings = document.getElementById('hero-brokerage-holdings');
-    const brokerCredit = document.getElementById('hero-brokerage-credit');
-    const brokerFoot = document.getElementById('hero-brokerage-foot');
-    const components = (stab && stab.components) || {};
-    const isEnabled = stats.brokerageEnabled !== false;
-    const cash = Number(components.brokerageCash);
-    const holdings = Number(components.brokerageHoldings);
-    const investedCredit = Number(components.investedCredit);
-    const total = Number(stats.investmentValue);
 
-    if (brokerTotal) brokerTotal.textContent = isEnabled ? fmtMoney(total) : 'Not linked';
-    if (brokerCash) brokerCash.textContent = isEnabled ? fmtMoney(cash) : '\u2014';
-    if (brokerHoldings) brokerHoldings.textContent = isEnabled ? fmtMoney(holdings) : '\u2014';
-    if (brokerCredit) brokerCredit.textContent = isEnabled ? fmtMoney(investedCredit) : '\u2014';
-    if (brokerFoot) {
-      brokerFoot.textContent = isEnabled
-        ? `Last pull ${fmtShortDateTime(meta && meta.brokeragePulledAt)}. Breathing credit uses 35% of holdings.`
-        : 'Brokerage is not linked.';
-    }
-  }
 
   /* ── Breathing room (spendable cushion runway) + buffer warning (< 2 wk runway) ── */
   const brEl = document.getElementById('stat-breathing-room');
@@ -281,7 +257,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       ph.className = 'panel-empty-state';
       chartWrap.appendChild(ph);
     }
-    ph.textContent = 'No data yet — sync YNAB to begin.';
+    ph.textContent = 'No data yet — add your debts to begin.';
     ph.hidden = false;
     const svg = document.getElementById('networth-chart-svg');
     if (svg) svg.hidden = true;
@@ -295,7 +271,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       ph = document.createElement('p');
       ph.id = 'debt-list-empty';
       ph.className = 'panel-empty-state';
-      ph.textContent = 'Run YNAB sync to refresh debt account balances.';
+      ph.textContent = 'Add your debts to see account balances here.';
       debtList.appendChild(ph);
     }
   } else {

@@ -314,66 +314,6 @@ h1, h2, h3 {
 .tier-cards-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .tier-cards-group { display: flex; gap: 12px; align-items: stretch; }
 
-.brokerage-card {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px 16px;
-  transition: background 300ms ease, border-color 300ms ease;
-}
-.brokerage-card--section {
-  padding: 22px 24px;
-}
-.brokerage-card-label {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  margin: 0 0 14px;
-}
-.brokerage-card-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-.brokerage-card-cell {
-  background: rgba(0,0,0,0.12);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.brokerage-card-cell--primary {
-  grid-column: auto;
-}
-.brokerage-card-k {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.brokerage-card-v {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-.brokerage-card-cell--primary .brokerage-card-v {
-  color: var(--gold-2);
-}
-.brokerage-card-foot {
-  margin: 12px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-2);
-}
-
 .tier-quote-card {
   background: var(--bg-2);
   border: 1px solid var(--border);
@@ -396,18 +336,6 @@ h1, h2, h3 {
   line-height: 1.18;
   letter-spacing: -0.01em;
   color: var(--text);
-}
-
-@media (max-width: 900px) {
-  .brokerage-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .brokerage-card-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ── Locked next-tier card ── */
@@ -1116,8 +1044,6 @@ h1, h2, h3 {
 
 /* ══════════════════════════════════════════════════════════════════════
    DATA SYNC STRIP
-   Existing IDs: data-ynab-pulled, data-brok-pulled, data-next-pull,
-                 freshness-badge, refresh-ynab-btn, refresh-brok-btn
    ══════════════════════════════════════════════════════════════════════ */
 .data-strip { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 22px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; transition: background 300ms ease; }
 .data-chip  { display: flex; flex-direction: column; gap: 3px; }
@@ -1485,8 +1411,6 @@ body[data-app-mode="ready"]   #dashboard         { display: flex; flex-direction
 
 /* Shared small headings: keep them quiet, but readable enough to scan. */
 .section-label,
-.brokerage-card-label,
-.brokerage-card-k,
 .tier-quote-label,
 .hero-stage-kicker,
 .journey-label,
@@ -1508,7 +1432,6 @@ body[data-app-mode="ready"]   #dashboard         { display: flex; flex-direction
 }
 
 .journey-label,
-.brokerage-card-label,
 .cf-section-label,
 .tc-section-label,
 .narrative-label,
@@ -1689,6 +1612,140 @@ body[data-app-mode="ready"]   #dashboard         { display: flex; flex-direction
 .saved-debt-balance-input:focus {
   outline: none;
   border-color: var(--gold, #d4af37);
+}
+.saved-debt-remove {
+  background: none;
+  border: none;
+  color: var(--text-3, rgba(255,255,255,0.3));
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-left: 8px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.saved-debt-remove:hover {
+  color: var(--rose, #e74c3c);
+  background: rgba(231,76,60,0.1);
+}
+
+/* ── Paydown confirmation dialog ── */
+.paydown-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+.paydown-confirm-card {
+  background: var(--bg-2, #1a1a2e);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px 28px;
+  max-width: 440px;
+  width: 100%;
+}
+.paydown-confirm-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+.paydown-confirm-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.paydown-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+}
+.paydown-name {
+  font-weight: 500;
+  color: var(--text);
+}
+.paydown-detail {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.paydown-paid .paydown-detail { color: var(--green, #2ecc71); }
+.paydown-added .paydown-detail { color: var(--rose, #e74c3c); }
+.paydown-removed .paydown-detail { color: var(--text-3); font-style: italic; }
+.paydown-confirm-total {
+  font-size: 15px;
+  color: var(--green, #2ecc71);
+  margin-bottom: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, rgba(255,255,255,0.06));
+}
+.paydown-confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.paydown-confirm-cancel {
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid var(--border-2, rgba(255,255,255,0.12));
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.paydown-confirm-save {
+  padding: 8px 22px;
+  background: var(--gold, #d4af37);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  color: #000;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── First-time onboarding hint ── */
+.first-time-hint {
+  background: rgba(212,175,55,0.08);
+  border: 1px dashed rgba(212,175,55,0.3);
+  border-radius: var(--radius-md, 8px);
+  padding: 20px 22px;
+  margin-bottom: 12px;
+}
+.first-time-hint-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--gold, #d4af37);
+  margin: 0 0 8px;
+}
+.first-time-hint-text {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Mobile polish ── */
+@media (max-width: 480px) {
+  .saved-debt-row { gap: 8px; }
+  .saved-debt-balance-input { width: 90px; font-size: 14px; padding: 6px 8px; }
+  .saved-debt-name { font-size: 14px; }
+  .paydown-confirm-card { padding: 20px 18px; }
+  .paydown-line { flex-direction: column; gap: 2px; }
+  .manual-entry-panel { padding: 14px !important; }
+  .debt-account-entry-row { flex-wrap: wrap; }
+  .debt-account-entry-row .debt-acct-name { flex: 1 1 100%; }
+  .debt-account-entry-row .debt-acct-balance { flex: 1; }
 }
 .saved-debts-total {
   display: flex;
