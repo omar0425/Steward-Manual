@@ -107,6 +107,14 @@ function initStartGameGate() {
   const resumeAfterRefresh = isSessionResume();
 
   if (!startRoot || !btn) {
+    const now = new Date().toISOString();
+    const meta = readSessionMeta();
+    if (!meta.firstStartedAt) meta.firstStartedAt = now;
+    meta.currentSessionStartedAt = now;
+    meta.lastSeenAt = now;
+    meta.sessionCount += 1;
+    writeSessionMeta(meta);
+    startPlaytimeTracking();
     transitionTo(AppMode.LOADING, 'init: no start gate');
     void load({ refresh: false }).catch(err => {
       console.error('[Steward] load() failed (no start gate)', err);

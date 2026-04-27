@@ -209,7 +209,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     const baseline = Number(stats.climbBaselineDebt) || 0;
     cupEl.textContent = '$' + Math.round(paid).toLocaleString();
     if (pctEl && baseline > 0) {
-      pctEl.textContent = ((paid / baseline) * 100).toFixed(1) + '% of starting debt ($' + Math.round(baseline).toLocaleString() + ')';
+      pctEl.innerHTML = ((paid / baseline) * 100).toFixed(1) + '% paid down<br><span style="color:var(--text-3)">\$' + Math.round(baseline).toLocaleString() + ' baseline</span>';
     }
   }
 

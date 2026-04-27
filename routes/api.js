@@ -288,6 +288,11 @@ function roundMoney(n) {
   return Number.isFinite(x) ? Math.round(x * 100) / 100 : 0;
 }
 
+function isNegativeFinite(n) {
+  const x = Number(n);
+  return Number.isFinite(x) && x < 0;
+}
+
 router.post('/snapshot', (req, res) => {
   try {
     const {
@@ -298,6 +303,21 @@ router.post('/snapshot', (req, res) => {
       investmentValue = 0,
       debtAccounts = [],
     } = req.body || {};
+
+    const moneyFields = {
+      totalAssets,
+      totalDebt,
+      monthlyIncome,
+      monthlyExpenses,
+      investmentValue,
+    };
+    const negativeField = Object.entries(moneyFields).find(([, value]) => isNegativeFinite(value));
+    if (negativeField) {
+      return res.status(400).json({
+        ok: false,
+        error: `${negativeField[0]} cannot be negative`,
+      });
+    }
 
     const assets   = roundMoney(totalAssets);
     const debt     = roundMoney(totalDebt);
@@ -314,9 +334,18 @@ router.post('/snapshot', (req, res) => {
     if (Array.isArray(debtAccounts) && debtAccounts.length > 0) {
       let sumFromAccounts = 0;
       for (const acct of debtAccounts) {
+        if (!acct || typeof acct !== 'object') {
+          return res.status(400).json({ ok: false, error: 'debtAccounts entries must be objects' });
+        }
         const id  = String(acct.id || `acct-${debtDisplayRows.length}`);
+        if (debtBalanceMap.has(id)) {
+          return res.status(400).json({ ok: false, error: `Duplicate debt account id: ${id}` });
+        }
+        if (isNegativeFinite(acct.balance)) {
+          return res.status(400).json({ ok: false, error: `Debt account ${id} balance cannot be negative` });
+        }
         const bal = roundMoney(acct.balance);
-        const name = (acct.name || 'Account').trim();
+        const name = typeof acct.name === 'string' && acct.name.trim() ? acct.name.trim() : 'Account';
         if (bal > 0) {
           sumFromAccounts += bal;
           debtBalanceMap.set(id, bal);
@@ -364,17 +393,18 @@ router.post('/snapshot', (req, res) => {
       appendDebtAccountHistory(debtBalanceMap);
 
       // Apply climb metrics
-      applyClimbMetricsOnPull(debtRemaining, debtBalanceMap, prevBalances);
+      applyClimbMetricsOnPull(debtRemaining, prevBalances, debtBalanceMap);
 
       // Build display rows for the debt sync debug
-      const displayRows = perAccountDebtDeltaDisplayRows(debtBalanceMap, prevBalances, debtDisplayRows);
-      setLastDebtSyncDebug({
+      const displayRows = perAccountDebtDeltaDisplayRows(prevBalances, debtBalanceMap, debtDisplayRows);
+      const debugPayload = {
         pulled_at: now,
         debt_remaining: debtRemaining,
         account_lines: displayRows,
         current_account_lines: debtDisplayRows,
-      });
-      persistLastDebtSyncDebugSnapshot();
+      };
+      setLastDebtSyncDebug(debugPayload);
+      persistLastDebtSyncDebugSnapshot(debugPayload);
     } else {
       // No individual accounts — apply aggregate climb metrics
       const climb = getClimbStatsFromConfig();

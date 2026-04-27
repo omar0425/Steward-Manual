@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test --test-concurrency=1 test/tiers-debt-band.test.js test/climb-metrics.test.js test/debt-sync-validation.test.js test/debt-sync-debug-api.test.js test/zzz-climb-metrics-apply.test.js",
+    "test": "node test/run-all.js",
     "reset-local-data": "node -e \"require('./db').resetAllGameState(); console.log('All game state cleared.');\""
   },
   "engines": {

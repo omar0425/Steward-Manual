@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Steward — Sign In</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    /* ── Login page layout ── */
+    .login-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 40px 24px;
+      background: var(--start-bg);
+    }
+
+    .login-wrap {
+      width: min(420px, 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    /* Brand mark above card */
+    .login-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .login-brand-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: var(--gold-soft);
+      border: 1px solid rgba(200,168,76,0.35);
+      display: grid;
+      place-items: center;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--gold-2);
+      box-shadow: 0 0 24px rgba(200,168,76,0.12);
+    }
+
+    .login-brand-name {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    /* Card */
+    .login-card {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-xl);
+      padding: 40px 36px 36px;
+      position: relative;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(200,168,76,0.5), transparent);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    }
+
+    [data-theme="light"] .login-card {
+      box-shadow: 0 20px 60px rgba(40,25,5,0.10);
+    }
+
+    /* Panel switching */
+    .login-panel { display: none; }
+    .login-panel.is-active { display: block; }
+
+    /* Headlines */
+    .login-headline {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 36px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin-bottom: 6px;
+    }
+
+    .login-sub {
+      font-size: 13px;
+      color: var(--text-2);
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    /* Divider */
+    .login-divider {
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 28px;
+    }
+
+    /* Form fields */
+    .login-field {
+      margin-bottom: 16px;
+    }
+
+    .login-field:last-of-type {
+      margin-bottom: 24px;
+    }
+
+    .login-label {
+      display: block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 7px;
+    }
+
+    .login-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+      -webkit-appearance: none;
+    }
+
+    .login-input::placeholder {
+      color: var(--text-3);
+    }
+
+    .login-input:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(200,168,76,0.10);
+    }
+
+    .login-input.is-error {
+      border-color: var(--rose);
+      box-shadow: 0 0 0 3px rgba(217,79,110,0.10);
+    }
+
+    [data-theme="light"] .login-input {
+      background: var(--surface-2);
+    }
+
+    /* Password hint */
+    .login-hint {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--text-3);
+      letter-spacing: 0.04em;
+      margin-top: 5px;
+    }
+
+    /* Error message */
+    .login-error {
+      font-size: 12px;
+      color: var(--rose);
+      background: var(--rose-soft);
+      border: 1px solid rgba(217,79,110,0.20);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      margin-bottom: 18px;
+      line-height: 1.45;
+      display: none;
+    }
+
+    .login-error.is-visible { display: block; }
+
+    /* Submit button */
+    .login-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--gold);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #0a0c14;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 140ms ease;
+    }
+
+    .login-btn:hover {
+      background: var(--gold-2);
+      transform: translateY(-1px);
+    }
+
+    .login-btn:active {
+      transform: translateY(0);
+    }
+
+    .login-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+      transform: none;
+    }
+
+    .login-btn.is-loading {
+      opacity: 0.7;
+      cursor: default;
+      transform: none;
+      letter-spacing: 0.20em;
+    }
+
+    /* Toggle link */
+    .login-toggle {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    .login-toggle-link {
+      color: var(--gold);
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-size: inherit;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      transition: color 130ms;
+    }
+
+    .login-toggle-link:hover {
+      color: var(--gold-2);
+    }
+
+    /* Footer */
+    .login-footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-3);
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.04em;
+    }
+
+    /* Theme toggle — top right */
+    .login-theme-btn {
+      position: fixed;
+      top: 16px;
+      right: 20px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      padding: 5px 12px;
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: all 130ms;
+    }
+
+    .login-theme-btn:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    /* Grain overlay (matches app) */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <button class="login-theme-btn" id="theme-btn">&#9790; Dark</button>
+
+  <div class="login-screen">
+    <div class="login-wrap">
+
+      <!-- Brand -->
+      <div class="login-brand">
+        <div class="login-brand-icon">S</div>
+        <div class="login-brand-name">Steward</div>
+      </div>
+
+      <!-- Card -->
+      <div class="login-card">
+
+        <!-- ── Sign in panel ── -->
+        <div class="login-panel is-active" id="panel-login">
+          <div class="login-headline">Welcome back.</div>
+          <div class="login-sub">Sign in to your account to continue.</div>
+          <div class="login-divider"></div>
+
+          <div class="login-error" id="login-error"></div>
+
+          <form id="login-form" autocomplete="on" novalidate>
+            <div class="login-field">
+              <label class="login-label" for="login-username">Username</label>
+              <input class="login-input" id="login-username" name="username"
+                     type="text" autocomplete="username" placeholder="your username" required />
+            </div>
+            <div class="login-field">
+              <label class="login-label" for="login-password">Password</label>
+              <input class="login-input" id="login-password" name="password"
+                     type="password" autocomplete="current-password" placeholder="••••••••••" required />
+            </div>
+
+            <button class="login-btn" id="login-submit" type="submit">Sign in</button>
+          </form>
+
+          <div class="login-toggle">
+            No account?
+            <button class="login-toggle-link" id="goto-register">Create one</button>
+          </div>
+        </div>
+
+        <!-- ── Register panel ── -->
+        <div class="login-panel" id="panel-register">
+          <div class="login-headline">Create account.</div>
+          <div class="login-sub">Join Steward and start tracking your progress.</div>
+          <div class="login-divider"></div>
+
+          <div class="login-error" id="register-error"></div>
+
+          <form id="register-form" autocomplete="on" novalidate>
+            <div class="login-field">
+              <label class="login-label" for="reg-username">Username</label>
+              <input class="login-input" id="reg-username" name="username"
+                     type="text" autocomplete="username" placeholder="choose a username" required />
+            </div>
+            <div class="login-field">
+              <label class="login-label" for="reg-password">Password</label>
+              <input class="login-input" id="reg-password" name="password"
+                     type="password" autocomplete="new-password" placeholder="••••••••••" required />
+              <div class="login-hint">Minimum 10 characters</div>
+            </div>
+            <div class="login-field">
+              <label class="login-label" for="reg-confirm">Confirm password</label>
+              <input class="login-input" id="reg-confirm" name="confirm"
+                     type="password" autocomplete="new-password" placeholder="••••••••••" required />
+            </div>
+
+            <button class="login-btn" id="register-submit" type="submit">Create account</button>
+          </form>
+
+          <div class="login-toggle">
+            Already have an account?
+            <button class="login-toggle-link" id="goto-login">Sign in</button>
+          </div>
+        </div>
+
+      </div><!-- /login-card -->
+
+      <div class="login-footer">Private &mdash; home &amp; team use only</div>
+
+    </div>
+  </div>
+
+  <script>
+    // ── Theme toggle ──────────────────────────────────────────────────
+    const themeBtn = document.getElementById('theme-btn');
+    const saved = localStorage.getItem('steward-theme') || 'dark';
+    document.body.dataset.theme = saved;
+    themeBtn.textContent = saved === 'dark' ? '☀ Light' : '☾ Dark';
+
+    themeBtn.addEventListener('click', () => {
+      const next = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.body.dataset.theme = next;
+      localStorage.setItem('steward-theme', next);
+      themeBtn.textContent = next === 'dark' ? '☀ Light' : '☾ Dark';
+    });
+
+    // ── Panel toggle ──────────────────────────────────────────────────
+    const panelLogin    = document.getElementById('panel-login');
+    const panelRegister = document.getElementById('panel-register');
+
+    document.getElementById('goto-register').addEventListener('click', () => {
+      panelLogin.classList.remove('is-active');
+      panelRegister.classList.add('is-active');
+      document.getElementById('reg-username').focus();
+    });
+
+    document.getElementById('goto-login').addEventListener('click', () => {
+      panelRegister.classList.remove('is-active');
+      panelLogin.classList.add('is-active');
+      document.getElementById('login-username').focus();
+    });
+
+    // ── Helpers ───────────────────────────────────────────────────────
+    function showError(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add('is-visible');
+    }
+
+    function clearError(id) {
+      const el = document.getElementById(id);
+      el.textContent = '';
+      el.classList.remove('is-visible');
+    }
+
+    function setLoading(btn, loading) {
+      btn.disabled = loading;
+      btn.classList.toggle('is-loading', loading);
+      btn.textContent = loading
+        ? (btn.id === 'login-submit' ? 'Signing in…' : 'Creating…')
+        : (btn.id === 'login-submit' ? 'Sign in' : 'Create account');
+    }
+
+    // ── Login form ────────────────────────────────────────────────────
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError('login-error');
+      const btn      = document.getElementById('login-submit');
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      if (!username || !password) {
+        showError('login-error', 'Please enter your username and password.');
+        return;
+      }
+
+      setLoading(btn, true);
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          showError('login-error', data.error || 'Invalid username or password.');
+        }
+      } catch {
+        showError('login-error', 'Could not reach the server. Try again.');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    // ── Register form ─────────────────────────────────────────────────
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError('register-error');
+      const btn      = document.getElementById('register-submit');
+      const username = document.getElementById('reg-username').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const confirm  = document.getElementById('reg-confirm').value;
+
+      if (!username || !password || !confirm) {
+        showError('register-error', 'All fields are required.');
+        return;
+      }
+      if (password.length < 10) {
+        showError('register-error', 'Password must be at least 10 characters.');
+        document.getElementById('reg-password').classList.add('is-error');
+        return;
+      }
+      if (password !== confirm) {
+        showError('register-error', 'Passwords do not match.');
+        document.getElementById('reg-confirm').classList.add('is-error');
+        return;
+      }
+
+      document.getElementById('reg-password').classList.remove('is-error');
+      document.getElementById('reg-confirm').classList.remove('is-error');
+
+      setLoading(btn, true);
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          showError('register-error', data.error || 'Registration failed. Try a different username.');
+        }
+      } catch {
+        showError('register-error', 'Could not reach the server. Try again.');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    // ── Clear field errors on input ───────────────────────────────────
+    document.querySelectorAll('.login-input').forEach(input => {
+      input.addEventListener('input', () => input.classList.remove('is-error'));
+    });
+  </script>
+
+</body>
+</html>

@@ -275,6 +275,7 @@ function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAc
     setConfig(KEY_PAID, '0');
     setConfig(KEY_NEW, '0');
     setConfig(KEY_LAST, String(debt));
+    setConfig(KEY_MAP_SEEDED, '1');
     return { ...baseReturn, climbAction: 'baseline_init', aggregate_debt_remaining: debt };
   }
 
@@ -307,17 +308,12 @@ function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAc
 
   if (getConfig(KEY_MAP_SEEDED) !== '1') {
     // First pull after deploy (or upgrade): persist map this run, no delta.
-    const baseline = parseConfigNum(baselineStr, NaN);
-    const recovery = applyAggregateRecoveryFromBaseline(baseline, debt);
     setConfig(KEY_LAST, String(debt));
+    setConfig(KEY_MAP_SEEDED, '1');
     return {
       ...baseReturn,
-      climbAction:
-        recovery.recoveredPaidDown > 0 || recovery.recoveredNewDebt > 0
-          ? 'aggregate_recovery'
-          : 'anchor_no_delta',
+      climbAction: 'anchor_no_delta',
       aggregate_debt_remaining: debt,
-      aggregate_recovery: recovery,
     };
   }
 
@@ -344,6 +340,7 @@ function getClimbStatsFromConfig() {
 
   const cumulativePaidDown = Math.max(0, parseConfigNum(getConfig(KEY_PAID), 0));
   const cumulativeNewDebtAdded = Math.max(0, parseConfigNum(getConfig(KEY_NEW), 0));
+  const lastAggregateDebt = parseConfigNum(getConfig(KEY_LAST), NaN);
   const netImprovement = roundMoney(cumulativePaidDown - cumulativeNewDebtAdded);
 
   let pctPaid = 0;
@@ -355,6 +352,7 @@ function getClimbStatsFromConfig() {
     climbBaselineDebt,
     cumulativePaidDown,
     cumulativeNewDebtAdded,
+    lastAggregateDebt,
     netImprovement,
     pctPaid: parseFloat(pctPaid.toFixed(1)),
   };

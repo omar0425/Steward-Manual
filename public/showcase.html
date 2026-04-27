@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <style>
     /* ── Showcase layout ─────────────────────────────────────────────── */
@@ -26,7 +26,7 @@
     }
 
     .showcase-title {
-      font-family: 'Playfair Display', Georgia, serif;
+      font-family: 'Cormorant Garamond', Georgia, serif;
       font-size: 1.6rem;
       font-weight: 800;
       color: var(--forest-950, #0d2218);
@@ -139,7 +139,7 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       color: rgba(255,255,255,0.95);
-      font-family: 'Playfair Display', Georgia, serif;
+      font-family: 'Cormorant Garamond', Georgia, serif;
       font-size: 1.25rem;
       font-weight: 800;
       padding: 6px 13px 5px;
@@ -155,15 +155,15 @@
       top: 14px;
       right: 14px;
       z-index: 12;
-      background: var(--sc-accent, rgba(255,255,255,0.25));
-      color: rgba(255,255,255,0.96);
+      background: rgba(200,168,76,0.20);
+      color: #c8a84c;
       font-size: 0.58rem;
       font-weight: 800;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       padding: 5px 9px 4px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.22);
+      border: 1px solid rgba(200,168,76,0.40);
       pointer-events: none;
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
@@ -188,7 +188,7 @@
     }
 
     .sc-tier-name {
-      font-family: 'Playfair Display', Georgia, serif;
+      font-family: 'Cormorant Garamond', Georgia, serif;
       font-size: 1.15rem;
       font-weight: 800;
       color: rgba(255,255,255,0.97);
@@ -352,7 +352,7 @@
 
     .showcase-intro-title {
       margin: 0 0 14px;
-      font-family: 'Playfair Display', Georgia, serif;
+      font-family: 'Cormorant Garamond', Georgia, serif;
       font-size: clamp(2rem, 3vw, 3rem);
       line-height: 0.98;
       color: #10261c;
@@ -940,7 +940,7 @@
   <div class="showcase-intro-copy">
     <span class="showcase-kicker">State Progression System</span>
     <h2 class="showcase-intro-title">Each tier should feel like a real step in a financial climb.</h2>
-    <p class="showcase-intro-text">Low tiers carry tension and instability. Mid tiers settle into control and momentum. Late tiers get cleaner, steadier, and closer to zero. This page is an illustrative payoff-stage gallery, so sample bars and blurbs are for art direction, not your live breathing room or runway. The dashboard uses the same character look; there, payoff progress leads with dollars to the next payoff stage, thin bars show position inside the current stage only, and breathing-room runway stays separate from asset runway.</p>
+    <p class="showcase-intro-text">Low tiers carry tension. Mid tiers settle into momentum. Late tiers get steadier, cleaner, closer to zero. The thin bars here show illustrative position inside each stage — your live dashboard leads with dollars to the next payoff stage.</p>
   </div>
 
   <div class="showcase-phase-grid">
@@ -1362,7 +1362,7 @@ function showcaseDebtTierBandPct(tierIndex, rockBottomBuffer) {
   if (!next || current.threshold === -Infinity) {
     return {
       pct: 100,
-      caption: 'Final payoff stage · no dollars left to the next threshold · bar is illustrative',
+      caption: '',
     };
   }
 
@@ -1379,7 +1379,7 @@ function showcaseDebtTierBandPct(tierIndex, rockBottomBuffer) {
   const pct = roundDebtTierBandPctClient(rawPct);
   return {
     pct: Number.isFinite(pct) ? pct : 0,
-    caption: 'Thin bar: position inside this stage only · live dashboard leads with dollars to the next payoff stage',
+    caption: '',
   };
 }
 
@@ -1388,16 +1388,16 @@ function showcaseDebtTierBandPct(tierIndex, rockBottomBuffer) {
    scale = showcase-specific scene scale
    Tuned individually per card against the showcase grid. ──────────── */
 const SHOWCASE_OFFSETS = {
-  rock_bottom:  { x: 5,  y: 34, scale: 1.02 },
-  broke:        { x: 4,  y: 36, scale: 1.06 },
-  struggling:   { x: 2,  y: 38, scale: 1.10 },
-  surviving:    { x: 1,  y: 40, scale: 1.15 },
+  rock_bottom:  { x: 0,  y: 34, scale: 1.02 },
+  broke:        { x: 0,  y: 36, scale: 1.06 },
+  struggling:   { x: 0,  y: 38, scale: 1.10 },
+  surviving:    { x: 0,  y: 40, scale: 1.15 },
   stabilizing:  { x: 0,  y: 41, scale: 1.18 },
   stable:       { x: 0,  y: 42, scale: 1.20 },
-  building:     { x: -1, y: 40, scale: 1.20 },
-  thriving:     { x: -2, y: 46, scale: 1.14 },
-  winning:      { x: -3, y: 40, scale: 0.92 },
-  wealthy:      { x: 3,  y: 46, scale: 0.84 },
+  building:     { x: 0,  y: 40, scale: 1.20 },
+  thriving:     { x: 0,  y: 61, scale: 1.14 },
+  winning:      { x: 0,  y: 40, scale: 0.92 },
+  wealthy:      { x: 0,  y: 46, scale: 0.84 },
 };
 
 /* ── Threshold label (below card) ──────────────────────────────────── */
@@ -1452,6 +1452,7 @@ function buildCard(tier, rockBottomBuffer) {
   const card = document.createElement('div');
   card.className = 'sc-card state-card';
   card.dataset.state = tier.id;
+  card.dataset.tier = tier.id;
   card.style.setProperty('--sc-accent', theme.accent || tier.accent);
 
   /* Character mount — larger top tiers get a small showcase-only fit adjustment */
@@ -1509,17 +1510,8 @@ function buildCard(tier, rockBottomBuffer) {
   track.title =
     'Illustrative gallery: thin bar is position inside this stage only. Live dashboard headline is dollars to the next payoff stage—not breathing room.';
   track.appendChild(fill);
-  const barLabel = document.createElement('span');
-  barLabel.className = 'sc-bar-label';
-  barLabel.textContent = '·';
-  barLabel.title = 'Stage bar only · not the dollar gap to the next payoff stage';
   barRow.appendChild(track);
-  barRow.appendChild(barLabel);
   footer.appendChild(barRow);
-  const barCap = document.createElement('p');
-  barCap.className = 'sc-bar-caption';
-  barCap.textContent = bandDemo.caption;
-  footer.appendChild(barCap);
 
   footer.appendChild(nextTierElement(tier, tierIndex, rockBottomBuffer));
 
@@ -1583,18 +1575,12 @@ function markActiveFromApi() {
       const stats = data.stats;
       const nextTier = data.nextTier;
       const fill = activeWrap.querySelector('.sc-bar-fill');
-      const label = activeWrap.querySelector('.sc-bar-label');
       const track = activeWrap.querySelector('.sc-bar-track');
       const nextTargetEl = activeWrap.querySelector('.sc-next-target');
       const barDisplay =
         stats && typeof debtTierBandBarDisplay === 'function' ? debtTierBandBarDisplay(stats) : null;
       if (barDisplay && fill && Number.isFinite(barDisplay.displayPct)) {
         fill.style.width = `${barDisplay.displayPct}%`;
-        if (label) {
-          label.textContent = '·';
-          label.hidden = false;
-          label.title = 'Stage bar only · not the dollar gap to the next payoff stage';
-        }
         if (nextTargetEl && typeof formatNextTierGapHeadline === 'function') {
           if (activeTierId === 'wealthy') {
             nextTargetEl.textContent = formatNextTierGapHeadline(null);

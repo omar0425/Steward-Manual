@@ -503,6 +503,13 @@ export function buildSteward(stateId) {
 
 /* ── Mount hero character ─────────────────────────────────────────── */
 let heroWrap = null;
+const HERO_SCENE_SCALE_MULTIPLIER = 1.12;
+const STEWARD_WRAP_HEIGHT = 268;
+
+function heroCenteredSceneShiftY(baseSceneScale, heroSceneScale, baseSceneShift) {
+  const addedVisualHeight = (heroSceneScale - baseSceneScale) * STEWARD_WRAP_HEIGHT;
+  return Math.round(addedVisualHeight / 2 + (baseSceneScale - 1) * 73 + 5);
+}
 
 export function mountHeroCharacter(stateId) {
   // Update card wrapper data-state so backgrounds/glows/gradients apply
@@ -519,8 +526,9 @@ export function mountHeroCharacter(stateId) {
   const baseGroundX = parseFloat(heroWrap.style.getPropertyValue('--ground-scale-x') || '1');
   const baseGroundY = parseFloat(heroWrap.style.getPropertyValue('--ground-scale-y') || '1');
 
-  heroWrap.style.setProperty('--scene-scale', String((baseSceneScale * 1.12).toFixed(3)));
-  heroWrap.style.setProperty('--scene-shift-y', `${baseSceneShift - 10}px`);
+  const heroSceneScale = baseSceneScale * HERO_SCENE_SCALE_MULTIPLIER;
+  heroWrap.style.setProperty('--scene-scale', String(heroSceneScale.toFixed(3)));
+  heroWrap.style.setProperty('--scene-shift-y', `${heroCenteredSceneShiftY(baseSceneScale, heroSceneScale, baseSceneShift)}px`);
   heroWrap.style.setProperty('--ground-scale-x', String((baseGroundX * 1.08).toFixed(3)));
   heroWrap.style.setProperty('--ground-scale-y', String((baseGroundY * 1.08).toFixed(3)));
 

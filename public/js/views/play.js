@@ -378,7 +378,6 @@ function buildDataStrip() {
       <button class="refresh-btn" type="button" id="refresh-update-btn" onclick="document.getElementById('manual-entry-panel').scrollIntoView({behavior:'smooth'})">\u270e Update Numbers</button>
     </div>
     <p class="data-strip-msg" id="refresh-msg"></p>
-    <p class="data-strip-foot">Manual edition \u00b7 Enter your numbers and save a snapshot whenever your balances change</p>
   `;
   return section;
 }
@@ -463,7 +462,6 @@ export function mountPlayShell(root) {
   root.appendChild(buildCommitmentScreen());
   root.appendChild(buildTopNav());
   root.appendChild(buildMilestoneBanner());
-  root.appendChild(buildStartGameScreen());
   root.appendChild(buildLoadingScreen());
   root.appendChild(buildErrorScreen());
 

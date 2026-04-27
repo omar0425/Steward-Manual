@@ -4,11 +4,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   applyDeltaToTotals,
+  getClimbStatsFromConfig,
+  KEY_LAST,
   roundMoney,
   summarizePerAccountDebtDeltas,
   analyzePerAccountDebtDiff,
   perAccountDebtDeltaDisplayRows,
 } = require('../services/climbMetrics');
+const { resetAllGameState, setConfig } = require('../db');
 
 test('applyDeltaToTotals: paydown increases cumulative paid only', () => {
   const a = applyDeltaToTotals(100000, 95000, 0, 0);
@@ -44,6 +47,13 @@ test('applyDeltaToTotals: flat delta leaves totals unchanged', () => {
   const a = applyDeltaToTotals(50000, 50000, 1000, 2000);
   assert.equal(a.cumulativePaidDown, 1000);
   assert.equal(a.cumulativeNewDebtAdded, 2000);
+});
+
+test('getClimbStatsFromConfig: exposes last aggregate debt for aggregate-only pulls', () => {
+  resetAllGameState();
+  setConfig(KEY_LAST, '1234.56');
+  const stats = getClimbStatsFromConfig();
+  assert.equal(stats.lastAggregateDebt, 1234.56);
 });
 
 test('roundMoney: two decimal places', () => {

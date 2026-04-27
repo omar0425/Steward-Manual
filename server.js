@@ -38,6 +38,9 @@ app.use('/api', (req, res, next) => {
   next();
 });
 app.use('/api', apiRouter);
+app.use('/api', (req, res) => {
+  res.status(404).json({ ok: false, error: 'API route not found' });
+});
 app.get('/health', (req, res) =>
   res.json({ ok: true, uptime: process.uptime(), app: 'steward-manual' }),
 );
@@ -45,6 +48,10 @@ app.get('/health', (req, res) =>
 // ── HTML pages ────────────────────────────────────────────────────────────────
 app.get(['/showcase', '/showcase/'], (req, res) => {
   res.sendFile(path.join(publicDir, 'showcase.html'));
+});
+
+app.get(['/login', '/login/'], (req, res) => {
+  res.sendFile(path.join(publicDir, 'login.html'));
 });
 
 function sendMainShell(req, res) {
@@ -68,4 +75,7 @@ app.listen(PORT, () => {
   console.log(`  Dashboard:       ${base}/`);
   console.log(`  Tier gallery:    ${base}/showcase`);
   console.log(`  Health check:    ${base}/health\n`);
+}).on('error', (err) => {
+  console.error(`[Steward] Failed to bind port ${PORT}:`, err && err.message ? err.message : err);
+  process.exit(1);
 });

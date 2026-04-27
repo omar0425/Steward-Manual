@@ -54,7 +54,7 @@ export function renderNetWorthChart(snapshots) {
       span.textContent = `${d.getMonth() + 1}/${d.getDate()} — starting point`;
       xLabels.appendChild(span);
     }
-    if (deltaEl) { deltaEl.textContent = 'Pull again to see trend'; deltaEl.className = 'chart-trend'; }
+    if (deltaEl) { deltaEl.textContent = 'Save again to plot trend'; deltaEl.className = 'chart-trend'; }
     if (nwDisplay) {
       const v = Number(pts[0].netWorth);
       const formatted = '$' + Math.abs(Math.round(v)).toLocaleString();
