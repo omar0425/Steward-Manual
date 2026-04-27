@@ -282,6 +282,64 @@
       color: var(--gold);
     }
 
+    /* Google sign-in button */
+    .login-google-divider {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 20px 0;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+
+    .login-google-divider::before,
+    .login-google-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .login-google-btn {
+      width: 100%;
+      padding: 12px 14px;
+      background: transparent;
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 140ms ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .login-google-btn:hover {
+      border-color: var(--gold);
+      background: rgba(200,168,76,0.05);
+    }
+
+    .login-google-btn svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .login-google-section {
+      display: none;
+    }
+
+    .login-google-section.is-enabled {
+      display: block;
+    }
+
     /* Grain overlay (matches app) */
     body::after {
       content: '';
@@ -330,6 +388,14 @@
             <button class="login-btn" id="login-submit" type="submit">Sign in</button>
           </form>
 
+          <div class="login-google-section" id="google-login-section">
+            <div class="login-google-divider">or</div>
+            <button class="login-google-btn" id="google-login-btn" type="button">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Sign in with Google
+            </button>
+          </div>
+
           <div class="login-toggle">
             No account?
             <button class="login-toggle-link" id="goto-register">Create one</button>
@@ -364,6 +430,14 @@
 
             <button class="login-btn" id="register-submit" type="submit">Create account</button>
           </form>
+
+          <div class="login-google-section" id="google-register-section">
+            <div class="login-google-divider">or</div>
+            <button class="login-google-btn" id="google-register-btn" type="button">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Sign up with Google
+            </button>
+          </div>
 
           <div class="login-toggle">
             Already have an account?
@@ -513,6 +587,40 @@
     document.querySelectorAll('.login-input').forEach(input => {
       input.addEventListener('input', () => input.classList.remove('is-error'));
     });
+
+    // ── Google OAuth — check if enabled and show buttons ─────────────
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/google/status');
+        const data = await res.json();
+        if (data.enabled) {
+          document.getElementById('google-login-section').classList.add('is-enabled');
+          document.getElementById('google-register-section').classList.add('is-enabled');
+        }
+      } catch { /* Google OAuth not available */ }
+    })();
+
+    document.getElementById('google-login-btn').addEventListener('click', () => {
+      window.location.href = '/api/auth/google';
+    });
+    document.getElementById('google-register-btn').addEventListener('click', () => {
+      window.location.href = '/api/auth/google';
+    });
+
+    // ── Handle OAuth error query params ──────────────────────────────
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthError = urlParams.get('error');
+    if (oauthError) {
+      const messages = {
+        google_denied: 'Google sign-in was cancelled.',
+        google_not_configured: 'Google OAuth is not configured on this server.',
+        google_token_failed: 'Google authentication failed. Please try again.',
+        google_profile_failed: 'Could not retrieve your Google profile. Please try again.',
+        google_failed: 'Google sign-in failed. Please try again.',
+      };
+      showError('login-error', messages[oauthError] || 'Sign-in failed. Please try again.');
+      window.history.replaceState({}, '', '/login');
+    }
   </script>
 
 </body>

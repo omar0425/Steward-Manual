@@ -58,6 +58,18 @@ function initTheme() {
   });
 }
 
+/* ── Logout handler ─────────────────────────────────────────────── */
+function initLogout() {
+  const btn = document.getElementById('nav-logout-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch { /* ignore */ }
+    window.location.href = '/login';
+  });
+}
+
 /* ── Init ──────────────────────────────────────────────────────── */
 async function init() {
   const shell = currentShell();
@@ -78,6 +90,7 @@ async function init() {
     console.info('Steward: consolidated build active');
 
     initTheme();
+    initLogout();
     await loadCharacterTemplate();
 
     if (typeof window !== 'undefined') {

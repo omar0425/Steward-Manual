@@ -207,6 +207,14 @@ h1, h2, h3 {
 }
 .nav-theme-btn:hover { border-color: var(--gold); color: var(--gold); }
 
+/* Sign-out button in nav */
+.nav-logout-btn {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em;
+  padding: 5px 12px; border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-3); cursor: pointer; transition: all 130ms;
+}
+.nav-logout-btn:hover { border-color: var(--rose); color: var(--rose); }
+
 /* ══════════════════════════════════════════════════════════════════════
    🔴 P5 — MILESTONE BANNER
    NEW IDs: milestone-banner, milestone-text, milestone-dismiss
@@ -1218,6 +1226,7 @@ h1, h2, h3 {
   .nav-badge { font-size: 10px; padding: 3px 7px; }
   .milestone-dismiss { min-width: 44px; min-height: 44px; }
   .nav-theme-btn { min-height: 44px; min-width: 44px; }
+  .nav-logout-btn { min-height: 44px; min-width: 44px; }
   .loading-sync-btn, .dashboard-how-btn { min-height: 44px; padding: 10px 16px; }
   #dashboard-onboarding-next, #dashboard-onboarding-back, #dashboard-onboarding-skip { min-height: 44px; }
   #dashboard-how-it-works-btn { display: none; }
