@@ -1,7 +1,23 @@
 'use strict';
 
+const fs   = require('fs');
+const path = require('path');
+
+// Load .env file into process.env (avoids adding dotenv dependency)
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const idx = trimmed.indexOf('=');
+    if (idx < 1) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const val = trimmed.slice(idx + 1).trim();
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
+
 const express    = require('express');
-const path       = require('path');
 const apiRouter  = require('./routes/api');
 const authRouter = require('./routes/auth');
 const { COOKIE_NAME } = require('./routes/auth');
