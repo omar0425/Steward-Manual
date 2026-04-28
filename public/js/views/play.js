@@ -65,6 +65,7 @@ function buildTopNav() {
     <div class="nav-right">
       <span class="nav-badge" id="nav-stage-tag">Classic</span>
       <button class="nav-theme-btn" type="button" id="theme-toggle">\u263D Dark</button>
+      <button class="nav-logout-btn" type="button" id="nav-logout-btn" title="Sign out">Sign out</button>
     </div>
   `;
   return nav;
