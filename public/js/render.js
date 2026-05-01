@@ -62,12 +62,15 @@ export function setDebtSortMode(mode) {
 
 async function saveAprRates() {
   try {
-    await fetch(stewardApiUrl('/api/config/interest-rates'), {
+    const res = await fetch(stewardApiUrl('/api/config/interest-rates'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rates: _aprRates }),
     });
-  } catch { /* silent */ }
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function toggleAprForm() {
@@ -157,7 +160,17 @@ function buildAprForm(panel) {
         }
       }
     }
-    await saveAprRates();
+    save.disabled = true;
+    save.textContent = 'Saving…';
+    const ok = await saveAprRates();
+    save.disabled = false;
+    if (!ok) {
+      save.textContent = 'Save failed — retry';
+      save.style.color = 'var(--neg, #f87171)';
+      return;
+    }
+    save.textContent = 'Save rates';
+    save.style.color = '';
     panel.hidden = true;
     const btn = document.getElementById('apr-edit-btn');
     if (btn) btn.classList.remove('active');

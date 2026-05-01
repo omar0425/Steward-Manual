@@ -101,10 +101,16 @@ function updateSessionTimeDisplay() {
 /**
  * Credits time from lastAnchorMs → now into totalPlaySeconds, then advances the anchor.
  * Safe if called twice in succession (visibility + pagehide): second call sees ~0 delta.
- * Does not run while the tab is backgrounded for the *periodic* tick — caller gates that.
+ *
+ * @param {boolean} [forceFlush=false] - true when the tab is leaving foreground (blur /
+ *   pagehide / visibilitychange→hidden). Skips the focus check so the final slice is
+ *   always captured. false for periodic ticks — guarded by shouldAccrueOnForegroundTick().
+ *   This prevents a background tab from writing into the shared localStorage total while
+ *   the focused tab is also accruing (dual-tab double-count mitigation).
  */
-function applyForegroundAccrual() {
+function applyForegroundAccrual(forceFlush = false) {
   if (!stewardPlaytime.active) return;
+  if (!forceFlush && (document.hidden || !documentHasFocusSafe())) return;
   const now = Date.now();
   let deltaMs = now - stewardPlaytime.lastAnchorMs;
   if (deltaMs <= 0) return;
@@ -124,7 +130,7 @@ function applyForegroundAccrual() {
 function onPlaytimeVisibility() {
   if (!stewardPlaytime.active) return;
   if (document.hidden) {
-    applyForegroundAccrual();
+    applyForegroundAccrual(true);
   } else {
     stewardPlaytime.lastAnchorMs = Date.now();
   }
@@ -132,7 +138,7 @@ function onPlaytimeVisibility() {
 
 function onPlaytimePageHide() {
   if (!stewardPlaytime.active) return;
-  applyForegroundAccrual();
+  applyForegroundAccrual(true);
 }
 
 /**
@@ -155,7 +161,7 @@ function onForegroundAccrualInterval() {
 
 function onWindowBlur() {
   if (!stewardPlaytime.active) return;
-  applyForegroundAccrual();
+  applyForegroundAccrual(true);
 }
 
 function onWindowFocus() {
@@ -184,7 +190,6 @@ export function startPlaytimeTracking() {
 
   const el = document.getElementById('data-session-time');
   if (el) {
-    console.debug('[startup-visibility-direct]', 'data-session-time', 'el.hidden=false');
     el.hidden = false;
   }
   updateSessionTimeDisplay();

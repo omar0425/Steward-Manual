@@ -96,6 +96,140 @@ function getTier(debtRemaining) {
   return TIERS[TIERS.length - 1]; // wealthy
 }
 
+function roundMoney(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function validClimbBaseline(climbBaselineDebt) {
+  const baseline = Number(climbBaselineDebt);
+  return Number.isFinite(baseline) && baseline > 0 ? baseline : null;
+}
+
+function climbTierIndex(debtRemaining, climbBaselineDebt) {
+  const baseline = validClimbBaseline(climbBaselineDebt);
+  if (!baseline) return null;
+  const remRaw = Number(debtRemaining);
+  const rem = Number.isFinite(remRaw) ? remRaw : baseline;
+  if (rem <= 0) return TIERS.length - 1;
+  const nonDebtFreeStages = TIERS.length - 1;
+  const pctPaid = Math.min(1, Math.max(0, (baseline - rem) / baseline));
+  return Math.min(nonDebtFreeStages - 1, Math.floor(pctPaid * nonDebtFreeStages));
+}
+
+function cloneTierWithClimbThreshold(index, climbBaselineDebt) {
+  const tier = TIERS[index] || TIERS[0];
+  const baseline = validClimbBaseline(climbBaselineDebt);
+  if (!baseline || index >= TIERS.length - 1) return { ...tier };
+  const nonDebtFreeStages = TIERS.length - 1;
+  const exitPct = (index + 1) / nonDebtFreeStages;
+  return {
+    ...tier,
+    threshold: roundMoney(baseline * (1 - exitPct)),
+    climbThresholdPct: roundDebtTierBandPct(exitPct * 100),
+  };
+}
+
+function getClimbTier(debtRemaining, climbBaselineDebt) {
+  const idx = climbTierIndex(debtRemaining, climbBaselineDebt);
+  if (idx == null) return { ...TIERS[0] }; // no baseline yet → Stage 01 for everyone
+  return cloneTierWithClimbThreshold(idx, climbBaselineDebt);
+}
+
+function nextClimbTierInfo(debtRemaining, climbBaselineDebt) {
+  const baseline = validClimbBaseline(climbBaselineDebt);
+  if (!baseline) return nextTierInfo(debtRemaining);
+
+  const idx = climbTierIndex(debtRemaining, baseline);
+  const currentTier = cloneTierWithClimbThreshold(idx, baseline);
+  const nextTier = TIERS[idx + 1] ? cloneTierWithClimbThreshold(idx + 1, baseline) : null;
+  if (!nextTier) return { currentTier, nextTier: null, gapDollars: 0, monthsEstimate: null };
+
+  const remRaw = Number(debtRemaining);
+  const rem = Number.isFinite(remRaw) ? remRaw : baseline;
+  const gapDollars = Math.max(0, roundMoney(rem - currentTier.threshold));
+  return { currentTier, nextTier, gapDollars, monthsEstimate: null, avgMonthlyPaydown: null };
+}
+
+function climbTierBandProgress(debtRemaining, currentTier, climbBaselineDebt) {
+  const baseline = validClimbBaseline(climbBaselineDebt);
+  if (!baseline) return debtTierBandProgress(debtRemaining, currentTier, [], climbBaselineDebt);
+
+  const idx = TIERS.findIndex(t => t.id === currentTier.id);
+  const remRaw = Number(debtRemaining);
+  const rem = Number.isFinite(remRaw) ? remRaw : baseline;
+  if (idx < 0) {
+    return { pctInBand: 0, pctInBandRaw: 0, bandLower: 0, bandUpper: baseline, span: baseline, gapToNext: 0 };
+  }
+  if (idx >= TIERS.length - 1 || rem <= 0) {
+    return { pctInBand: 100, pctInBandRaw: 100, bandLower: 0, bandUpper: 0, span: 1, gapToNext: 0 };
+  }
+
+  const nonDebtFreeStages = TIERS.length - 1;
+  const bandUpper = roundMoney(baseline * (1 - (idx / nonDebtFreeStages)));
+  const bandLower = roundMoney(baseline * (1 - ((idx + 1) / nonDebtFreeStages)));
+  const span = Math.max(bandUpper - bandLower, 1);
+  const gapToNext = Math.max(0, roundMoney(rem - bandLower));
+
+  let rawPct;
+  if (rem >= bandUpper) rawPct = 0;
+  else if (rem <= bandLower) rawPct = 100;
+  else rawPct = ((bandUpper - rem) / span) * 100;
+
+  return {
+    pctInBand: roundDebtTierBandPct(rawPct),
+    pctInBandRaw: rawPct,
+    bandLower,
+    bandUpper,
+    span,
+    gapToNext,
+  };
+}
+
+function climbTierJourneyProgress(debtRemaining, currentTier, gapDollarsFromNextTierInfo, nextTier, climbBaselineDebt) {
+  const baseline = validClimbBaseline(climbBaselineDebt);
+  if (!baseline) {
+    return debtTierJourneyProgress(debtRemaining, currentTier, gapDollarsFromNextTierInfo, nextTier, climbBaselineDebt);
+  }
+
+  const remRaw = Number(debtRemaining);
+  const rem = Number.isFinite(remRaw) ? remRaw : baseline;
+  if (currentTier.id === 'wealthy' || rem <= 0) {
+    return {
+      journeyHighDebt: baseline,
+      debtRemaining: 0,
+      pctAlongJourney: 100,
+      dollarsToFinalGoal: 0,
+      dollarsToNextTier: 0,
+      nextTierBoundaryPct: 100,
+      ticks: [],
+    };
+  }
+
+  const band = climbTierBandProgress(rem, currentTier, baseline);
+  const pctAlongJourney = roundDebtTierBandPct(Math.min(100, Math.max(0, ((baseline - rem) / baseline) * 100)));
+  const nextTierBoundaryPct = roundDebtTierBandPct(Math.min(100, Math.max(0, ((baseline - band.bandLower) / baseline) * 100)));
+  const nonDebtFreeStages = TIERS.length - 1;
+  const ticks = TIERS.filter(t => t.id !== 'wealthy').map((t, index) => ({
+    tierId: t.id,
+    badge: t.badge,
+    threshold: roundMoney(baseline * (1 - ((index + 1) / nonDebtFreeStages))),
+    tickPct: roundDebtTierBandPct(((index + 1) / nonDebtFreeStages) * 100),
+    isNextStageLine: t.id === currentTier.id,
+  }));
+
+  return {
+    journeyHighDebt: baseline,
+    debtRemaining: Math.max(0, roundMoney(rem)),
+    pctAlongJourney,
+    dollarsToFinalGoal: roundMoney(Math.max(0, rem)),
+    dollarsToNextTier: nextTier ? Math.max(0, roundMoney(gapDollarsFromNextTierInfo)) : 0,
+    nextTierBoundaryPct,
+    ticks,
+  };
+}
+
 /**
  * Calculate next-tier info.
  *
@@ -395,9 +529,13 @@ module.exports = {
   ROCK_BOTTOM_BAND_BUFFER,
   DEBT_TIER_BAND_PCT_DECIMALS,
   getTier,
+  getClimbTier,
   nextTierInfo,
+  nextClimbTierInfo,
   debtTierBandProgress,
+  climbTierBandProgress,
   debtTierJourneyProgress,
+  climbTierJourneyProgress,
   explainDebtTierBandProgress,
   roundDebtTierBandPct,
   debtProgress,

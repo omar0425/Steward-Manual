@@ -259,34 +259,38 @@ async function load(options = {}) {
       readJsonRes(snapsRes, '/api/snapshots'),
     ]);
     if (!status.ready) {
+      if (status.noData || status.setupIncomplete) {
+        if (STARTUP_UI_DEBUG) console.debug('[Steward] no data: showing setup welcome');
+        if (document.body) document.body.dataset.setupMode = 'first';
+        startupBootComplete = true;
+        transitionTo(AppMode.READY, status.setupIncomplete ? 'setup incomplete' : 'no data: setup welcome');
+        window.setTimeout(() => {
+          const panel = document.getElementById('manual-entry-panel');
+          if (panel) panel.scrollIntoView({ block: 'center', behavior: 'auto' });
+        }, 80);
+        return;
+      }
       if (startupBootComplete) {
         transitionTo(AppMode.LOADING, 'status no longer ready — wait for next sync');
       }
       const txt = document.querySelector('.loading-text');
       if (txt) {
-        if (status.noData) {
-          txt.textContent = 'No data yet \u2014 click \u201cAdd Snapshot\u201d below to enter your numbers.';
-        } else if (status.lastError) {
+        if (status.lastError) {
           txt.textContent = status.lastError;
         } else {
           txt.textContent = status.message || 'Pulling your financial data\u2026';
         }
       }
       if (STARTUP_UI_DEBUG) console.debug(`[Steward] poll: status not ready \u2192 retry in 3s (dataRefresh=${isDataRefresh})`);
-      if (status.noData) {
-        // No snapshots at all — stop polling and let the user decide when to sync.
-        // The "Add Snapshot" button on this screen will open the entry form.
-        if (STARTUP_UI_DEBUG) console.debug('[Steward] no data: waiting for manual entry');
-        return;
-      }
       // Keep polling when a pull is actively in progress (post-manual-sync, initial install)
       window.setTimeout(() => load({ refresh: isDataRefresh, manual: isManual }), 3000);
       return;
     }
 
     await refreshDebtPanelData();
+    if (document.body) delete document.body.dataset.setupMode;
     render(status, snapshots);
-    checkPayoffMilestones(status);
+    await checkPayoffMilestones(status);
 
     // After a reset the commitment gate runs before data exists, so
     // POST /api/start-game fails silently. On the first successful data load,

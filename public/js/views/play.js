@@ -63,7 +63,7 @@ function buildTopNav() {
       <a href="/" class="nav-link active">Dashboard</a>
     </div>
     <div class="nav-right">
-      <span class="nav-badge" id="nav-stage-tag">Classic</span>
+      <span class="nav-badge" id="nav-stage-tag" hidden></span>
       <button class="nav-theme-btn" type="button" id="theme-toggle">\u263D Dark</button>
       <button class="nav-logout-btn" type="button" id="nav-logout-btn" title="Sign out">Sign out</button>
     </div>
@@ -108,10 +108,7 @@ function buildLoadingScreen() {
   return el('div', { id: 'loading-screen', class: 'loading-screen' },
     el('div', { class: 'loading-inner' },
       el('div', { class: 'loading-spinner' }),
-      el('p', { class: 'loading-text' }, 'Enter your numbers to get started\u2026'),
-      el('p', { class: 'loading-cta' },
-        el('button', { type: 'button', class: 'loading-sync-btn', id: 'loading-sync-btn' }, 'Add Your Debts'),
-      ),
+      el('p', { class: 'loading-text' }, 'Loading Steward\u2026'),
     ),
   );
 }
@@ -127,7 +124,7 @@ function buildErrorScreen() {
 }
 
 function buildHeroSection() {
-  const section = el('section', { class: 'hero-section', id: 'hero-section' });
+  const section = el('section', { class: 'hero-section dashboard-only-section', id: 'hero-section' });
   section.innerHTML = `
     <!-- Tier cards group: current + locked next -->
     <div class="tier-cards-stack">
@@ -218,11 +215,11 @@ function buildHeroSection() {
   return section;
 }
 
-function buildNetWorthChart() {
-  const section = el('section', { class: 'section-panel' });
+function buildDebtReductionChart() {
+  const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
     <div class="chart-header">
-      <p class="section-label">Net Worth Trend</p>
+      <p class="section-label">Debt Reduction Trend</p>
       <span>
         <span class="chart-current neg" id="stat-net-worth-chart">\u2014</span>
         <span class="chart-trend" id="chart-trend-delta"></span>
@@ -241,13 +238,13 @@ function buildNetWorthChart() {
       </svg>
     </div>
     <div class="chart-x-labels" id="chart-x-labels"></div>
-    <p class="chart-memo">Net worth trend · latest 60 snapshots</p>
+    <p class="chart-memo">Debt remaining trend - latest 60 snapshots</p>
   `;
   return section;
 }
 
 function buildSessionPanel() {
-  const section = el('section', { class: 'section-panel session-card', id: 'session-card' });
+  const section = el('section', { class: 'section-panel session-card dashboard-only-section', id: 'session-card' });
   section.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
       <p class="tc-section-label" style="margin:0;">This Turn</p>
@@ -263,7 +260,7 @@ function buildSessionPanel() {
 }
 
 function buildDebtAccountsPanel() {
-  const section = el('section', { class: 'section-panel' });
+  const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <p class="tc-section-label" style="margin:0;">Debt Accounts</p>
@@ -292,7 +289,7 @@ function buildDebtAccountsPanel() {
 }
 
 function buildStageProgressDetail() {
-  const section = el('section', { class: 'section-panel' });
+  const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
     <p class="tc-section-label" style="margin-bottom:20px;">Stage progress</p>
     <p class="progress-note" id="progress-restructure-note" hidden style="font-size:12px;color:var(--text-2);margin-bottom:12px;"></p>
@@ -311,7 +308,7 @@ function buildStageProgressDetail() {
 }
 
 function buildCumulativePaydownTrophy() {
-  const section = el('section', { class: 'section-panel' });
+  const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
     <div class="trophy-row">
       <div class="trophy-icon" aria-hidden="true">\uD83D\uDC80</div>
@@ -329,6 +326,16 @@ function buildCumulativePaydownTrophy() {
 function buildManualEntryForm() {
   const section = el('section', { class: 'section-panel manual-entry-panel', id: 'manual-entry-panel' });
   section.innerHTML = `
+    <div class="setup-welcome" id="setup-welcome">
+      <p class="setup-eyebrow">Welcome to Steward</p>
+      <h1 class="setup-title">Start with every debt.</h1>
+      <p class="setup-copy">Add each credit card, loan, and liability first. Steward will lock that total as your starting line only when you press Start Climb.</p>
+      <div class="setup-steps" aria-label="First time setup steps">
+        <span>Add debts</span>
+        <span>Review total</span>
+        <span>Start climb</span>
+      </div>
+    </div>
     <p class="tc-section-label" style="margin-bottom:16px;">Your Debts</p>
 
     <!-- Saved debts list (shown when debts exist) -->
@@ -338,8 +345,30 @@ function buildManualEntryForm() {
         <span>Total Debt</span>
         <span id="saved-debts-total-val">$0</span>
       </div>
+      <div class="manual-entry-financials" id="update-financials-section" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <p class="manual-entry-sub-label" style="margin-bottom:10px;">Financial snapshot <span style="font-size:10px;color:var(--text-3);font-weight:400;">(optional)</span></p>
+        <div class="manual-financials-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label class="manual-entry-hint" for="update-monthly-income" style="display:block;margin-bottom:4px;">Monthly income</label>
+            <input type="number" id="update-monthly-income" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 4500" style="width:100%;" />
+          </div>
+          <div>
+            <label class="manual-entry-hint" for="update-monthly-expenses" style="display:block;margin-bottom:4px;">Monthly expenses</label>
+            <input type="number" id="update-monthly-expenses" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 3200" style="width:100%;" />
+          </div>
+          <div>
+            <label class="manual-entry-hint" for="update-total-assets" style="display:block;margin-bottom:4px;">Total savings / cash</label>
+            <input type="number" id="update-total-assets" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 2000" style="width:100%;" />
+          </div>
+          <div>
+            <label class="manual-entry-hint" for="update-investment-value" style="display:block;margin-bottom:4px;">Investments (optional)</label>
+            <input type="number" id="update-investment-value" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 0" style="width:100%;" />
+          </div>
+        </div>
+      </div>
       <div class="manual-entry-actions">
         <button type="button" class="commitment-btn" id="update-balances-btn">Update Balances</button>
+        <button type="button" class="commitment-btn setup-start-btn" id="start-climb-btn" hidden>Start Climb</button>
         <p class="data-strip-msg" id="snapshot-save-msg"></p>
       </div>
     </div>
@@ -355,8 +384,30 @@ function buildManualEntryForm() {
           <div id="debt-accounts-entries"></div>
           <p class="manual-entry-hint">Add each credit card, loan, or liability with its current balance.</p>
         </div>
+        <div class="manual-entry-financials" style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+          <p class="manual-entry-sub-label" style="margin-bottom:10px;">Financial snapshot <span style="font-size:10px;color:var(--text-3);font-weight:400;">(optional — powers cashflow &amp; breathing room)</span></p>
+          <div class="manual-financials-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label class="manual-entry-hint" for="input-monthly-income" style="display:block;margin-bottom:4px;">Monthly income</label>
+              <input type="number" id="input-monthly-income" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 4500" style="width:100%;" />
+            </div>
+            <div>
+              <label class="manual-entry-hint" for="input-monthly-expenses" style="display:block;margin-bottom:4px;">Monthly expenses</label>
+              <input type="number" id="input-monthly-expenses" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 3200" style="width:100%;" />
+            </div>
+            <div>
+              <label class="manual-entry-hint" for="input-total-assets" style="display:block;margin-bottom:4px;">Total savings / cash</label>
+              <input type="number" id="input-total-assets" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 2000" style="width:100%;" />
+            </div>
+            <div>
+              <label class="manual-entry-hint" for="input-investment-value" style="display:block;margin-bottom:4px;">Investments (optional)</label>
+              <input type="number" id="input-investment-value" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 0" style="width:100%;" />
+            </div>
+          </div>
+        </div>
         <div class="manual-entry-actions">
           <button type="submit" class="commitment-btn" id="save-snapshot-btn">Save Debts</button>
+          <button type="button" class="commitment-btn setup-start-btn" id="start-climb-empty-btn" hidden>Start Climb</button>
         </div>
       </form>
     </div>
@@ -365,7 +416,7 @@ function buildManualEntryForm() {
 }
 
 function buildDataStrip() {
-  const section = el('section', { class: 'data-strip', 'aria-label': 'Data sync' });
+  const section = el('section', { class: 'data-strip dashboard-only-section', 'aria-label': 'Data sync' });
   section.innerHTML = `
     <div class="data-chip">
       <span class="data-chip-k">Last snapshot</span>
@@ -383,12 +434,59 @@ function buildDataStrip() {
   return section;
 }
 
+function buildCashflowPanel() {
+  const section = el('section', { class: 'section-panel dashboard-only-section' });
+  section.innerHTML = `
+    <div class="cashflow-panel">
+      <div class="cf-half">
+        <p class="cf-section-label">Cash Flow</p>
+        <div class="cf-row">
+          <span class="cf-row-label">Income</span>
+          <span class="cf-val" id="stat-income-display">—</span>
+        </div>
+        <div class="cf-row">
+          <span class="cf-row-label">Expenses</span>
+          <span class="cf-val" id="stat-expenses-display">—</span>
+        </div>
+        <div class="cf-row">
+          <span class="cf-row-label">Months ahead</span>
+          <span class="cf-val" id="stat-months-ahead-display">—</span>
+        </div>
+      </div>
+      <div class="cf-half">
+        <p class="cf-section-label">Monthly Surplus</p>
+        <p class="cf-val" id="stat-cashflow">—</p>
+        <div class="breathing-rail breathing-rail--journey" id="breathing-rail"
+             role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+             aria-label="Breathing Room goal progress">
+          <div class="breathing-head">
+            <div class="breathing-topline">
+              <p class="breathing-val" id="stat-breathing-room">—</p>
+            </div>
+            <p class="breathing-sub">Breathing Room</p>
+            <p class="breathing-buffer-warn" id="breathing-buffer-warn" hidden></p>
+          </div>
+          <div class="breathing-goal-track" id="breathing-goal-track">
+            <div class="breathing-goal-fill" id="breathing-goal-fill" style="width:0%"></div>
+          </div>
+          <p class="breathing-goal-readout" id="breathing-goal-readout">Goal: <span id="breathing-goal-months">2.0</span> mo</p>
+        </div>
+        <p class="hero-milestone" id="hero-stability-milestone" style="font-size:11px;color:var(--text-3);margin-top:10px;font-style:italic;"></p>
+      </div>
+    </div>
+  `;
+  return section;
+}
+
 function buildSentinelDiv() {
   const div = el('div', {
     style: 'position:absolute;width:0;height:0;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%);white-space:nowrap;',
     'aria-hidden': 'true',
   });
   div.innerHTML = `
+    <span id="stat-income">\u2014</span>
+    <span id="stat-expenses">\u2014</span>
+    <span id="stat-months-ahead">\u2014</span>
     <span id="stat-investments">\u2014</span>
     <span id="stat-brok-sub"></span>
     <span id="stat-debt-paid">\u2014</span>
@@ -463,13 +561,15 @@ export function mountPlayShell(root) {
   root.appendChild(buildCommitmentScreen());
   root.appendChild(buildTopNav());
   root.appendChild(buildMilestoneBanner());
+  root.appendChild(buildStartGameScreen());
   root.appendChild(buildLoadingScreen());
   root.appendChild(buildErrorScreen());
 
   const dashboard = el('main', { class: 'dashboard app-shell', id: 'dashboard' });
   dashboard.appendChild(buildHeroSection());
+  dashboard.appendChild(buildCashflowPanel());
   dashboard.appendChild(buildManualEntryForm());
-  dashboard.appendChild(buildNetWorthChart());
+  dashboard.appendChild(buildDebtReductionChart());
   dashboard.appendChild(buildSessionPanel());
   dashboard.appendChild(buildDebtAccountsPanel());
   dashboard.appendChild(buildStageProgressDetail());
@@ -485,3 +585,4 @@ export function mountPlayShell(root) {
 
   root.appendChild(dashboard);
 }
+

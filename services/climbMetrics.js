@@ -6,7 +6,7 @@
  * removing a liability account is not counted as paydown.
  */
 
-const { getConfig, setConfig, setConfigIfAbsent } = require('../db');
+const { getConfig, setConfig, setConfigIfAbsent, currentUserId } = require('../db');
 
 const KEY_BASELINE = 'climb_baseline_debt';
 const KEY_PAID = 'cumulative_paid_down';
@@ -187,19 +187,19 @@ function perAccountDebtDeltaDisplayRows(previousByAccountId, currentByAccountId,
   return rows;
 }
 
-/** Last debt-sync summary (for logs / optional API debug). */
-let lastDebtSyncDebug = null;
+/** Last debt-sync summary per user (keyed by userId to prevent cross-user bleed). */
+const lastDebtSyncDebugByUser = new Map();
 
 function getLastDebtSyncDebug() {
-  return lastDebtSyncDebug;
+  return lastDebtSyncDebugByUser.get(currentUserId()) ?? null;
 }
 
 function setLastDebtSyncDebug(payload) {
-  lastDebtSyncDebug = payload;
+  lastDebtSyncDebugByUser.set(currentUserId(), payload);
 }
 
 function clearLastDebtSyncDebug() {
-  lastDebtSyncDebug = null;
+  lastDebtSyncDebugByUser.delete(currentUserId());
 }
 
 /** JSON snapshot of last successful pull’s debt-sync debug (UI / API only; not used for climb math). */
@@ -313,6 +313,23 @@ function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAc
     return {
       ...baseReturn,
       climbAction: 'anchor_no_delta',
+      aggregate_debt_remaining: debt,
+    };
+  }
+
+  if (prev.size === 0 && curr.size > 0) {
+    const paid = parseConfigNum(getConfig(KEY_PAID), 0);
+    const newD = parseConfigNum(getConfig(KEY_NEW), 0);
+    const aggregateDelta = roundMoney(debt - last);
+    if (aggregateDelta < 0) {
+      setConfig(KEY_PAID, String(roundMoney(paid + Math.abs(aggregateDelta))));
+    } else if (aggregateDelta > 0) {
+      setConfig(KEY_NEW, String(roundMoney(newD + aggregateDelta)));
+    }
+    setConfig(KEY_LAST, String(debt));
+    return {
+      ...baseReturn,
+      climbAction: 'account_map_handoff',
       aggregate_debt_remaining: debt,
     };
   }

@@ -55,6 +55,7 @@ app.use((req, res, next) => {
       if (opts.httpOnly) str += '; HttpOnly';
       if (opts.sameSite) str += `; SameSite=${opts.sameSite}`;
       if (opts.path) str += `; Path=${opts.path}`;
+      if (process.env.NODE_ENV === 'production') str += '; Secure';
       res.append('Set-Cookie', str);
       return res;
     };

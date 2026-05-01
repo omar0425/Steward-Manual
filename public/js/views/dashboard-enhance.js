@@ -112,7 +112,9 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   if (brRail && brWarn && stab) {
     const wk2Mo = 14 / 30.4375;
     const r = Number(stab.effectiveRunwayMonths);
-    const underBuffer = (Number.isFinite(r) && r < wk2Mo) || stab.id === 'exposed';
+    // Only show urgent if expenses data actually exists (income+expenses both non-zero)
+    const hasExpensesData = stats && (Number(stats.monthlyExpenses) > 0 || Number(stats.monthlyIncome) > 0);
+    const underBuffer = hasExpensesData && ((Number.isFinite(r) && r < wk2Mo) || stab.id === 'exposed');
     brRail.classList.toggle('breathing-rail--urgent', !!underBuffer);
     if (brHead) brHead.classList.toggle('breathing-head--urgent', !!underBuffer);
     if (underBuffer) {
@@ -232,7 +234,10 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
 
   /* ── Nav stage tag ── */
   const navTag = document.getElementById('nav-stage-tag');
-  if (navTag && tier) navTag.textContent = tier.badge + ' — ' + tier.label;
+  if (navTag && tier) {
+    navTag.textContent = tier.badge + ' — ' + tier.label;
+    navTag.hidden = false;
+  }
 
   /* ── NEXT MILESTONE label in Situation Read ── */
   const stabilityMilestone = document.getElementById('hero-stability-milestone');

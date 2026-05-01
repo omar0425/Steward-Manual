@@ -8,6 +8,7 @@ const {
   latestSnapshot,
   recentSnapshots,
   getConfig,
+  withUser,
   setConfig,
   getDebtAccountHistory,
   getGameStart,
@@ -16,12 +17,17 @@ const {
   insertSnapshot,
   replaceDebtAccountBalances,
   appendDebtAccountHistory,
+  lastNonZeroFinancials,
 } = require('../db');
 const {
   getTier,
+  getClimbTier,
   nextTierInfo,
+  nextClimbTierInfo,
   debtTierBandProgress,
+  climbTierBandProgress,
   debtTierJourneyProgress,
+  climbTierJourneyProgress,
   explainDebtTierBandProgress,
 } = require('../services/tiers');
 const {
@@ -42,6 +48,10 @@ const {
 } = require('../services/stability');
 const { projectedDebugDebtSync } = require('../services/debtSyncDebugApi');
 
+router.use((req, res, next) => {
+  withUser(req.user && req.user.userId, next);
+});
+
 // ── GET /api/status ───────────────────────────────────────────────────────────
 
 router.get('/status', (req, res) => {
@@ -60,13 +70,42 @@ router.get('/status', (req, res) => {
     });
   }
 
+  const { gameStartDebt, gameStartAt } = getGameStart();
+  const setupDebtSync = getLastDebtSyncDebugForStatus();
+  const setupDebtAccountLines =
+    setupDebtSync && Array.isArray(setupDebtSync.current_account_lines)
+      ? setupDebtSync.current_account_lines
+      : null;
+
+  if (gameStartDebt == null) {
+    return res.json({
+      ready: false,
+      setupIncomplete: true,
+      noData: false,
+      message: 'Debt setup saved. Add every debt, then lock your starting debt to begin.',
+      lastError: null,
+      stats: {
+        debtRemaining: snap.debt_remaining,
+        totalDebt: snap.total_debt,
+        debtAccountLines: setupDebtAccountLines,
+        gameStartDebt,
+        gameStartAt,
+      },
+      meta: {
+        lastSnapshotAt: snap.pulled_at,
+        freshness: 'Setup',
+        nextScheduled: null,
+      },
+    });
+  }
+
   const snapshots = recentSnapshots(60);
-  const tierObj   = getTier(snap.debt_remaining);
-  const next      = nextTierInfo(snap.debt_remaining, snapshots);
   const climb     = getClimbStatsFromConfig();
-  const bandProg  = debtTierBandProgress(snap.debt_remaining, tierObj, snapshots, climb.climbBaselineDebt);
+  const tierObj   = getClimbTier(snap.debt_remaining, climb.climbBaselineDebt);
+  const next      = nextClimbTierInfo(snap.debt_remaining, climb.climbBaselineDebt);
+  const bandProg  = climbTierBandProgress(snap.debt_remaining, tierObj, climb.climbBaselineDebt);
   const nextGapRounded = Math.round(next.gapDollars * 100) / 100;
-  const debtTierJourney = debtTierJourneyProgress(
+  const debtTierJourney = climbTierJourneyProgress(
     snap.debt_remaining,
     tierObj,
     nextGapRounded,
@@ -118,7 +157,6 @@ router.get('/status', (req, res) => {
 
   const streak = computeStreak(snapshots);
   const lastDebtSync = getLastDebtSyncDebugForStatus();
-  const { gameStartDebt, gameStartAt } = getGameStart();
   const aggregatePaydownSinceGameStart =
     Number.isFinite(Number(gameStartDebt)) && Number.isFinite(Number(snap.debt_remaining))
       ? Math.max(0, Math.round((Number(gameStartDebt) - Number(snap.debt_remaining)) * 100) / 100)
@@ -134,10 +172,20 @@ router.get('/status', (req, res) => {
       : (lastDebtSync && Number.isFinite(Number(lastDebtSync.paydown_sum)) ? Number(lastDebtSync.paydown_sum) : null);
   const rawLastPullAccountLines =
     lastDebtSync && Array.isArray(lastDebtSync.account_lines) ? lastDebtSync.account_lines : null;
-  const debtAccountLines =
+  let debtAccountLines =
     lastDebtSync && Array.isArray(lastDebtSync.current_account_lines)
       ? lastDebtSync.current_account_lines
       : null;
+  if (!debtAccountLines) {
+    // Fall back to the persisted name map so "THIS TURN" shows real account names
+    const rawNameMap = getConfig('debt_account_name_map');
+    if (rawNameMap) {
+      try {
+        const m = JSON.parse(rawNameMap);
+        debtAccountLines = Object.entries(m).map(([id, name]) => ({ id, name }));
+      } catch (_) { /* ignore malformed */ }
+    }
+  }
   const historyAccountLines = debtAccountChangeLinesFromHistory(
     getDebtAccountHistory(5),
     debtAccountLines,
@@ -319,12 +367,23 @@ router.post('/snapshot', (req, res) => {
       });
     }
 
-    const assets   = roundMoney(totalAssets);
+    // Preserve non-zero financial fields when user submits 0 (blank form fields).
+    // Walk back to find the last snapshot that had non-zero financial data.
+    const prevFinancials = lastNonZeroFinancials();
+    const resolveFinancial = (submitted, prevField) => {
+      const s = roundMoney(submitted);
+      if (s > 0) return s;
+      const p = prevFinancials ? roundMoney(prevFinancials[prevField] || 0) : 0;
+      return p;
+    };
+
+    const assets   = resolveFinancial(totalAssets,    'total_assets');
     const debt     = roundMoney(totalDebt);
-    const income   = roundMoney(monthlyIncome);
-    const expenses = roundMoney(monthlyExpenses);
-    const invest   = roundMoney(investmentValue);
+    const income   = resolveFinancial(monthlyIncome,  'monthly_income');
+    const expenses = resolveFinancial(monthlyExpenses,'monthly_expenses');
+    const invest   = resolveFinancial(investmentValue,'investment_value');
     const now      = new Date().toISOString();
+    const gameActive = getGameStart().gameStartDebt != null;
 
     // Compute debt_remaining from individual accounts if provided, else use totalDebt
     let debtRemaining = debt;
@@ -345,7 +404,8 @@ router.post('/snapshot', (req, res) => {
           return res.status(400).json({ ok: false, error: `Debt account ${id} balance cannot be negative` });
         }
         const bal = roundMoney(acct.balance);
-        const name = typeof acct.name === 'string' && acct.name.trim() ? acct.name.trim() : 'Account';
+        const rawName = typeof acct.name === 'string' && acct.name.trim() ? acct.name.trim() : 'Account';
+        const name = rawName.slice(0, 100);
         if (bal > 0) {
           sumFromAccounts += bal;
           debtBalanceMap.set(id, bal);
@@ -363,18 +423,20 @@ router.post('/snapshot', (req, res) => {
     // Months ahead (simple: assets / expenses)
     const monthsAhead = expenses > 0 ? roundMoney(assets / expenses) : null;
 
-    // Determine tier
-    const { getTier } = require('../services/tiers');
-    const tierObj = getTier(debtRemaining);
+    // Determine tier (relative to climb baseline, falls back to rock_bottom if not yet set)
+    const climb = getClimbStatsFromConfig();
+    const tierObj = getClimbTier(debtRemaining, climb.climbBaselineDebt);
 
-    // Insert snapshot
-    const netWorth = roundMoney(assets + invest - (debt > debtRemaining ? debt : debtRemaining));
+    // Insert snapshot — when individual accounts are provided their sum is authoritative
+    // for both total_debt and debt_remaining so the two columns stay consistent.
+    const effectiveTotalDebt = debtBalanceMap.size > 0 ? debtRemaining : debt;
+    const netWorth = roundMoney(assets + invest - effectiveTotalDebt);
     insertSnapshot({
       source:           'manual',
       pulled_at:        now,
       net_worth:        netWorth,
       total_assets:     assets,
-      total_debt:       debt > debtRemaining ? debt : debtRemaining,
+      total_debt:       effectiveTotalDebt,
       investment_value: invest,
       debt_remaining:   debtRemaining,
       months_ahead:     monthsAhead,
@@ -384,7 +446,8 @@ router.post('/snapshot', (req, res) => {
       safety_liquid:    safetyLiquid,
     });
 
-    // Update per-account debt tracking (for climb metrics deltas)
+    // Update per-account debt tracking. During setup this is inventory only;
+    // climb metrics begin after POST /api/start-game locks the baseline.
     if (debtBalanceMap.size > 0) {
       const { getAllDebtAccountBalances } = require('../db');
       const prevBalances = getAllDebtAccountBalances();
@@ -392,11 +455,14 @@ router.post('/snapshot', (req, res) => {
       replaceDebtAccountBalances(debtBalanceMap);
       appendDebtAccountHistory(debtBalanceMap);
 
-      // Apply climb metrics
-      applyClimbMetricsOnPull(debtRemaining, prevBalances, debtBalanceMap);
+      if (gameActive) {
+        applyClimbMetricsOnPull(debtRemaining, prevBalances, debtBalanceMap);
+      }
 
       // Build display rows for the debt sync debug
-      const displayRows = perAccountDebtDeltaDisplayRows(prevBalances, debtBalanceMap, debtDisplayRows);
+      const displayRows = gameActive
+        ? perAccountDebtDeltaDisplayRows(prevBalances, debtBalanceMap, debtDisplayRows)
+        : [];
       const debugPayload = {
         pulled_at: now,
         debt_remaining: debtRemaining,
@@ -405,7 +471,11 @@ router.post('/snapshot', (req, res) => {
       };
       setLastDebtSyncDebug(debugPayload);
       persistLastDebtSyncDebugSnapshot(debugPayload);
-    } else {
+      // Persist name map so the THIS TURN view can resolve names even after a game reset
+      const nameMapObj = {};
+      for (const r of debtDisplayRows) nameMapObj[r.id] = r.name;
+      setConfig('debt_account_name_map', JSON.stringify(nameMapObj));
+    } else if (gameActive) {
       // No individual accounts — apply aggregate climb metrics
       const climb = getClimbStatsFromConfig();
       const lastDebt = climb.lastAggregateDebt;
@@ -422,20 +492,12 @@ router.post('/snapshot', (req, res) => {
       setConfig('last_aggregate_debt_for_climb', String(debtRemaining));
     }
 
-    // Set game start if this is the first snapshot
-    const { setGameStartIfAbsent } = require('../db');
-    setGameStartIfAbsent(debtRemaining, now);
-
-    // Set climb baseline if not already set
-    const { setConfigIfAbsent } = require('../db');
-    setConfigIfAbsent('climb_baseline_debt', String(debtRemaining));
-    setConfigIfAbsent('debt_start', String(debtRemaining));
-
     return res.json({
       ok: true,
       message: 'Snapshot saved.',
       debtRemaining,
       tier: tierObj.id,
+      setupIncomplete: !gameActive,
     });
   } catch (err) {
     console.error('[api] manual snapshot error:', err);
@@ -450,6 +512,11 @@ router.post('/snapshot', (req, res) => {
 
 router.post('/start-game', (req, res) => {
   try {
+    const existing = getGameStart();
+    if (existing.gameStartAt) {
+      // Game already started — re-committing after "Clear local session" must not reset progress
+      return res.json({ ok: true, gameStartDebt: existing.gameStartDebt, gameStartAt: existing.gameStartAt });
+    }
     const snap = latestSnapshot();
     if (!snap) {
       return res.status(503).json({
@@ -473,6 +540,9 @@ router.post('/start-game', (req, res) => {
 
 router.post('/reset-game', (req, res) => {
   try {
+    if (!(req.body && req.body.confirm === true)) {
+      return res.status(400).json({ ok: false, error: 'confirm: true required to reset game' });
+    }
     resetAllGameState();
     clearLastDebtSyncDebug();
     return res.json({ ok: true });
@@ -557,6 +627,7 @@ router.post('/config/notifications-sent', express.json(), (req, res) => {
   }
   if (!sent.includes(milestone)) {
     sent.push(milestone);
+    if (sent.length > 100) sent.splice(0, sent.length - 100);
     setConfig(NOTIFICATIONS_SENT_KEY, JSON.stringify(sent));
   }
   res.json({ ok: true, sent });
@@ -585,8 +656,9 @@ router.get('/health', (req, res) => {
 function debtAccountChangeLinesFromHistory(byAccount, currentAccountLines) {
   if (!byAccount || typeof byAccount !== 'object') return [];
 
+  const accountArr = Array.isArray(currentAccountLines) ? currentAccountLines : [];
   const nameById = new Map();
-  for (const acct of Array.isArray(currentAccountLines) ? currentAccountLines : []) {
+  for (const acct of accountArr) {
     if (acct && acct.id) {
       nameById.set(String(acct.id), acct.name || 'Account');
     }
@@ -608,8 +680,16 @@ function debtAccountChangeLinesFromHistory(byAccount, currentAccountLines) {
     const last = ordered[ordered.length - 1].balance;
     const delta = Math.round((last - first) * 100) / 100;
     if (delta === 0) continue;
+
+    let name = nameById.get(String(id));
+    if (!name) {
+      // manual-acct-N IDs are assigned before the user names accounts — resolve by index
+      const m = String(id).match(/^manual-acct-(\d+)$/);
+      if (m) name = accountArr[Number(m[1])]?.name;
+    }
+
     rows.push({
-      name: nameById.get(String(id)) || 'Account',
+      name: name || 'Account',
       delta,
       kind: delta < 0 ? 'decreased' : 'increased',
     });

@@ -110,7 +110,11 @@ export function initPlayResetBtn() {
     }
     btn.disabled = true;
     try {
-      const res = await fetch(stewardApiUrl('/api/reset-game'), { method: 'POST' });
+      const res = await fetch(stewardApiUrl('/api/reset-game'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      });
       const data = await readJsonRes(res, '/api/reset-game');
       if (!data || !data.ok) {
         throw new Error((data && data.error) || 'reset failed');

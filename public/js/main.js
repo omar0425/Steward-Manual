@@ -103,7 +103,7 @@ async function init() {
     }
 
     const loadingText = document.querySelector('.loading-text');
-    if (loadingText) loadingText.textContent = 'Enter your numbers to get started\u2026';
+    if (loadingText) loadingText.textContent = 'Loading Steward\u2026';
 
     initManualEntryForm();
     initDashboardBoot();

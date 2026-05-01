@@ -1200,6 +1200,8 @@ h1, h2, h3 {
 .commitment-btn { width: 100%; padding: 15px; background: var(--gold); border: none; border-radius: var(--radius-sm); color: #0a0c14; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; cursor: pointer; margin-top: 4px; transition: all 140ms ease; }
 .commitment-btn:hover { background: var(--gold-2); transform: translateY(-1px); }
 .commitment-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+.loading-sync-btn { display: inline-block; padding: 12px 28px; background: var(--gold); border: none; border-radius: var(--radius-sm); color: #0a0c14; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; cursor: pointer; margin-top: 16px; transition: all 140ms ease; }
+.loading-sync-btn:hover { background: var(--gold-2); transform: translateY(-1px); }
 
 /* ── Responsive ── */
 /* Loading screen must sit above sticky nav during load */
@@ -1411,6 +1413,26 @@ body[data-app-mode="loading"] #loading-screen    { display: flex; flex-direction
 body[data-app-mode="error"]   #app-error-screen  { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 body[data-app-mode="ready"]   #dashboard         { display: flex; flex-direction: column; }
 
+body[data-setup-mode="first"] #dashboard {
+  max-width: 900px;
+  min-height: calc(100vh - 92px);
+  justify-content: center;
+  padding-top: 32px;
+}
+body[data-setup-mode="first"] .dashboard-only-section,
+body[data-setup-mode="first"] .play-meta-actions {
+  display: none !important;
+}
+body[data-setup-mode="first"] #manual-entry-panel {
+  width: 100%;
+  margin: 0 auto;
+  border-color: rgba(212,175,55,0.32);
+  background:
+    linear-gradient(135deg, rgba(35,89,132,0.26), rgba(11,15,24,0.96) 48%),
+    var(--surface);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
 /* ── Progress bar track contrast ────────────────────────────────────────── */
 .tier-card-bar-track { background: rgba(255,255,255,0.13) !important; height: 10px !important; border-radius: 5px !important; border: 1px solid rgba(255,255,255,0.07) !important; }
 
@@ -1475,6 +1497,57 @@ body[data-app-mode="ready"]   #dashboard         { display: flex; flex-direction
 
 /* ── Manual Entry Form ──────────────────────────────────────────────────────── */
 .manual-entry-panel { border: 1px solid var(--gold-dim, rgba(212,175,55,0.18)); }
+.setup-welcome { display: none; }
+body[data-setup-mode="first"] .setup-welcome {
+  display: block;
+  max-width: 680px;
+  margin-bottom: 28px;
+}
+.setup-eyebrow {
+  margin: 0 0 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.setup-title {
+  margin: 0;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 56px;
+  line-height: 0.95;
+  font-weight: 700;
+  color: var(--text);
+}
+.setup-copy {
+  max-width: 580px;
+  margin: 18px 0 0;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.setup-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+.setup-steps span {
+  border: 1px solid rgba(212,175,55,0.28);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: var(--label);
+  background: rgba(212,175,55,0.08);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@media (max-width: 560px) {
+  .setup-title { font-size: 40px; }
+  body[data-setup-mode="first"] #manual-entry-panel { padding: 22px !important; }
+}
 .manual-entry-form { display: flex; flex-direction: column; gap: 20px; }
 .manual-entry-grid {
   display: grid;

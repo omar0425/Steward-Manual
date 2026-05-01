@@ -3,23 +3,49 @@
 import { stewardApiUrl, readJsonRes } from './api.js';
 
 let _debtAccountCounter = 0;
+let _originalDebtAccounts = [];
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function fmtDollar(n) {
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+function nextDebtAccountId() {
+  const used = new Set(
+    Array.from(document.querySelectorAll('[data-account-id]'))
+      .map((el) => el.dataset.accountId)
+      .filter(Boolean)
+  );
+
+  let rowId;
+  do {
+    rowId = `manual-acct-${_debtAccountCounter++}`;
+  } while (used.has(rowId));
+
+  return rowId;
+}
+
 function addDebtAccountRow(container, name, balance, id) {
-  const rowId = id || `manual-acct-${_debtAccountCounter++}`;
+  const rowId = id || nextDebtAccountId();
   const row = document.createElement('div');
   row.className = 'debt-account-entry-row';
   row.dataset.accountId = rowId;
   row.innerHTML = `
-    <input type="text" class="debt-acct-name" placeholder="Account name" value="${name || ''}" />
-    <input type="number" class="debt-acct-balance" step="0.01" min="0" placeholder="Balance" value="${balance || ''}" />
+    <input type="text" class="debt-acct-name" placeholder="Account name" />
+    <input type="number" class="debt-acct-balance" step="0.01" min="0" placeholder="Balance" />
     <button type="button" class="debt-acct-remove" aria-label="Remove">&times;</button>
   `;
+  if (name) row.querySelector('.debt-acct-name').value = name;
+  if (balance != null) row.querySelector('.debt-acct-balance').value = balance;
   row.querySelector('.debt-acct-remove').addEventListener('click', () => row.remove());
   container.appendChild(row);
 }
@@ -63,12 +89,20 @@ function renderSavedDebtsList(debtLines) {
   const heading = document.getElementById('add-debt-heading');
 
   if (!listEl || !rowsEl || !debtLines || debtLines.length === 0) {
-    // No saved debts — show the add form
+    // No saved debts — show the add form with financials visible (first-time setup)
     if (listEl) listEl.style.display = 'none';
-    if (addSection) addSection.style.display = '';
+    if (addSection) {
+      addSection.style.display = '';
+      const addFin = addSection.querySelector('.manual-entry-financials');
+      if (addFin) addFin.style.display = '';
+    }
     if (heading) heading.textContent = 'Add your debts';
+    setSetupStartVisible(false);
     return;
   }
+
+  // Snapshot original accounts for removed-account detection in buildPaydownSummary
+  _originalDebtAccounts = debtLines.map(a => ({ id: a.id, name: a.name, balance: a.balance }));
 
   // Populate saved debts
   rowsEl.innerHTML = '';
@@ -82,13 +116,15 @@ function renderSavedDebtsList(debtLines) {
     row.dataset.name = acct.name;
     row.dataset.prevBalance = acct.balance;
     row.innerHTML = `
-      <div class="saved-debt-name">${acct.name}</div>
+      <div class="saved-debt-name"></div>
       <div class="saved-debt-balance">
         <span class="saved-debt-dollar">$</span>
         <input type="number" class="saved-debt-balance-input" step="0.01" min="0" value="${acct.balance}" />
       </div>
-      <button type="button" class="saved-debt-remove" aria-label="Remove ${acct.name}" title="Remove">&times;</button>
+      <button type="button" class="saved-debt-remove" title="Remove">&times;</button>
     `;
+    row.querySelector('.saved-debt-name').textContent = acct.name;
+    row.querySelector('.saved-debt-remove').setAttribute('aria-label', `Remove ${acct.name}`);
 
     // Live total update on input
     const input = row.querySelector('.saved-debt-balance-input');
@@ -116,9 +152,20 @@ function renderSavedDebtsList(debtLines) {
   if (addSection) addSection.style.display = '';
   if (heading) heading.textContent = 'Add another debt';
 
+  // Hide the financial snapshot block in the add form — user updates financials via UPDATE BALANCES
+  const addFinancials = addSection && addSection.querySelector('.manual-entry-financials');
+  if (addFinancials) addFinancials.style.display = 'none';
+
   // Clear any leftover rows in the add form
   const addEntries = document.getElementById('debt-accounts-entries');
   if (addEntries) addEntries.innerHTML = '';
+}
+
+function setSetupStartVisible(visible) {
+  for (const id of ['start-climb-btn', 'start-climb-empty-btn']) {
+    const btn = document.getElementById(id);
+    if (btn) btn.hidden = !visible;
+  }
 }
 
 function updateSavedTotal() {
@@ -154,15 +201,12 @@ function buildPaydownSummary(accounts) {
     }
   }
 
-  // Check for removed debts
+  // Check for removed debts using snapshot captured at render time
   const currentIds = new Set(accounts.map(a => a.id));
-  for (const row of rows) {
-    const id = row.dataset.accountId;
-    if (!currentIds.has(id)) {
-      const name = row.dataset.name;
-      const prev = parseFloat(row.dataset.prevBalance);
-      changes.push({ name, prev, curr: 0, delta: prev, removed: true });
-      totalPaid += prev;
+  for (const orig of _originalDebtAccounts) {
+    if (!currentIds.has(orig.id)) {
+      changes.push({ name: orig.name, prev: orig.balance, curr: 0, delta: orig.balance, removed: true });
+      totalPaid += orig.balance;
     }
   }
 
@@ -185,12 +229,13 @@ function showPaydownConfirmation(summary, onConfirm) {
 
   let linesHtml = summary.changes.map(c => {
     const arrow = '\u2192';
+    const safeName = escHtml(c.name);
     if (c.removed) {
-      return `<div class="paydown-line paydown-removed"><span class="paydown-name">${c.name}</span> <span class="paydown-detail">removed</span></div>`;
+      return `<div class="paydown-line paydown-removed"><span class="paydown-name">${safeName}</span> <span class="paydown-detail">removed</span></div>`;
     }
     const dir = c.delta > 0 ? 'paydown-paid' : 'paydown-added';
     const label = c.delta > 0 ? `paid $${Math.abs(c.delta).toLocaleString()}` : `+$${Math.abs(c.delta).toLocaleString()} added`;
-    return `<div class="paydown-line ${dir}"><span class="paydown-name">${c.name}</span> <span class="paydown-detail">$${c.prev.toLocaleString()} ${arrow} $${c.curr.toLocaleString()} (${label})</span></div>`;
+    return `<div class="paydown-line ${dir}"><span class="paydown-name">${safeName}</span> <span class="paydown-detail">$${c.prev.toLocaleString()} ${arrow} $${c.curr.toLocaleString()} (${label})</span></div>`;
   }).join('');
 
   overlay.innerHTML = `
@@ -219,7 +264,22 @@ function showPaydownConfirmation(summary, onConfirm) {
 
 /* ── Save snapshot ────────────────────────────────────────────────────────── */
 
-async function saveSnapshot(debtAccounts, msgEl, btnEl) {
+function readFinancialFields(incomeId, expensesId, assetsId, investId) {
+  const parse = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    const v = parseFloat(el.value);
+    return Number.isFinite(v) && v >= 0 ? v : 0;
+  };
+  return {
+    monthlyIncome:    parse(incomeId),
+    monthlyExpenses:  parse(expensesId),
+    totalAssets:      parse(assetsId),
+    investmentValue:  parse(investId),
+  };
+}
+
+async function saveSnapshot(debtAccounts, msgEl, btnEl, financialFieldIds) {
   if (btnEl) btnEl.disabled = true;
   if (msgEl) msgEl.textContent = 'Saving\u2026';
 
@@ -233,23 +293,34 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
   const activeAccounts = debtAccounts.filter(a => a.balance > 0);
   const totalDebt = debtAccounts.reduce((sum, a) => sum + a.balance, 0);
 
+  const fin = financialFieldIds
+    ? readFinancialFields(financialFieldIds.income, financialFieldIds.expenses, financialFieldIds.assets, financialFieldIds.invest)
+    : { monthlyIncome: 0, monthlyExpenses: 0, totalAssets: 0, investmentValue: 0 };
+
   try {
     const res = await fetch(stewardApiUrl('/api/snapshot'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        totalAssets: 0,
+        totalAssets:      fin.totalAssets,
         totalDebt,
-        monthlyIncome: 0,
-        monthlyExpenses: 0,
-        investmentValue: 0,
+        monthlyIncome:    fin.monthlyIncome,
+        monthlyExpenses:  fin.monthlyExpenses,
+        investmentValue:  fin.investmentValue,
         debtAccounts,
       }),
     });
     const data = await res.json();
     if (res.ok && data.ok) {
-      if (msgEl) msgEl.textContent = `Saved! Tier: ${data.tier}`;
-      window.location.reload();
+      if (data.setupIncomplete) {
+        if (document.body) document.body.dataset.setupMode = 'first';
+        if (msgEl) msgEl.textContent = 'Saved. Add every debt, then start the climb.';
+        renderSavedDebtsList(activeAccounts);
+        setSetupStartVisible(activeAccounts.length > 0);
+      } else {
+        if (msgEl) msgEl.textContent = `Saved! Tier: ${data.tier}`;
+        window.location.reload();
+      }
     } else {
       if (msgEl) msgEl.textContent = data.error || 'Failed to save.';
     }
@@ -267,6 +338,10 @@ export function initManualEntryForm() {
   const addBtn = document.getElementById('add-debt-account-btn');
   const container = document.getElementById('debt-accounts-entries');
   const updateBtn = document.getElementById('update-balances-btn');
+  const startBtns = [
+    document.getElementById('start-climb-btn'),
+    document.getElementById('start-climb-empty-btn'),
+  ].filter(Boolean);
   const msg = document.getElementById('snapshot-save-msg');
 
   if (!form || !addBtn || !container) return;
@@ -292,15 +367,22 @@ export function initManualEntryForm() {
     });
   }
 
+  const NEW_FORM_FIN_IDS = { income: 'input-monthly-income', expenses: 'input-monthly-expenses', assets: 'input-total-assets', invest: 'input-investment-value' };
+  const UPDATE_FIN_IDS   = { income: 'update-monthly-income', expenses: 'update-monthly-expenses', assets: 'update-total-assets', invest: 'update-investment-value' };
+
   // "Save Debts" — adds new debts (from the add form)
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const newAccounts = collectDebtAccounts();
+    const formMsg = msg || document.getElementById('snapshot-save-msg');
+    if (newAccounts.length === 0) {
+      if (formMsg) formMsg.textContent = 'Add at least one account above before saving.';
+      return;
+    }
     const existingAccounts = collectSavedDebtUpdates();
     const allAccounts = [...existingAccounts, ...newAccounts];
-    const formMsg = msg || document.getElementById('snapshot-save-msg');
     const saveBtn = document.getElementById('save-snapshot-btn');
-    await saveSnapshot(allAccounts, formMsg, saveBtn);
+    await saveSnapshot(allAccounts, formMsg, saveBtn, NEW_FORM_FIN_IDS);
   });
 
   // "Update Balances" — shows confirmation summary then saves
@@ -311,8 +393,26 @@ export function initManualEntryForm() {
       const allAccounts = [...updatedAccounts, ...newAccounts];
       const summary = buildPaydownSummary(allAccounts);
       showPaydownConfirmation(summary, async () => {
-        await saveSnapshot(allAccounts, msg, updateBtn);
+        await saveSnapshot(allAccounts, msg, updateBtn, UPDATE_FIN_IDS);
       });
+    });
+  }
+
+  for (const startBtn of startBtns) {
+    startBtn.addEventListener('click', async () => {
+      const formMsg = msg || document.getElementById('snapshot-save-msg');
+      startBtn.disabled = true;
+      if (formMsg) formMsg.textContent = 'Locking starting debt...';
+      try {
+        const res = await fetch(stewardApiUrl('/api/start-game'), { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Could not start climb.');
+        if (formMsg) formMsg.textContent = 'Climb started.';
+        window.location.reload();
+      } catch (err) {
+        if (formMsg) formMsg.textContent = err && err.message ? err.message : 'Could not start climb.';
+        startBtn.disabled = false;
+      }
     });
   }
 
@@ -335,17 +435,41 @@ function showFirstTimeHint() {
   container.parentNode.insertBefore(hint, container);
 }
 
+function prefillFinancialFields(stats) {
+  const pairs = [
+    ['update-monthly-income',   stats.monthlyIncome],
+    ['update-monthly-expenses', stats.monthlyExpenses],
+    ['update-total-assets',     stats.totalAssets],
+    ['update-investment-value', stats.investmentValue],
+    ['input-monthly-income',    stats.monthlyIncome],
+    ['input-monthly-expenses',  stats.monthlyExpenses],
+    ['input-total-assets',      stats.totalAssets],
+    ['input-investment-value',  stats.investmentValue],
+  ];
+  for (const [id, val] of pairs) {
+    const el = document.getElementById(id);
+    if (el && el.value === '' && val != null && Number(val) > 0) {
+      el.value = String(Math.round(Number(val)));
+    }
+  }
+}
+
 function prefillFromLastSnapshot() {
   fetch(stewardApiUrl('/api/status'))
     .then(r => r.json())
     .then(status => {
-      if (!status || !status.ready || !status.stats) return;
+      if (!status || !status.stats || (!status.ready && status.setupIncomplete !== true)) return;
       const s = status.stats;
+
+      // Pre-fill financial snapshot fields from last saved values
+      prefillFinancialFields(s);
 
       // Render saved debts list if we have debt account data
       if (s.debtAccountLines && s.debtAccountLines.length > 0) {
         renderSavedDebtsList(s.debtAccountLines);
+        setSetupStartVisible(status.setupIncomplete === true);
       } else {
+        setSetupStartVisible(false);
         showFirstTimeHint();
       }
     })

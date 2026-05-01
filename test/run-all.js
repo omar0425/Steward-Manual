@@ -24,5 +24,6 @@ require('./tiers-debt-band.test');
 require('./climb-metrics.test');
 require('./debt-sync-validation.test');
 require('./debt-sync-debug-api.test');
+require('./api-state-machine.test');
 require('./api-snapshot.test');
 require('./zzz-climb-metrics-apply.test');

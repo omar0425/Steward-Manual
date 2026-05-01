@@ -453,6 +453,9 @@
   </div>
 
   <script>
+    // Clear the session-resume flag so a fresh login always shows the start screen
+    try { sessionStorage.removeItem('steward_app_ready'); } catch (_) {}
+
     // ── Theme toggle ──────────────────────────────────────────────────
     const themeBtn = document.getElementById('theme-btn');
     const saved = localStorage.getItem('steward-theme') || 'dark';
@@ -545,13 +548,23 @@
       const password = document.getElementById('reg-password').value;
       const confirm  = document.getElementById('reg-confirm').value;
 
-      if (!username || !password || !confirm) {
-        showError('register-error', 'All fields are required.');
+      if (!username) {
+        showError('register-error', 'Please enter a username.');
+        return;
+      }
+      if (!password) {
+        showError('register-error', 'Please enter a password.');
+        document.getElementById('reg-password').classList.add('is-error');
         return;
       }
       if (password.length < 10) {
         showError('register-error', 'Password must be at least 10 characters.');
         document.getElementById('reg-password').classList.add('is-error');
+        return;
+      }
+      if (!confirm) {
+        showError('register-error', 'Please confirm your password.');
+        document.getElementById('reg-confirm').classList.add('is-error');
         return;
       }
       if (password !== confirm) {

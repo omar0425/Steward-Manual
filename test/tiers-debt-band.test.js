@@ -7,6 +7,9 @@ const {
   TIERS,
   ROCK_BOTTOM_BAND_BUFFER,
   getTier,
+  getClimbTier,
+  nextClimbTierInfo,
+  climbTierBandProgress,
   debtTierBandProgress,
   explainDebtTierBandProgress,
   roundDebtTierBandPct,
@@ -110,6 +113,27 @@ test('Wealthy max tier: 100%', () => {
   assert.equal(tier.id, 'wealthy');
   const p = debtTierBandProgress(0, tier, [], 0);
   assert.equal(p.pctInBand, 100);
+});
+
+test('climb tiers start at Buried regardless of absolute starting debt', () => {
+  const tier = getClimbTier(4300, 4300);
+  assert.equal(tier.id, 'rock_bottom');
+  assert.equal(tier.label, 'Buried');
+  const p = climbTierBandProgress(4300, tier, 4300);
+  assert.equal(p.pctInBand, 0);
+  assert.equal(p.bandUpper, 4300);
+  assert.equal(p.bandLower, 3822.22);
+});
+
+test('climb tiers advance from user baseline paydown percent', () => {
+  assert.equal(getClimbTier(4300, 4300).id, 'rock_bottom');
+  assert.equal(getClimbTier(3822.22, 4300).id, 'broke');
+  assert.equal(getClimbTier(0, 4300).id, 'wealthy');
+
+  const next = nextClimbTierInfo(4300, 4300);
+  assert.equal(next.currentTier.id, 'rock_bottom');
+  assert.equal(next.nextTier.id, 'broke');
+  assert.equal(next.gapDollars, 477.78);
 });
 
 test('roundDebtTierBandPct rounds to one decimal', () => {
