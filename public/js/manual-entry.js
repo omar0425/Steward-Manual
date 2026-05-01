@@ -264,22 +264,11 @@ function showPaydownConfirmation(summary, onConfirm) {
 
 /* ── Save snapshot ────────────────────────────────────────────────────────── */
 
-function readFinancialFields(incomeId, expensesId, assetsId, investId) {
-  const parse = (id) => {
-    const el = document.getElementById(id);
-    if (!el) return 0;
-    const v = parseFloat(el.value);
-    return Number.isFinite(v) && v >= 0 ? v : 0;
-  };
-  return {
-    monthlyIncome:    parse(incomeId),
-    monthlyExpenses:  parse(expensesId),
-    totalAssets:      parse(assetsId),
-    investmentValue:  parse(investId),
-  };
+function readFinancialFields() {
+  return { monthlyIncome: 0, monthlyExpenses: 0, totalAssets: 0, investmentValue: 0 };
 }
 
-async function saveSnapshot(debtAccounts, msgEl, btnEl, financialFieldIds) {
+async function saveSnapshot(debtAccounts, msgEl, btnEl) {
   if (btnEl) btnEl.disabled = true;
   if (msgEl) msgEl.textContent = 'Saving\u2026';
 
@@ -293,9 +282,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, financialFieldIds) {
   const activeAccounts = debtAccounts.filter(a => a.balance > 0);
   const totalDebt = debtAccounts.reduce((sum, a) => sum + a.balance, 0);
 
-  const fin = financialFieldIds
-    ? readFinancialFields(financialFieldIds.income, financialFieldIds.expenses, financialFieldIds.assets, financialFieldIds.invest)
-    : { monthlyIncome: 0, monthlyExpenses: 0, totalAssets: 0, investmentValue: 0 };
+  const fin = readFinancialFields();
 
   try {
     const res = await fetch(stewardApiUrl('/api/snapshot'), {
@@ -367,9 +354,6 @@ export function initManualEntryForm() {
     });
   }
 
-  const NEW_FORM_FIN_IDS = { income: 'input-monthly-income', expenses: 'input-monthly-expenses', assets: 'input-total-assets', invest: 'input-investment-value' };
-  const UPDATE_FIN_IDS   = { income: 'update-monthly-income', expenses: 'update-monthly-expenses', assets: 'update-total-assets', invest: 'update-investment-value' };
-
   // "Save Debts" — adds new debts (from the add form)
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -382,7 +366,7 @@ export function initManualEntryForm() {
     const existingAccounts = collectSavedDebtUpdates();
     const allAccounts = [...existingAccounts, ...newAccounts];
     const saveBtn = document.getElementById('save-snapshot-btn');
-    await saveSnapshot(allAccounts, formMsg, saveBtn, NEW_FORM_FIN_IDS);
+    await saveSnapshot(allAccounts, formMsg, saveBtn);
   });
 
   // "Update Balances" — shows confirmation summary then saves
@@ -393,7 +377,7 @@ export function initManualEntryForm() {
       const allAccounts = [...updatedAccounts, ...newAccounts];
       const summary = buildPaydownSummary(allAccounts);
       showPaydownConfirmation(summary, async () => {
-        await saveSnapshot(allAccounts, msg, updateBtn, UPDATE_FIN_IDS);
+        await saveSnapshot(allAccounts, msg, updateBtn);
       });
     });
   }
@@ -437,12 +421,8 @@ function showFirstTimeHint() {
 
 function prefillFinancialFields(stats) {
   const pairs = [
-    ['update-monthly-income',   stats.monthlyIncome],
-    ['update-monthly-expenses', stats.monthlyExpenses],
     ['update-total-assets',     stats.totalAssets],
     ['update-investment-value', stats.investmentValue],
-    ['input-monthly-income',    stats.monthlyIncome],
-    ['input-monthly-expenses',  stats.monthlyExpenses],
     ['input-total-assets',      stats.totalAssets],
     ['input-investment-value',  stats.investmentValue],
   ];

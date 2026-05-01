@@ -728,28 +728,6 @@ export function render(status, snapshots) {
     }
   }
 
-  // Breathing room alert
-  const brAlertEl = document.getElementById('breathing-room-alert');
-  if (brAlertEl) {
-    const brGoal = typeof stab.breathingRoomGoalMonths === 'number' ? stab.breathingRoomGoalMonths : 0;
-    const runway = stab.effectiveRunwayMonths;
-    const brPct = (typeof runway === 'number' && brGoal > 0) ? (runway / brGoal) * 100 : undefined;
-    if (
-      typeof brPct === 'number' && brPct < 100 &&
-      lastRenderedBreathingRoomPct !== null &&
-      brPct < lastRenderedBreathingRoomPct
-    ) {
-      const runwayStr = typeof runway === 'number' ? runway.toFixed(1) : '—';
-      const goalStr = typeof brGoal === 'number' ? brGoal : '—';
-      brAlertEl.textContent = `Your breathing room shrank this period. Runway: ${runwayStr} months (goal: ${goalStr} months)`;
-      brAlertEl.hidden = false;
-    } else {
-      brAlertEl.textContent = '';
-      brAlertEl.hidden = true;
-    }
-    if (typeof brPct === 'number') lastRenderedBreathingRoomPct = brPct;
-  }
-
   document.getElementById('card-badge-chip').textContent = tier.badge;
   document.getElementById('card-tier-name').textContent = tier.label;
   const gapHeadline = formatNextTierGapHeadline(nextTier, tier);
@@ -866,11 +844,6 @@ export function render(status, snapshots) {
     statMonthsAhead.textContent = runwayText;
     statMonthsAhead.title = '';
   }
-  const statIncomeEl = document.getElementById('stat-income');
-  if (statIncomeEl) statIncomeEl.textContent = fmtDollar(stats.monthlyIncome);
-  const statExpensesEl = document.getElementById('stat-expenses');
-  if (statExpensesEl) statExpensesEl.textContent = fmtDollar(stats.monthlyExpenses);
-
   const tierCurrent = document.getElementById('next-tier-current');
   const tierTarget = document.getElementById('next-tier-target');
   if (tierCurrent) tierCurrent.textContent = `${tier.badge} · ${tier.label}`;

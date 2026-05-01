@@ -40,96 +40,6 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     quoteText.textContent = tierQuote(tier.id) || 'Keep the number moving in the right direction.';
   }
 
-  /* ── Mirror income / expenses into cashflow panel display elements ── */
-  const incomeEl   = document.getElementById('stat-income');
-  const expensesEl = document.getElementById('stat-expenses');
-  const incomeDisp   = document.getElementById('stat-income-display');
-  const expensesDisp = document.getElementById('stat-expenses-display');
-  const monthsDisp   = document.getElementById('stat-months-ahead-display');
-  const monthsEl     = document.getElementById('stat-months-ahead');
-
-  if (incomeDisp  && incomeEl)   incomeDisp.textContent  = incomeEl.textContent;
-  if (expensesDisp && expensesEl) expensesDisp.textContent = expensesEl.textContent;
-  if (monthsDisp  && monthsEl)   monthsDisp.textContent  = monthsEl.textContent;
-
-  /* ── Compute and render cash flow surplus ── */
-  const cfEl = document.getElementById('stat-cashflow');
-  if (cfEl && stats) {
-    const inc = Number(stats.monthlyIncome)  || 0;
-    const exp = Number(stats.monthlyExpenses) || 0;
-    const surplus = inc - exp;
-    cfEl.textContent = (surplus >= 0 ? '+$' : '-$') + Math.round(Math.abs(surplus)).toLocaleString();
-    cfEl.className = 'cf-val ' + (surplus >= 0 ? 'gold' : 'neg');
-  }
-
-
-
-  /* ── Breathing room (spendable cushion runway) + buffer warning (< 2 wk runway) ── */
-  const brEl = document.getElementById('stat-breathing-room');
-  if (brEl && stab && stab.effectiveRunwayMonths != null) {
-    brEl.textContent = Number(stab.effectiveRunwayMonths).toFixed(1) + ' mo';
-  }
-  const brGoalTrack = document.getElementById('breathing-goal-track');
-  const brGoalFill = document.getElementById('breathing-goal-fill');
-  const brGoalReadout = document.getElementById('breathing-goal-readout');
-  const brGoalMonths = document.getElementById('breathing-goal-months');
-  if (brGoalTrack && brGoalFill && brGoalReadout && stab) {
-    const months = Number(stab.effectiveRunwayMonths);
-    const goal = Number.isFinite(Number(stab.breathingRoomGoalMonths))
-      ? Number(stab.breathingRoomGoalMonths)
-      : 2.0;
-    const gap = Number.isFinite(Number(stab.breathingRoomGapMonths))
-      ? Number(stab.breathingRoomGapMonths)
-      : Number.isFinite(months)
-        ? Math.max(0, goal - months)
-        : null;
-    const reached = stab.breathingRoomReached === true || (Number.isFinite(months) && months >= goal);
-    const pct = Number.isFinite(months) && goal > 0
-      ? Math.max(0, Math.min(100, (months / goal) * 100))
-      : 0;
-    const label = stab.label || (reached ? 'Goal reached' : 'Building');
-
-    brGoalFill.style.width = pct.toFixed(1) + '%';
-    brGoalTrack.setAttribute('aria-valuenow', String(Math.round(pct)));
-    brGoalTrack.setAttribute(
-      'aria-valuetext',
-      reached
-        ? `${months.toFixed(1)} months toward a ${goal.toFixed(1)} month Breathing Room goal. Goal reached.`
-        : Number.isFinite(months) && gap != null
-          ? `${months.toFixed(1)} months toward a ${goal.toFixed(1)} month Breathing Room goal. ${gap.toFixed(1)} months to go.`
-          : `Breathing Room goal is ${goal.toFixed(1)} months.`,
-    );
-    if (brGoalMonths) brGoalMonths.textContent = goal.toFixed(1) + ' months';
-    brGoalReadout.textContent = reached
-      ? `Goal reached: ${months.toFixed(1)} / ${goal.toFixed(1)} mo | ${label}`
-      : Number.isFinite(months) && gap != null
-        ? `${months.toFixed(1)} / ${goal.toFixed(1)} mo | ${gap.toFixed(1)} mo to goal | ${label}`
-        : `Goal: ${goal.toFixed(1)} mo spendable cushion`;
-  }
-  const brRail = document.getElementById('breathing-rail');
-  const brWarn = document.getElementById('breathing-buffer-warn');
-  const brHead = document.querySelector('.breathing-head');
-  if (brRail && brWarn && stab) {
-    const wk2Mo = 14 / 30.4375;
-    const r = Number(stab.effectiveRunwayMonths);
-    // Only show urgent if expenses data actually exists (income+expenses both non-zero)
-    const hasExpensesData = stats && (Number(stats.monthlyExpenses) > 0 || Number(stats.monthlyIncome) > 0);
-    const underBuffer = hasExpensesData && ((Number.isFinite(r) && r < wk2Mo) || stab.id === 'exposed');
-    brRail.classList.toggle('breathing-rail--urgent', !!underBuffer);
-    if (brHead) brHead.classList.toggle('breathing-head--urgent', !!underBuffer);
-    if (underBuffer) {
-      brWarn.textContent = 'You have < 2 weeks buffer';
-      brWarn.hidden = false;
-    } else {
-      brWarn.textContent = '';
-      brWarn.hidden = true;
-    }
-  } else if (brWarn) {
-    if (brHead) brHead.classList.remove('breathing-head--urgent');
-    brWarn.textContent = '';
-    brWarn.hidden = true;
-  }
-
   /* ── Streak badge ── */
   const streakBadge = document.getElementById('streak-badge');
   const streakCount = document.getElementById('streak-count');
@@ -143,14 +53,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   /* ── Months to next tier ── */
   const monthsNext = document.getElementById('stat-months-to-next');
   if (monthsNext) {
-    let moVal = null;
-    if (nextTier && nextTier.gapDollars > 0 && stats) {
-      const inc = Number(stats.monthlyIncome)  || 0;
-      const exp = Number(stats.monthlyExpenses) || 0;
-      const surp = inc - exp;
-      if (surp > 0) moVal = Math.ceil(Number(nextTier.gapDollars) / surp);
-    }
-    if (moVal == null && nextTier && nextTier.monthsEstimate) moVal = Math.ceil(nextTier.monthsEstimate);
+    const moVal = nextTier && nextTier.monthsEstimate ? Math.ceil(nextTier.monthsEstimate) : null;
     monthsNext.textContent = moVal != null ? moVal : '\u2014';
   }
 

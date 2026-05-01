@@ -345,27 +345,6 @@ function buildManualEntryForm() {
         <span>Total Debt</span>
         <span id="saved-debts-total-val">$0</span>
       </div>
-      <div class="manual-entry-financials" id="update-financials-section" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
-        <p class="manual-entry-sub-label" style="margin-bottom:10px;">Financial snapshot <span style="font-size:10px;color:var(--text-3);font-weight:400;">(optional)</span></p>
-        <div class="manual-financials-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <label class="manual-entry-hint" for="update-monthly-income" style="display:block;margin-bottom:4px;">Monthly income</label>
-            <input type="number" id="update-monthly-income" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 4500" style="width:100%;" />
-          </div>
-          <div>
-            <label class="manual-entry-hint" for="update-monthly-expenses" style="display:block;margin-bottom:4px;">Monthly expenses</label>
-            <input type="number" id="update-monthly-expenses" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 3200" style="width:100%;" />
-          </div>
-          <div>
-            <label class="manual-entry-hint" for="update-total-assets" style="display:block;margin-bottom:4px;">Total savings / cash</label>
-            <input type="number" id="update-total-assets" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 2000" style="width:100%;" />
-          </div>
-          <div>
-            <label class="manual-entry-hint" for="update-investment-value" style="display:block;margin-bottom:4px;">Investments (optional)</label>
-            <input type="number" id="update-investment-value" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 0" style="width:100%;" />
-          </div>
-        </div>
-      </div>
       <div class="manual-entry-actions">
         <button type="button" class="commitment-btn" id="update-balances-btn">Update Balances</button>
         <button type="button" class="commitment-btn setup-start-btn" id="start-climb-btn" hidden>Start Climb</button>
@@ -383,27 +362,6 @@ function buildManualEntryForm() {
           </div>
           <div id="debt-accounts-entries"></div>
           <p class="manual-entry-hint">Add each credit card, loan, or liability with its current balance.</p>
-        </div>
-        <div class="manual-entry-financials" style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
-          <p class="manual-entry-sub-label" style="margin-bottom:10px;">Financial snapshot <span style="font-size:10px;color:var(--text-3);font-weight:400;">(optional — powers cashflow &amp; breathing room)</span></p>
-          <div class="manual-financials-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <div>
-              <label class="manual-entry-hint" for="input-monthly-income" style="display:block;margin-bottom:4px;">Monthly income</label>
-              <input type="number" id="input-monthly-income" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 4500" style="width:100%;" />
-            </div>
-            <div>
-              <label class="manual-entry-hint" for="input-monthly-expenses" style="display:block;margin-bottom:4px;">Monthly expenses</label>
-              <input type="number" id="input-monthly-expenses" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 3200" style="width:100%;" />
-            </div>
-            <div>
-              <label class="manual-entry-hint" for="input-total-assets" style="display:block;margin-bottom:4px;">Total savings / cash</label>
-              <input type="number" id="input-total-assets" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 2000" style="width:100%;" />
-            </div>
-            <div>
-              <label class="manual-entry-hint" for="input-investment-value" style="display:block;margin-bottom:4px;">Investments (optional)</label>
-              <input type="number" id="input-investment-value" class="debt-acct-balance" step="1" min="0" placeholder="e.g. 0" style="width:100%;" />
-            </div>
-          </div>
         </div>
         <div class="manual-entry-actions">
           <button type="submit" class="commitment-btn" id="save-snapshot-btn">Save Debts</button>
@@ -434,49 +392,6 @@ function buildDataStrip() {
   return section;
 }
 
-function buildCashflowPanel() {
-  const section = el('section', { class: 'section-panel dashboard-only-section' });
-  section.innerHTML = `
-    <div class="cashflow-panel">
-      <div class="cf-half">
-        <p class="cf-section-label">Cash Flow</p>
-        <div class="cf-row">
-          <span class="cf-row-label">Income</span>
-          <span class="cf-val" id="stat-income-display">—</span>
-        </div>
-        <div class="cf-row">
-          <span class="cf-row-label">Expenses</span>
-          <span class="cf-val" id="stat-expenses-display">—</span>
-        </div>
-        <div class="cf-row">
-          <span class="cf-row-label">Months ahead</span>
-          <span class="cf-val" id="stat-months-ahead-display">—</span>
-        </div>
-      </div>
-      <div class="cf-half">
-        <p class="cf-section-label">Monthly Surplus</p>
-        <p class="cf-val" id="stat-cashflow">—</p>
-        <div class="breathing-rail breathing-rail--journey" id="breathing-rail"
-             role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
-             aria-label="Breathing Room goal progress">
-          <div class="breathing-head">
-            <div class="breathing-topline">
-              <p class="breathing-val" id="stat-breathing-room">—</p>
-            </div>
-            <p class="breathing-sub">Breathing Room</p>
-            <p class="breathing-buffer-warn" id="breathing-buffer-warn" hidden></p>
-          </div>
-          <div class="breathing-goal-track" id="breathing-goal-track">
-            <div class="breathing-goal-fill" id="breathing-goal-fill" style="width:0%"></div>
-          </div>
-          <p class="breathing-goal-readout" id="breathing-goal-readout">Goal: <span id="breathing-goal-months">2.0</span> mo</p>
-        </div>
-        <p class="hero-milestone" id="hero-stability-milestone" style="font-size:11px;color:var(--text-3);margin-top:10px;font-style:italic;"></p>
-      </div>
-    </div>
-  `;
-  return section;
-}
 
 function buildSentinelDiv() {
   const div = el('div', {
@@ -484,9 +399,6 @@ function buildSentinelDiv() {
     'aria-hidden': 'true',
   });
   div.innerHTML = `
-    <span id="stat-income">\u2014</span>
-    <span id="stat-expenses">\u2014</span>
-    <span id="stat-months-ahead">\u2014</span>
     <span id="stat-investments">\u2014</span>
     <span id="stat-brok-sub"></span>
     <span id="stat-debt-paid">\u2014</span>
@@ -567,7 +479,6 @@ export function mountPlayShell(root) {
 
   const dashboard = el('main', { class: 'dashboard app-shell', id: 'dashboard' });
   dashboard.appendChild(buildHeroSection());
-  dashboard.appendChild(buildCashflowPanel());
   dashboard.appendChild(buildManualEntryForm());
   dashboard.appendChild(buildDebtReductionChart());
   dashboard.appendChild(buildSessionPanel());

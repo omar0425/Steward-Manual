@@ -44,7 +44,6 @@ const {
 const {
   computeStability,
   stabilityNarrative,
-  breathingRoomGoalFields,
 } = require('../services/stability');
 const { projectedDebugDebtSync } = require('../services/debtSyncDebugApi');
 
@@ -143,7 +142,6 @@ router.get('/status', (req, res) => {
   const stability = {
     ...stabilityRaw,
     narrative: stabilityNarr,
-    ...breathingRoomGoalFields(stabilityRaw.effectiveRunwayMonths),
   };
 
   // Freshness label
@@ -263,8 +261,6 @@ router.get('/status', (req, res) => {
       investmentValue:  investmentValue,
 
       monthsAhead:      snap.months_ahead,
-      monthlyIncome:    snap.monthly_income,
-      monthlyExpenses:  snap.monthly_expenses,
       debtAccountLines,
       lastPullNewDebtSum,
       lastPullPaydownSum,
