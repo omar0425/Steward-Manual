@@ -773,7 +773,9 @@ export function render(status, snapshots) {
   }
   const boardGapLabelEl = document.getElementById('board-tier-gap-label');
   if (boardGapLabelEl) boardGapLabelEl.textContent = 'Stage gap';
-  document.getElementById('board-tier-gap-headline').textContent = boardGapAmount;
+  // TODO: dead code candidate after sentinel-div removal
+  const boardGapHeadlineEl = document.getElementById('board-tier-gap-headline');
+  if (boardGapHeadlineEl) boardGapHeadlineEl.textContent = boardGapAmount;
   /* nextTier.nextCopy (GET /api/status) — threshold meaning line; server sends current tier copy */
   const milestoneNextEl = document.getElementById('progress-milestone-next');
   if (milestoneNextEl) {

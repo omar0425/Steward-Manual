@@ -393,80 +393,6 @@ function buildDataStrip() {
 }
 
 
-function buildSentinelDiv() {
-  const div = el('div', {
-    style: 'position:absolute;width:0;height:0;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%);white-space:nowrap;',
-    'aria-hidden': 'true',
-  });
-  div.innerHTML = `
-    <span id="stat-investments">\u2014</span>
-    <span id="stat-brok-sub"></span>
-    <span id="stat-debt-paid">\u2014</span>
-    <span id="paid-down-feedback" hidden></span>
-    <span id="board-axes-hint"></span>
-    <span id="board-runway-line"></span>
-    <span id="board-guard-note" hidden></span>
-    <span id="board-stability-note"></span>
-    <span id="board-debt-axis"></span>
-    <span id="board-liquidity-pill-sentinel"></span>
-    <span id="hero-guard-hint" hidden></span>
-    <span id="hero-live-pill"></span>
-    <span id="hero-stat-paid">\u2014</span>
-    <span id="hero-stat-runway">\u2014</span>
-    <span id="hero-stability-lead-sentinel"></span>
-    <span id="hero-mood-copy-sentinel"></span>
-    <span id="hero-climb-summary" hidden>
-      <span id="hero-climb-line-new-debt"></span>
-      <span id="hero-climb-line-paydown"></span>
-      <span id="hero-climb-line-net"></span>
-    </span>
-    <div id="vnext-hero-turn-accounts" hidden>
-      <ul id="vnext-hero-turn-accounts-list"></ul>
-      <span id="vnext-hero-turn-accounts-net"></span>
-    </div>
-    <p id="hero-tier-behavior" hidden></p>
-    <p id="hero-tier-copy" hidden></p>
-    <div class="hero-progress-sentinel" aria-hidden="true" hidden>
-      <p id="progress-story-lead"></p>
-      <p id="progress-lifetime-climb"></p>
-      <p id="progress-story-delta"></p>
-      <p id="progress-story-pace"></p>
-      <p id="progress-story-hint"></p>
-      <p id="progress-story-projection" hidden></p>
-      <p id="progress-story-projection-debtfree" hidden></p>
-    </div>
-    <div id="climb-last-pull-summary" hidden>
-      <div id="progress-last-pull-accounts" style="display:flex;flex-direction:column;gap:3px;"></div>
-      <p id="progress-last-pull-net-line"></p>
-      <p id="progress-last-pull-lifetime-line"></p>
-    </div>
-    <span id="next-tier-current" hidden></span>
-    <span id="next-tier-target" hidden></span>
-    <span id="board-tier-gap-label" hidden></span>
-    <span id="board-tier-gap-headline" hidden></span>
-    <span id="stat-months-to-next" hidden></span>
-    <span id="data-session-time" hidden></span>
-    <span id="card-bar-inband-pct" hidden></span>
-    <span id="progress-stale-note" hidden></span>
-    <span id="progress-restructure-note" hidden></span>
-    <span id="progress-story-pace" hidden></span>
-    <span id="progress-debt-direction" hidden></span>
-    <span id="vnext-inband-pct-readout" hidden></span>
-    <span id="vnext-progress-finish-cue" hidden></span>
-    <span id="hero-axes-hint" hidden></span>
-    <span id="hero-phase-pill" hidden></span>
-    <span id="streak-line" hidden></span>
-    <div id="vnext-nw-climb-chart-wrap" hidden></div>
-    <span id="vnext-nw-climb-empty" hidden></span>
-    <div id="vnext-nw-climb-legend" hidden>
-      <span id="vnext-nw-climb-latest"></span>
-      <span id="vnext-nw-climb-change"></span>
-    </div>
-    <span id="hero-liq-runway" hidden></span>
-  `;
-  return div;
-}
-
 export function mountPlayShell(root) {
   root.textContent = '';
 
@@ -486,7 +412,6 @@ export function mountPlayShell(root) {
   dashboard.appendChild(buildStageProgressDetail());
   dashboard.appendChild(buildCumulativePaydownTrophy());
   dashboard.appendChild(buildDataStrip());
-  dashboard.appendChild(buildSentinelDiv());
   dashboard.appendChild(
     el('div', { class: 'play-meta-actions', style: 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:16px 0;' },
       el('button', { type: 'button', class: 'refresh-btn', id: 'play-clear-local-btn', style: 'opacity:0.5;' }, 'Clear local session'),
