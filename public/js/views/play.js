@@ -148,7 +148,7 @@ function buildHeroSection() {
           <div class="locked-blur-layer">
             <div class="tier-card-badge" id="locked-badge-chip">02</div>
             <div class="tier-card-footer">
-              <div class="tier-card-name" id="locked-tier-name">Pushing</div>
+              <div class="tier-card-name" id="locked-tier-name">Digging</div>
             </div>
           </div>
           <div class="locked-card-overlay">

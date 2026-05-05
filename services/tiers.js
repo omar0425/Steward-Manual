@@ -16,8 +16,7 @@ const DEBT_TIER_BAND_PCT_DECIMALS = 1;
  */
 
 // ── Tier definitions (ordered highest debt → lowest) ─────────────────────────
-// Tier id "stabilizing" (below) is debt payoff stage (badge 05). Liquidity also uses id "stabilizing"
-// for the middle cushion band with UI label "Steady" — same string, different subsystem.
+// IDs are stable database keys; do not change. Labels are display-only and may be renamed freely.
 
 const TIERS = [
   {
@@ -27,37 +26,37 @@ const TIERS = [
     threshold: 79000,   // debt_remaining > 79000
   },
   {
-    id: 'broke', label: 'Pushing', badge: '02',
+    id: 'broke', label: 'Digging', badge: '02',
     copy: 'First dent made. Keep swinging.',
     nextCopy: 'Double-digit thousands paid.',
     threshold: 70000,
   },
   {
-    id: 'struggling', label: 'Struggling', badge: '03',
+    id: 'struggling', label: 'Pushing', badge: '03',
     copy: 'Down $10K+. Momentum exists.',
     nextCopy: 'Past the midpoint. The second half is faster.',
     threshold: 60000,
   },
   {
-    id: 'surviving', label: 'Surviving', badge: '04',
+    id: 'surviving', label: 'Climbing', badge: '04',
     copy: 'Past the midpoint. Real progress.',
     nextCopy: 'Under $50K. The number shrinks.',
     threshold: 50000,
   },
   {
-    id: 'stabilizing', label: 'Stabilizing', badge: '05',
+    id: 'stabilizing', label: 'Steady', badge: '05',
     copy: 'Under $50K. The number feels smaller now.',
     nextCopy: 'Under $40K. The end becomes visible.',
     threshold: 40000,
   },
   {
-    id: 'stable', label: 'Stable', badge: '06',
+    id: 'stable', label: 'Building', badge: '06',
     copy: 'Under $40K. You can see the other side.',
     nextCopy: 'Final third begins.',
     threshold: 30000,
   },
   {
-    id: 'building', label: 'Breaking', badge: '07',
+    id: 'building', label: 'Lifting', badge: '07',
     copy: 'Final third. This is where it gets real.',
     nextCopy: 'Under $20K. Most never reach this.',
     threshold: 20000,
@@ -69,7 +68,7 @@ const TIERS = [
     threshold: 10000,
   },
   {
-    id: 'winning', label: 'Finish', badge: '09',
+    id: 'winning', label: 'Finishing', badge: '09',
     copy: 'Last $10K. Almost free.',
     nextCopy: 'The climb is done.',
     threshold: 0,
