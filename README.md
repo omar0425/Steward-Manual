@@ -37,6 +37,10 @@ No `.env` required. SQLite database is created automatically on first run.
 
 All data is stored locally in `steward.db` (SQLite). Nothing is sent to any external service.
 
+## Note on `node_modules/express`
+
+If you see a stub copy of `node_modules/express/` checked into the repo, that is intentional — it exists so IDEs can resolve Express types without a full `npm install`. Do not delete it. Run `npm install` for the real dependencies before `npm start`.
+
 ## Development
 
 ```bash

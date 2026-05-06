@@ -13,6 +13,101 @@ const STARTUP_UI_DEBUG = false;
 let startupBootComplete = false;
 let notificationsSentCache = null;
 
+// Retry control for load(): bounded attempts with exponential backoff and
+// pause-on-hidden so a closed laptop or background tab does not generate
+// a thundering retry storm when it wakes up.
+const LOAD_RETRY_BACKOFF_SEC = [3, 5, 8, 13, 21, 34, 60, 60, 60, 60];
+const LOAD_RETRY_MAX = LOAD_RETRY_BACKOFF_SEC.length; // 10
+let _loadRetryCount = 0;
+let _loadRetryTimer = null;
+let _loadRetryTimerOpts = null; // opts captured for the in-flight timer
+let _loadRetryPaused = null; // { opts, delayMs } when document is hidden
+let _loadRetryListenerInstalled = false;
+
+function _clearLoadRetryTimer() {
+  if (_loadRetryTimer != null) {
+    clearTimeout(_loadRetryTimer);
+    _loadRetryTimer = null;
+  }
+  _loadRetryTimerOpts = null;
+}
+
+function resetLoadRetry() {
+  _loadRetryCount = 0;
+  _loadRetryPaused = null;
+  _clearLoadRetryTimer();
+  const btn = document.getElementById('app-error-retry-btn');
+  if (btn) btn.hidden = true;
+}
+
+function _showRetryButton() {
+  const btn = document.getElementById('app-error-retry-btn');
+  if (!btn) return;
+  btn.hidden = false;
+  if (!btn.dataset.retryWired) {
+    btn.dataset.retryWired = '1';
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      resetLoadRetry();
+      const txt = document.querySelector('.loading-text');
+      if (txt) txt.textContent = 'Loading Steward…';
+      transitionTo(AppMode.LOADING, 'manual retry button');
+      void load({ refresh: false }).finally(() => { btn.disabled = false; });
+    });
+  }
+}
+
+function _enterMaxRetryError(message) {
+  setBootErrorMessage(message);
+  transitionTo(AppMode.ERROR, 'load: max retries exceeded');
+  _showRetryButton();
+}
+
+function scheduleLoadRetry(opts, defaultMessage) {
+  _clearLoadRetryTimer();
+  if (_loadRetryCount >= LOAD_RETRY_MAX) {
+    _enterMaxRetryError(defaultMessage || 'Could not reach the Steward server after multiple attempts.');
+    return;
+  }
+  const delayMs = LOAD_RETRY_BACKOFF_SEC[_loadRetryCount] * 1000;
+  _loadRetryCount += 1;
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    _loadRetryPaused = { opts, delayMs };
+    return;
+  }
+  _loadRetryTimerOpts = opts;
+  _loadRetryTimer = window.setTimeout(() => {
+    _loadRetryTimer = null;
+    _loadRetryTimerOpts = null;
+    void load(opts);
+  }, delayMs);
+}
+
+function _installVisibilityRetryListener() {
+  if (_loadRetryListenerInstalled || typeof document === 'undefined') return;
+  _loadRetryListenerInstalled = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (_loadRetryTimer != null) {
+        // Stash the live retry so we can resume on visible.
+        _loadRetryPaused = { opts: _loadRetryTimerOpts || { refresh: false }, delayMs: 1000 };
+        _clearLoadRetryTimer();
+      }
+    } else if (document.visibilityState === 'visible' && _loadRetryPaused) {
+      const { opts, delayMs } = _loadRetryPaused;
+      _loadRetryPaused = null;
+      _loadRetryTimerOpts = opts;
+      _loadRetryTimer = window.setTimeout(() => {
+        _loadRetryTimer = null;
+        _loadRetryTimerOpts = null;
+        void load(opts);
+      }, delayMs);
+    }
+  });
+}
+
+if (typeof document !== 'undefined') _installVisibilityRetryListener();
+
 const MILESTONE_THRESHOLDS = [25, 50, 75, 90];
 const MILESTONE_MESSAGES = {
   'pct_25': "25% paid. You're moving.",
@@ -203,6 +298,23 @@ function initStartGameGate() {
   btn.addEventListener('click', onStart);
 }
 
+function startSessionAndLoad(reasonTag) {
+  const now = new Date().toISOString();
+  const meta = readSessionMeta();
+  if (!meta.firstStartedAt) meta.firstStartedAt = now;
+  meta.currentSessionStartedAt = now;
+  meta.lastSeenAt = now;
+  meta.sessionCount += 1;
+  writeSessionMeta(meta);
+  startPlaytimeTracking();
+  transitionTo(AppMode.LOADING, reasonTag);
+  void load({ refresh: false }).catch(err => {
+    console.error('[Steward] load() failed', err);
+    setBootErrorMessage(err && err.message ? err.message : String(err));
+    transitionTo(AppMode.ERROR, `load reject: ${err && err.message ? err.message : err}`);
+  });
+}
+
 export function initDashboardBoot() {
   initPlayResetBtn();
   initPlayClearLocalBtn();
@@ -215,7 +327,9 @@ export function initDashboardBoot() {
     initStartGameGate();
     return;
   }
-  openCommitmentGate(() => initStartGameGate());
+  // Brand-new user: after they confirm commitment, skip the start-session
+  // screen and go straight to LOADING + load().
+  openCommitmentGate(() => startSessionAndLoad('first-run: skip start gate'));
 }
 
 async function load(options = {}) {
@@ -281,11 +395,14 @@ async function load(options = {}) {
           txt.textContent = status.message || 'Pulling your financial data\u2026';
         }
       }
-      if (STARTUP_UI_DEBUG) console.debug(`[Steward] poll: status not ready \u2192 retry in 3s (dataRefresh=${isDataRefresh})`);
+      if (STARTUP_UI_DEBUG) console.debug(`[Steward] poll: status not ready \u2192 schedule retry (dataRefresh=${isDataRefresh}, attempt=${_loadRetryCount + 1}/${LOAD_RETRY_MAX})`);
       // Keep polling when a pull is actively in progress (post-manual-sync, initial install)
-      window.setTimeout(() => load({ refresh: isDataRefresh, manual: isManual }), 3000);
+      scheduleLoadRetry({ refresh: isDataRefresh, manual: isManual }, 'Steward is still starting up. Retry?');
       return;
     }
+
+    // Success path \u2014 clear retry state.
+    resetLoadRetry();
 
     await refreshDebtPanelData();
     if (document.body) delete document.body.dataset.setupMode;
@@ -336,8 +453,8 @@ async function load(options = {}) {
     const txt = document.querySelector('.loading-text');
     if (txt) txt.textContent = userLine;
 
-    if (STARTUP_UI_DEBUG) console.debug(`[Steward] load retry in 5s (dataRefresh=${isDataRefresh})`);
-    window.setTimeout(() => load({ refresh: isDataRefresh, manual: isManual }), 5000);
+    if (STARTUP_UI_DEBUG) console.debug(`[Steward] load retry scheduled (dataRefresh=${isDataRefresh}, attempt=${_loadRetryCount + 1}/${LOAD_RETRY_MAX})`);
+    scheduleLoadRetry({ refresh: isDataRefresh, manual: isManual }, userLine);
   }
 }
 

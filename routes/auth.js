@@ -62,6 +62,46 @@ router.post('/register', (req, res) => {
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
+//
+// In-memory rate limiter: 5 failed attempts per username per 15-minute window.
+// A successful login clears the counter; the 6th failure inside the window
+// returns 429 with a "try again in N minutes" message. Applies only to local
+// password login — register and Google OAuth are not throttled here.
+
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 5;
+const _loginAttempts = new Map(); // key: lowercased username → { count, firstAttemptAt }
+
+function _loginAttemptKey(rawUsername) {
+  return String(rawUsername || '').trim().toLowerCase();
+}
+
+function _loginAttemptStatus(key) {
+  const entry = _loginAttempts.get(key);
+  if (!entry) return { blocked: false, retryAfterMs: 0 };
+  const elapsed = Date.now() - entry.firstAttemptAt;
+  if (elapsed >= LOGIN_WINDOW_MS) {
+    _loginAttempts.delete(key);
+    return { blocked: false, retryAfterMs: 0 };
+  }
+  if (entry.count >= LOGIN_MAX_FAILURES) {
+    return { blocked: true, retryAfterMs: LOGIN_WINDOW_MS - elapsed };
+  }
+  return { blocked: false, retryAfterMs: 0 };
+}
+
+function _recordLoginFailure(key) {
+  const entry = _loginAttempts.get(key);
+  if (!entry || Date.now() - entry.firstAttemptAt >= LOGIN_WINDOW_MS) {
+    _loginAttempts.set(key, { count: 1, firstAttemptAt: Date.now() });
+    return;
+  }
+  entry.count += 1;
+}
+
+function _clearLoginAttempts(key) {
+  _loginAttempts.delete(key);
+}
 
 router.post('/login', (req, res) => {
   try {
@@ -71,15 +111,29 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ ok: false, error: 'Username and password are required.' });
     }
 
+    const attemptKey = _loginAttemptKey(username);
+    const status = _loginAttemptStatus(attemptKey);
+    if (status.blocked) {
+      const minutes = Math.max(1, Math.ceil(status.retryAfterMs / 60000));
+      res.set('Retry-After', String(Math.ceil(status.retryAfterMs / 1000)));
+      return res.status(429).json({
+        ok: false,
+        error: `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+      });
+    }
+
     const user = findUserByUsername(username.trim());
     if (!user || user.provider !== 'local' || !user.password) {
+      _recordLoginFailure(attemptKey);
       return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
     }
 
     if (!verifyPassword(password, user.password)) {
+      _recordLoginFailure(attemptKey);
       return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
     }
 
+    _clearLoginAttempts(attemptKey);
     const session = createSession(user.id);
     setSessionCookie(res, session);
 

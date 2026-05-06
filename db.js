@@ -11,14 +11,26 @@ const DB_PATH = process.env.STEWARD_DB_PATH
 const db = new DatabaseSync(DB_PATH);
 const userScope = new AsyncLocalStorage();
 
+// While the schema is still being initialised at module load there is no
+// AsyncLocalStorage scope yet — fall back to user_id=0 so DDL helpers work.
+// Once schema init finishes, callers MUST be inside withUser().
+let _schemaInitDone = false;
+
 function currentUserId() {
-  const id = Number(userScope.getStore());
+  const store = userScope.getStore();
+  const id = Number(store);
   if (Number.isInteger(id) && id > 0) return id;
-  // Outside a withUser() context — all queries fall back to user_id=0.
-  // This is intentional during startup/schema init; unexpected during API requests.
-  if (typeof userScope.getStore() !== 'undefined') {
-    console.warn('[db] currentUserId: active scope has non-positive id (' + userScope.getStore() + ') — using 0');
+  if (typeof store === 'undefined') {
+    // No scope active at all. Permitted only during schema init at module load.
+    if (_schemaInitDone) {
+      throw new Error('currentUserId() called outside withUser() scope');
+    }
+    return 0;
   }
+  // Scope is active but the user is anonymous (id <= 0) — keep the original
+  // user_id=0 fallback so the route middleware can run for unauthenticated
+  // requests without throwing.
+  console.warn('[db] currentUserId: active scope has non-positive id (' + store + ') — using 0');
   return 0;
 }
 
@@ -152,6 +164,7 @@ function ensureUserScopedTables() {
 }
 
 ensureUserScopedTables();
+_schemaInitDone = true;
 
 // ── Snapshot helpers ──────────────────────────────────────────────────────────
 

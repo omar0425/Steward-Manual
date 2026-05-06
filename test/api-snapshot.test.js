@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 const apiRouter = require('../routes/api');
-const { latestSnapshot, resetAllGameState } = require('../db');
+const { latestSnapshot, resetAllGameState, withUser } = require('../db');
 
 function startApp() {
   const app = express();
@@ -37,7 +37,7 @@ async function postJson(baseUrl, path, body) {
 }
 
 test.beforeEach(() => {
-  resetAllGameState();
+  withUser(0, resetAllGameState);
 });
 
 test('POST /api/snapshot: aggregate-only snapshots update climb paydown totals', async () => {
@@ -195,7 +195,7 @@ test('POST /api/snapshot: duplicate debt account ids are rejected before write',
     assert.equal(res.status, 400);
     const body = await res.json();
     assert.match(body.error, /Duplicate debt account id/);
-    assert.equal(latestSnapshot(), null);
+    assert.equal(withUser(0, () => latestSnapshot()), null);
   });
 });
 
@@ -209,6 +209,6 @@ test('POST /api/snapshot: negative debt is rejected before write', async () => {
     assert.equal(res.status, 400);
     const body = await res.json();
     assert.equal(body.error, 'totalDebt cannot be negative');
-    assert.equal(latestSnapshot(), null);
+    assert.equal(withUser(0, () => latestSnapshot()), null);
   });
 });

@@ -119,6 +119,7 @@ function buildErrorScreen() {
       el('p', { class: 'app-error-title' }, 'Couldn\u2019t load Steward'),
       el('p', { class: 'app-error-text', id: 'app-error-text' }),
       el('p', { class: 'app-error-hint', innerHTML: 'We\u2019ll retry automatically. Check that the server is running (<code>npm start</code> in the steward folder).' }),
+      el('button', { type: 'button', id: 'app-error-retry-btn', class: 'app-error-retry-btn', hidden: true }, 'Retry'),
     ),
   );
 }

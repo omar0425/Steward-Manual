@@ -18,6 +18,7 @@ const {
   replaceDebtAccountBalances,
   appendDebtAccountHistory,
   lastNonZeroFinancials,
+  getAllDebtAccountBalances,
 } = require('../db');
 const {
   getTier,
@@ -445,7 +446,6 @@ router.post('/snapshot', (req, res) => {
     // Update per-account debt tracking. During setup this is inventory only;
     // climb metrics begin after POST /api/start-game locks the baseline.
     if (debtBalanceMap.size > 0) {
-      const { getAllDebtAccountBalances } = require('../db');
       const prevBalances = getAllDebtAccountBalances();
 
       replaceDebtAccountBalances(debtBalanceMap);

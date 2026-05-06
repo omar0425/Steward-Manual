@@ -3,6 +3,9 @@ steward.db
 steward.db-shm
 steward.db-wal
 
+# Nested duplicate of project root (must never be committed)
+Steward-Manual/
+
 # Logs
 logs
 *.log
