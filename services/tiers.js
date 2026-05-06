@@ -17,6 +17,25 @@ const DEBT_TIER_BAND_PCT_DECIMALS = 1;
 
 // ── Tier definitions (ordered highest debt → lowest) ─────────────────────────
 // IDs are stable database keys; do not change. Labels are display-only and may be renamed freely.
+// Tier id "stabilizing" (below) is debt payoff stage (badge 05). Liquidity also uses id "stabilizing"
+// for the middle cushion band with UI label "Steady" — same string, different subsystem.
+//
+// ── TWO TIER SYSTEMS LIVE HERE ───────────────────────────────────────────────
+// 1. RELATIVE (source of truth for active gameplay): tier is derived from
+//    % of the user's starting baseline that's been paid off. Each user climbs
+//    through 10 stages no matter their starting debt. Use `getClimbTier`,
+//    `nextClimbTierInfo`, `climbTierBandProgress`, `climbTierJourneyProgress`.
+//    The `threshold` numbers below are NOT used in this mode — climb functions
+//    recompute thresholds dynamically from the user's `climbBaselineDebt`.
+//
+// 2. ABSOLUTE (fallback only): tier is derived from raw debt dollars against
+//    the fixed `threshold` values below (e.g. > $79K = Buried). Used when no
+//    climb baseline exists yet, and exposed for legacy / debug paths. Use
+//    `getTier`, `nextTierInfo`, `debtTierBandProgress`, `debtTierJourneyProgress`.
+//
+// The absolute thresholds remain because (a) climb functions fall back to the
+// absolute system when `climbBaselineDebt` is missing/invalid, and (b) the
+// labels/copy/badges below are shared between both systems. Don't delete them.
 
 const TIERS = [
   {
