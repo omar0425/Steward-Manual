@@ -40,7 +40,7 @@ function addDebtAccountRow(container, name, balance, id) {
   row.className = 'debt-account-entry-row';
   row.dataset.accountId = rowId;
   row.innerHTML = `
-    <input type="text" class="debt-acct-name" placeholder="Account name" />
+    <input type="text" class="debt-acct-name" placeholder="Account name" maxlength="100" />
     <input type="number" class="debt-acct-balance" step="0.01" min="0" placeholder="Balance" />
     <button type="button" class="debt-acct-remove" aria-label="Remove">&times;</button>
   `;
