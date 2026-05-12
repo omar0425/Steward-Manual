@@ -251,7 +251,13 @@ function replaceDebtAccountBalances(balanceByAccountId) {
     del.run(userId);
     for (const [id, bal] of balanceByAccountId) {
       const b = Math.round(Number(bal) * 100) / 100;
-      if (!Number.isFinite(b) || b < 0) continue;
+      if (!Number.isFinite(b) || b < 0) {
+        console.warn(
+          `[db] replaceDebtAccountBalances: dropping account ${JSON.stringify(String(id))} ` +
+          `— balance is not a finite non-negative number (got ${JSON.stringify(bal)})`,
+        );
+        continue;
+      }
       ins.run(userId, String(id), b, now);
     }
     db.exec('COMMIT');

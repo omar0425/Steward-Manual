@@ -400,6 +400,18 @@ router.post('/snapshot', (req, res) => {
         if (isNegativeFinite(acct.balance)) {
           return res.status(400).json({ ok: false, error: `Debt account ${id} balance cannot be negative` });
         }
+        // roundMoney coerces non-numeric input to 0, which is then dropped by
+        // the `bal > 0` gate below. Warn so silent client/data corruption
+        // shows up in logs instead of disappearing from the snapshot.
+        if (acct.balance !== undefined && acct.balance !== null && acct.balance !== '') {
+          const probe = Number(acct.balance);
+          if (!Number.isFinite(probe)) {
+            console.warn(
+              `[api] /snapshot: dropping debt account ${JSON.stringify(id)} ` +
+              `— balance is not a finite number (got ${JSON.stringify(acct.balance)})`,
+            );
+          }
+        }
         const bal = roundMoney(acct.balance);
         const rawName = typeof acct.name === 'string' && acct.name.trim() ? acct.name.trim() : 'Account';
         const name = rawName.slice(0, 100);
