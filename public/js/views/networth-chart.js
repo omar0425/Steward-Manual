@@ -21,51 +21,23 @@ export function renderNetWorthChart(snapshots) {
     }))
     .filter(s => s.debtRemaining != null)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  if (pts.length === 0) return;
+  // < 2 points → caller should show inline empty-state instead (see
+  // dashboard-enhance.js). Bail without mutating the SVG so we don't paint
+  // stale shapes; hide whatever was there previously.
+  if (pts.length < 2) {
+    lineEl.setAttribute('d', '');
+    areaEl.setAttribute('d', '');
+    const existingDot = svg.querySelector('.nw-single-dot');
+    if (existingDot) existingDot.hidden = true;
+    return;
+  }
 
   const W = 600, H = 110, PX = 20, PY_TOP = 10, PY_BOT = 100;
   const plotW = W - PX * 2;
   const plotH = PY_BOT - PY_TOP;
 
-  if (pts.length === 1) {
-    const cx = (W / 2).toFixed(1);
-    const cy = ((PY_TOP + PY_BOT) / 2).toFixed(1);
-    lineEl.setAttribute('d', '');
-    areaEl.setAttribute('d', '');
-
-    let dot = svg.querySelector('.nw-single-dot');
-    if (!dot) {
-      dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      dot.setAttribute('class', 'nw-single-dot');
-      dot.setAttribute('r', '4');
-      svg.appendChild(dot);
-    }
-    dot.setAttribute('cx', cx);
-    dot.setAttribute('cy', cy);
-    dot.hidden = false;
-
-    if (xLabels) {
-      xLabels.textContent = '';
-      const d = new Date(pts[0].date);
-      const span = document.createElement('span');
-      span.className = 'chart-x-label';
-      span.textContent = `${d.getMonth() + 1}/${d.getDate()} - starting point`;
-      xLabels.appendChild(span);
-    }
-    if (deltaEl) {
-      deltaEl.textContent = 'Save again to plot trend';
-      deltaEl.className = 'chart-trend';
-    }
-    if (debtDisplay) {
-      const v = Number(pts[0].debtRemaining);
-      debtDisplay.textContent = '$' + Math.max(0, Math.round(v)).toLocaleString();
-      debtDisplay.className = 'chart-current neg';
-    }
-    return;
-  }
-
-  const existingDot = svg.querySelector('.nw-single-dot');
-  if (existingDot) existingDot.hidden = true;
+  // The < 2 case is handled by the early bail above (dashboard-enhance.js
+  // shows the inline empty-state in that case).
 
   const values = pts.map(p => Number(p.debtRemaining));
   const minV = Math.min(...values);

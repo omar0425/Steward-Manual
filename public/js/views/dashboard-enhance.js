@@ -149,9 +149,12 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     stabilityMilestone.textContent = copy || '\u2014';
   }
 
-  /* ── Net worth chart (new SVG-based chart) ── */
+  /* ── Net worth chart (new SVG-based chart) ──
+   * Needs at least 2 snapshots to plot a trend. With 0 or 1 we hide the SVG
+   * and show inline empty-state copy in the same panel; the panel's title and
+   * frame stay visible so the layout doesn't jump when data arrives. */
   const chartWrap = document.querySelector('.chart-wrap');
-  if (snapshots && snapshots.length >= 1) {
+  if (snapshots && snapshots.length >= 2) {
     renderNetWorthChart(snapshots);
     const ph = document.getElementById('nw-empty-state');
     if (ph) ph.hidden = true;
@@ -165,10 +168,15 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       ph.className = 'panel-empty-state';
       chartWrap.appendChild(ph);
     }
-    ph.textContent = 'No data yet — add your debts to begin.';
+    ph.textContent = (snapshots && snapshots.length === 1)
+      ? 'Update your balances at least once to see your trend.'
+      : 'No data yet — add your debts to begin.';
     ph.hidden = false;
     const svg = document.getElementById('networth-chart-svg');
     if (svg) svg.hidden = true;
+    // Clear any stale trend delta so the panel header doesn't show a stale number.
+    const deltaEl = document.getElementById('chart-trend-delta');
+    if (deltaEl) { deltaEl.textContent = ''; deltaEl.className = 'chart-trend'; }
   }
 
   /* ── Debt accounts empty state ── */
