@@ -382,7 +382,7 @@
             <div class="login-field">
               <label class="login-label" for="login-password">Password</label>
               <input class="login-input" id="login-password" name="password"
-                     type="password" autocomplete="current-password" placeholder="••••••••••" required />
+                     type="password" autocomplete="current-password" placeholder="••••••••••" required maxlength="200" />
             </div>
 
             <button class="login-btn" id="login-submit" type="submit">Sign in</button>
@@ -419,13 +419,13 @@
             <div class="login-field">
               <label class="login-label" for="reg-password">Password</label>
               <input class="login-input" id="reg-password" name="password"
-                     type="password" autocomplete="new-password" placeholder="••••••••••" required />
+                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200" />
               <div class="login-hint">Minimum 10 characters</div>
             </div>
             <div class="login-field">
               <label class="login-label" for="reg-confirm">Confirm password</label>
               <input class="login-input" id="reg-confirm" name="confirm"
-                     type="password" autocomplete="new-password" placeholder="••••••••••" required />
+                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200" />
             </div>
 
             <button class="login-btn" id="register-submit" type="submit">Create account</button>
@@ -559,6 +559,11 @@
       }
       if (password.length < 10) {
         showError('register-error', 'Password must be at least 10 characters.');
+        document.getElementById('reg-password').classList.add('is-error');
+        return;
+      }
+      if (password.length > 200) {
+        showError('register-error', 'Password must be 200 characters or fewer.');
         document.getElementById('reg-password').classList.add('is-error');
         return;
       }

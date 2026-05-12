@@ -44,6 +44,9 @@ router.post('/register', (req, res) => {
     if (password.length < 10) {
       return res.status(400).json({ ok: false, error: 'Password must be at least 10 characters.' });
     }
+    if (password.length > 200) {
+      return res.status(400).json({ ok: false, error: 'Password must be 200 characters or fewer.' });
+    }
 
     const existing = findUserByUsername(username.trim());
     if (existing) {
@@ -109,6 +112,9 @@ router.post('/login', (req, res) => {
 
     if (!username || !password) {
       return res.status(400).json({ ok: false, error: 'Username and password are required.' });
+    }
+    if (typeof password !== 'string' || password.length > 200) {
+      return res.status(400).json({ ok: false, error: 'Password must be 200 characters or fewer.' });
     }
 
     const attemptKey = _loginAttemptKey(username);
