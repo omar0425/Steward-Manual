@@ -50,7 +50,10 @@ router.post('/register', (req, res) => {
 
     const existing = findUserByUsername(username.trim());
     if (existing) {
-      return res.status(409).json({ ok: false, error: 'Username already taken.' });
+      // Generic 400 — login uses identical 401s for wrong-user vs wrong-password
+      // to prevent username enumeration; mirror that protection here so register
+      // does not confirm whether an account exists.
+      return res.status(400).json({ ok: false, error: 'Could not create account. Try a different username.' });
     }
 
     const user = createLocalUser(username.trim(), password);
