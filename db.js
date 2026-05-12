@@ -431,6 +431,7 @@ function resetAllGameState() {
     'climb_per_account_map_seeded',
     'cumulative_new_debt_added',
     'cumulative_paid_down',
+    'debt_account_name_map',
     'debt_start',
     'game_start_at',
     'game_start_debt',
@@ -439,7 +440,6 @@ function resetAllGameState() {
     'notifications_sent',
     'turn_start_at',
     'turn_start_balances',
-
   ];
   const del = db.prepare(`DELETE FROM config WHERE user_id = ? AND key = ?`);
   db.exec('BEGIN');
