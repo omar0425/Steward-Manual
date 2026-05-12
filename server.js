@@ -159,6 +159,22 @@ app.get('*', requireAuth, (req, res) => {
   res.sendFile(path.join(publicDir, 'play.html'));
 });
 
+// ── Error handler (MUST be the last app.use) ──────────────────────────────────
+// Express's default error handler renders an HTML stack trace that leaks
+// absolute filesystem paths (e.g. C:\Users\…\Steward-Manual\…). Catch
+// malformed-JSON SyntaxErrors from express.json() — and any other unhandled
+// errors — and return a minimal JSON response instead.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  // body-parser flags malformed JSON with type 'entity.parse.failed'
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ ok: false, error: 'Malformed JSON in request body.' });
+  }
+  console.error('[Steward] Unhandled error:', err && err.stack ? err.stack : err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ ok: false, error: 'Internal server error.' });
+});
+
 // ── Prune expired sessions every hour ─────────────────────────────────────────
 setInterval(pruneExpiredSessions, 60 * 60 * 1000);
 
