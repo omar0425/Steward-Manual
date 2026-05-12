@@ -231,6 +231,10 @@ function initStartGameGate() {
 
   transitionTo(AppMode.START, 'init: start gate shown');
 
+  // Move keyboard focus to the primary action so the start-game-screen modal
+  // behaves like the commitment gate (a11y parity).
+  try { btn.focus(); } catch (_) { /* ignore */ }
+
   mountStartScreenSteward();
 
   // Show stored commitment text on the start gate

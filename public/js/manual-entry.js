@@ -40,13 +40,24 @@ function addDebtAccountRow(container, name, balance, id) {
   row.className = 'debt-account-entry-row';
   row.dataset.accountId = rowId;
   row.innerHTML = `
-    <input type="text" class="debt-acct-name" placeholder="Account name" maxlength="100" />
-    <input type="number" class="debt-acct-balance" step="0.01" min="0" placeholder="Balance" />
-    <button type="button" class="debt-acct-remove" aria-label="Remove">&times;</button>
+    <input type="text" class="debt-acct-name" placeholder="Account name" maxlength="100" aria-label="Debt account name" />
+    <input type="number" class="debt-acct-balance" step="0.01" min="0" placeholder="Balance" aria-label="Debt account balance" />
+    <button type="button" class="debt-acct-remove" aria-label="Remove account">&times;</button>
   `;
-  if (name) row.querySelector('.debt-acct-name').value = name;
+  const nameInput = row.querySelector('.debt-acct-name');
+  const removeBtn = row.querySelector('.debt-acct-remove');
+  // Keep the remove button's aria-label in sync with the typed name so
+  // screen readers announce e.g. "Remove Chase Sapphire" instead of a
+  // bare "Remove account" for every row.
+  const syncRemoveLabel = () => {
+    const n = (nameInput.value || '').trim();
+    removeBtn.setAttribute('aria-label', n ? `Remove ${n}` : 'Remove account');
+  };
+  nameInput.addEventListener('input', syncRemoveLabel);
+  if (name) nameInput.value = name;
   if (balance != null) row.querySelector('.debt-acct-balance').value = balance;
-  row.querySelector('.debt-acct-remove').addEventListener('click', () => row.remove());
+  syncRemoveLabel();
+  removeBtn.addEventListener('click', () => row.remove());
   container.appendChild(row);
 }
 
@@ -223,9 +234,15 @@ function showPaydownConfirmation(summary, onConfirm) {
     return;
   }
 
+  // Remember the trigger so focus can return there after the dialog closes.
+  const previouslyFocused = document.activeElement;
+
   const overlay = document.createElement('div');
   overlay.id = 'paydown-confirm-dialog';
   overlay.className = 'paydown-confirm-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'paydown-confirm-title');
 
   let linesHtml = summary.changes.map(c => {
     const arrow = '\u2192';
@@ -240,7 +257,7 @@ function showPaydownConfirmation(summary, onConfirm) {
 
   overlay.innerHTML = `
     <div class="paydown-confirm-card">
-      <h3 class="paydown-confirm-title">Confirm changes</h3>
+      <h3 class="paydown-confirm-title" id="paydown-confirm-title">Confirm changes</h3>
       <div class="paydown-confirm-lines">${linesHtml}</div>
       ${summary.totalPaid > 0 ? `<div class="paydown-confirm-total">Total paid down: <strong>$${summary.totalPaid.toLocaleString()}</strong></div>` : ''}
       <div class="paydown-confirm-actions">
@@ -252,14 +269,30 @@ function showPaydownConfirmation(summary, onConfirm) {
 
   document.body.appendChild(overlay);
 
-  overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', () => overlay.remove());
-  overlay.querySelector('.paydown-confirm-save').addEventListener('click', () => {
+  const closeDialog = () => {
     overlay.remove();
+    // Return focus to whatever opened the dialog so keyboard users don't
+    // land at the top of the document.
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
+    }
+  };
+
+  overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', closeDialog);
+  overlay.querySelector('.paydown-confirm-save').addEventListener('click', () => {
+    closeDialog();
     onConfirm();
   });
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) closeDialog();
   });
+
+  // First focusable element inside the dialog receives focus on open.
+  // Save button is the primary action; Cancel is reachable via Shift+Tab.
+  const saveBtn = overlay.querySelector('.paydown-confirm-save');
+  if (saveBtn) {
+    try { saveBtn.focus(); } catch (_) { /* ignore */ }
+  }
 }
 
 /* ── Save snapshot ────────────────────────────────────────────────────────── */

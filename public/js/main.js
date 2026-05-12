@@ -43,10 +43,14 @@ function initTheme() {
   const btn = document.getElementById('theme-toggle');
   if (!btn) return;
 
+  // aria-pressed reflects the active state of the toggle button: true while
+  // dark mode is on, false while light mode is on. Updated alongside the
+  // label/text each click so screen readers stay accurate.
   const update = () => {
     const isDark = document.body.dataset.theme === 'dark';
     btn.textContent = isDark ? '\u263D Dark' : '\u2600 Light';
     btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
   };
 
   update();

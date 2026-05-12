@@ -419,8 +419,9 @@
             <div class="login-field">
               <label class="login-label" for="reg-password">Password</label>
               <input class="login-input" id="reg-password" name="password"
-                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200" />
-              <div class="login-hint">Minimum 10 characters</div>
+                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200"
+                     aria-describedby="reg-password-hint" />
+              <div class="login-hint" id="reg-password-hint">Minimum 10 characters</div>
             </div>
             <div class="login-field">
               <label class="login-label" for="reg-confirm">Confirm password</label>
@@ -460,13 +461,19 @@
     const themeBtn = document.getElementById('theme-btn');
     const saved = localStorage.getItem('steward-theme') || 'dark';
     document.body.dataset.theme = saved;
-    themeBtn.textContent = saved === 'dark' ? '☀ Light' : '☾ Dark';
+    const updateThemeBtn = () => {
+      const isDark = document.body.dataset.theme === 'dark';
+      themeBtn.textContent = isDark ? '☀ Light' : '☾ Dark';
+      themeBtn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+      themeBtn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    };
+    updateThemeBtn();
 
     themeBtn.addEventListener('click', () => {
       const next = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
       document.body.dataset.theme = next;
       localStorage.setItem('steward-theme', next);
-      themeBtn.textContent = next === 'dark' ? '☀ Light' : '☾ Dark';
+      updateThemeBtn();
     });
 
     // ── Panel toggle ──────────────────────────────────────────────────

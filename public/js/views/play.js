@@ -72,7 +72,16 @@ function buildTopNav() {
 }
 
 function buildMilestoneBanner() {
-  const banner = el('div', { class: 'milestone-banner', id: 'milestone-banner', hidden: true });
+  // role=status + aria-live=polite \u2014 milestone copy is announced to screen
+  // readers when the banner appears (e.g. after a paydown crosses a threshold)
+  // without stealing focus or interrupting the user.
+  const banner = el('div', {
+    class: 'milestone-banner',
+    id: 'milestone-banner',
+    role: 'status',
+    'aria-live': 'polite',
+    hidden: true,
+  });
   banner.innerHTML = `
     <span class="milestone-icon">\uD83C\uDFC6</span>
     <div class="milestone-text" id="milestone-text"></div>
@@ -359,7 +368,7 @@ function buildManualEntryForm() {
         <div class="manual-entry-accounts">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <p class="manual-entry-sub-label" id="add-debt-heading">Add your debts</p>
-            <button type="button" class="refresh-btn" id="add-debt-account-btn">+ Add Account</button>
+            <button type="button" class="refresh-btn" id="add-debt-account-btn" aria-label="Add another debt account">+ Add Account</button>
           </div>
           <div id="debt-accounts-entries"></div>
           <p class="manual-entry-hint">Add each credit card, loan, or liability with its current balance.</p>
