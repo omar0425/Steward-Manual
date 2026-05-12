@@ -122,7 +122,7 @@ test('backend state machine: no data -> setup -> active climb -> reset', async (
     assert.equal(result.body.stats.debtTierBandPct, 0);
     assert.equal(result.body.nextTier.id, 'struggling');
 
-    result = await postJson(baseUrl, '/api/reset-game', {}, userId);
+    result = await postJson(baseUrl, '/api/reset-game', { confirm: true }, userId);
     assert.equal(result.res.status, 200);
     assert.equal(result.body.ok, true);
 

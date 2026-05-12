@@ -1,0 +1,443 @@
+'use strict';
+
+import {
+  fmtDollar, fmtSignedDollar,
+  cumulativePaidDownFromStats, lifetimeProgressPctFromCumulative,
+  formatLastPullAccountRow, formatNetThisTurnLine, lastPullAccountRowsFromStats,
+  snapshotPaydownWindow, snapshotPaceIsNoisy, snapshotDeltaSinceOldest,
+  paceQualitative, formatApproxDurationFromMonths, timeAgo,
+} from './format.js';
+
+function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
+  if (debtDirEl) {
+    debtDirEl.hidden = true;
+    debtDirEl.textContent = '';
+  }
+  const paid = cumulativePaidDownFromStats(stats);
+  const elPaid = document.getElementById('progress-bullet-paid');
+  const elTurn = document.getElementById('progress-bullet-turn');
+  const elNew = document.getElementById('progress-bullet-newdebt');
+  const elDir = document.getElementById('progress-bullet-direction');
+  const playMs = document.getElementById('progress-milestone-next');
+  const playNm = document.getElementById('progress-next-move');
+  if (playMs) {
+    playMs.textContent = '';
+    playMs.hidden = true;
+  }
+  if (playNm) {
+    playNm.textContent = '';
+    playNm.hidden = true;
+  }
+  const paidVal = paid != null && Number.isFinite(paid) ? fmtDollar(Math.round(paid)) : '—';
+  if (elPaid) elPaid.innerHTML = `<span class="sp-label">Total paid down</span><span class="sp-val sp-val--good">${paidVal}</span>`;
+  const { accountLines, ndVal, pdVal } = lastPullAccountRowsFromStats(stats);
+  const netThisTurn = accountLines.length > 0
+    ? accountLines.reduce((s, r) => s + Number(r.delta), 0)
+    : ndVal - pdVal;
+  if (elTurn) {
+    const hasTurn = accountLines.length > 0 || ndVal > 0 || pdVal > 0;
+    const netRounded = Math.round(netThisTurn);
+    const turnValStr = hasTurn ? fmtSignedDollar(netRounded) : '—';
+    const turnClass = hasTurn && netRounded < 0 ? 'sp-val--good' : hasTurn && netRounded > 0 ? 'sp-val--bad' : '';
+    elTurn.innerHTML = `<span class="sp-label">This turn</span><span class="sp-val ${turnClass}">${turnValStr}</span>`;
+  }
+  const nd = Number(stats && stats.cumulativeNewDebtAdded);
+  if (elNew) {
+    const ndStr = Number.isFinite(nd) && nd > 0 ? '+' + fmtDollar(Math.round(nd)) : '$0';
+    const ndClass = nd > 0 ? 'sp-val--bad' : '';
+    elNew.innerHTML = `<span class="sp-label">New debt added</span><span class="sp-val ${ndClass}">${ndStr}</span>`;
+  }
+  if (elDir) {
+    let d = 'flat'; let dirClass = '';
+    if (stats && stats.debtDirection === 'increasing') { d = 'backward'; dirClass = 'sp-val--bad'; }
+    else if (netThisTurn > 0) { d = 'backward'; dirClass = 'sp-val--bad'; }
+    else if (netThisTurn < 0) { d = 'forward'; dirClass = 'sp-val--good'; }
+    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val ${dirClass}">${d}</span>`;
+  }
+}
+
+export function fillProgressNarrative({
+  nextTier,
+  snapshots,
+  theme,
+  stability,
+  debtSync,
+  meta,
+  stats,
+  suspectedRestructure,
+}) {
+  const restructureFlag =
+    suspectedRestructure === true || !!(debtSync && debtSync.suspected_restructure);
+  const restructureEl = document.getElementById('progress-restructure-note');
+  if (restructureEl) {
+    if (restructureFlag) {
+      restructureEl.textContent =
+        'This may reflect a refinance or account change, not a true payoff.';
+      restructureEl.hidden = false;
+    } else {
+      restructureEl.textContent = '';
+      restructureEl.hidden = true;
+    }
+  }
+
+  const staleEl = document.getElementById('progress-stale-note');
+  if (staleEl) {
+    const fr = meta && meta.freshness;
+    const stale = typeof fr === 'string' && fr.startsWith('Stale');
+    if (stale) {
+      staleEl.textContent =
+        'Data may be outdated — refresh before making decisions.';
+      staleEl.hidden = false;
+    } else {
+      staleEl.textContent = '';
+      staleEl.hidden = true;
+    }
+  }
+
+  const debtDirEl = document.getElementById('progress-debt-direction');
+  if (debtDirEl) {
+    if (stats && stats.debtDirection === 'increasing') {
+      debtDirEl.textContent = 'Debt moved up this period.';
+      debtDirEl.hidden = false;
+    } else {
+      debtDirEl.textContent = '';
+      debtDirEl.hidden = true;
+    }
+  }
+
+  const playBullets = document.getElementById('progress-detail-bullets');
+  if (playBullets) {
+    fillPlayProgressDetailBullets({ stats, debtDirEl });
+    return;
+  }
+
+  const lead = document.getElementById('progress-story-lead');
+  const deltaEl = document.getElementById('progress-story-delta');
+  const paceEl = document.getElementById('progress-story-pace');
+  const hintEl = document.getElementById('progress-story-hint');
+  const projEl = document.getElementById('progress-story-projection');
+  const projDebtFreeEl = document.getElementById('progress-story-projection-debtfree');
+  if (!lead || !deltaEl || !paceEl || !hintEl) return;
+
+  const lifetimeEl = document.getElementById('progress-lifetime-climb');
+  const lastPullWrap = document.getElementById('climb-last-pull-summary');
+  const lastPullAccountsEl = document.getElementById('progress-last-pull-accounts');
+  const lastPullNetEl = document.getElementById('progress-last-pull-net-line');
+  const lastPullLifetimeEl = document.getElementById('progress-last-pull-lifetime-line');
+
+  if (nextTier) {
+    lead.textContent =
+      'Recent movement from snapshot history (below) and pace — not the same as lifetime % (see lifetime line when present).';
+  } else {
+    lead.textContent =
+      'Final payoff stage — no dollars left to the next threshold. Protect the floor you fought for.';
+  }
+
+  if (lifetimeEl && stats) {
+    const baseline = Number(stats.climbBaselineDebt);
+    const paid = cumulativePaidDownFromStats(stats);
+    const pct = lifetimeProgressPctFromCumulative(stats);
+    if (Number.isFinite(baseline) && baseline > 0) {
+      lifetimeEl.textContent = `Lifetime: ${pct}% of baseline (${fmtDollar(baseline)}) — ${fmtDollar(
+        paid,
+      )} cumulative paydown since tracking. New debt does not reduce this.`;
+      lifetimeEl.hidden = false;
+    } else {
+      lifetimeEl.textContent = '';
+      lifetimeEl.hidden = true;
+    }
+  } else if (lifetimeEl) {
+    lifetimeEl.textContent = '';
+    lifetimeEl.hidden = true;
+  }
+
+  if (lastPullWrap && lastPullAccountsEl && lastPullNetEl && lastPullLifetimeEl && stats) {
+    const { accountLines, ndVal, pdVal } = lastPullAccountRowsFromStats(stats);
+    const show = accountLines.length > 0 || ndVal > 0 || pdVal > 0;
+    if (show) {
+      lastPullAccountsEl.textContent = '';
+      if (accountLines.length > 0) {
+        for (const r of accountLines) {
+          const row = document.createElement('p');
+          row.className = 'progress-hint climb-last-pull-line climb-last-pull-account-line';
+          row.textContent = formatLastPullAccountRow(r);
+          lastPullAccountsEl.appendChild(row);
+        }
+      } else {
+        const rowPd = document.createElement('p');
+        rowPd.className = 'progress-hint climb-last-pull-line climb-last-pull-account-line';
+        rowPd.textContent = `Paydown: ${fmtDollar(pdVal)}`;
+        const rowNd = document.createElement('p');
+        rowNd.className = 'progress-hint climb-last-pull-line climb-last-pull-account-line';
+        rowNd.textContent = `New debt: ${fmtDollar(ndVal)}`;
+        lastPullAccountsEl.appendChild(rowPd);
+        lastPullAccountsEl.appendChild(rowNd);
+      }
+      const netThisTurn =
+        accountLines.length > 0
+          ? accountLines.reduce((s, r) => s + Number(r.delta), 0)
+          : ndVal - pdVal;
+      lastPullNetEl.textContent = formatNetThisTurnLine(netThisTurn);
+      lastPullLifetimeEl.textContent = `Lifetime paid down: ${fmtDollar(
+        cumulativePaidDownFromStats(stats),
+      )}`;
+      lastPullWrap.hidden = false;
+    } else {
+      lastPullAccountsEl.textContent = '';
+      lastPullNetEl.textContent = '';
+      lastPullLifetimeEl.textContent = '';
+      lastPullWrap.hidden = true;
+    }
+  } else if (lastPullWrap) {
+    lastPullWrap.hidden = true;
+  }
+
+  const { delta, oldest } = snapshotDeltaSinceOldest(snapshots);
+  if (!snapshots || snapshots.length < 2) {
+    deltaEl.textContent = 'Need at least two snapshots on file to measure change over time.';
+  } else if (delta > 0) {
+    deltaEl.textContent = `Snapshot window: aggregate debt down about ${fmtDollar(delta)} since your earliest snapshot (${timeAgo(
+      oldest.pulled_at,
+    )}). This is total debt, not your cumulative paydown line.`;
+  } else if (delta < 0) {
+    deltaEl.textContent = `Snapshot window: aggregate debt up ${fmtDollar(-delta)} since your earliest snapshot (often borrowing or new accounts). Cumulative paydown does not decrease from this.`;
+  } else {
+    deltaEl.textContent =
+      'Flat since your earliest snapshot — the next pull should show direction. (Snapshot aggregate, not cumulative paydown.)';
+  }
+
+  const { avgMonthly, windowMonths } = snapshotPaydownWindow(snapshots);
+  let paceText = '';
+  if (!snapshots || snapshots.length < 2) {
+    paceText = 'Not enough snapshots to judge monthly pace.';
+  } else if (windowMonths < 0.08) {
+    paceText = 'Pulls are very close in time — more calendar span is needed to judge pace.';
+  } else {
+    paceText = paceQualitative(avgMonthly);
+  }
+  paceEl.textContent = paceText;
+
+  const noisy = snapshotPaceIsNoisy(snapshots);
+  const fr = meta && meta.freshness;
+  const stale = typeof fr === 'string' && fr.startsWith('Stale');
+  const shortHistory = !snapshots || snapshots.length < 2 || windowMonths < 0.08;
+  if (projEl && projDebtFreeEl) {
+    projEl.hidden = false;
+    projDebtFreeEl.hidden = true;
+    projDebtFreeEl.textContent = '';
+    if (stale) {
+      projEl.textContent = 'Data is outdated — refresh to see a payoff estimate.';
+    } else if (restructureFlag) {
+      projEl.textContent = 'Recent account changes make the payoff estimate unreliable.';
+    } else if (shortHistory) {
+      projEl.textContent = 'Need more history to estimate payoff timing.';
+    } else if (avgMonthly == null || avgMonthly <= 0) {
+      projEl.textContent = "Debt isn't decreasing yet — no payoff estimate.";
+    } else if (noisy) {
+      projEl.textContent = 'Recent progress is uneven — payoff timing is unclear.';
+    } else {
+      const debtRem = Number(stats && stats.debtRemaining);
+      const hasDebt = Number.isFinite(debtRem) && debtRem > 0;
+      const gapN = nextTier ? Number(nextTier.gapDollars) : NaN;
+      let line1 = '';
+      if (nextTier && Number.isFinite(gapN) && gapN > 0) {
+        const mNext = gapN / avgMonthly;
+        const d1 = formatApproxDurationFromMonths(mNext);
+        if (d1) line1 = `At this pace: ${d1} to next stage.`;
+      }
+      let line2 = '';
+      if (hasDebt) {
+        const mFree = debtRem / avgMonthly;
+        const d2 = formatApproxDurationFromMonths(mFree);
+        const gapCloseToDebt = Number.isFinite(gapN) && Math.abs(debtRem - gapN) < 2;
+        const monthsClose =
+          Number.isFinite(gapN) && gapN > 0 && Math.abs(mFree - gapN / avgMonthly) < 0.15;
+        const redundant = line1 && gapCloseToDebt && monthsClose;
+        if (d2 && !redundant) line2 = `Debt-free at this pace: ${d2}.`;
+      }
+      if (line1 || line2) {
+        projEl.textContent = line1;
+        projEl.hidden = !line1;
+        projDebtFreeEl.textContent = line2;
+        projDebtFreeEl.hidden = !line2;
+      } else {
+        projEl.textContent = '';
+        projEl.hidden = true;
+      }
+    }
+  }
+
+  if (nextTier && nextTier.gapDollars > 0) {
+    const g = Number(nextTier.gapDollars);
+    if (Number.isFinite(g) && fmtDollar(g) === '$0') {
+      hintEl.textContent =
+        'Less than $1 of paydown reaches the next payoff-stage threshold (illustrative).';
+    } else {
+      hintEl.textContent =
+        `Roughly ${fmtDollar(g / 12)}/mo for twelve months would close the gap to the next payoff stage (illustrative).`;
+    }
+  } else {
+    const skipWealthyExpansionCue =
+      !nextTier && theme.id === 'wealthy' && stability?.id === 'exposed';
+    hintEl.textContent = nextTier ? '' : (skipWealthyExpansionCue ? '' : (theme.cue || ''));
+  }
+
+  const rec = stability?.narrative?.recommend;
+  if (rec) {
+    hintEl.textContent = hintEl.textContent ? `${hintEl.textContent} ${rec}` : rec;
+  }
+}
+
+export function renderNetWorthClimb(history) {
+  const wrap = document.getElementById('vnext-nw-climb-chart-wrap');
+  const emptyMsg = document.getElementById('vnext-nw-climb-empty');
+  const legend = document.getElementById('vnext-nw-climb-legend');
+  const latestEl = document.getElementById('vnext-nw-climb-latest');
+  const changeEl = document.getElementById('vnext-nw-climb-change');
+  if (!wrap) return;
+
+  if (!history || history.length < 2) {
+    if (emptyMsg) emptyMsg.hidden = false;
+    if (legend) legend.hidden = true;
+    const oldSvg = wrap.querySelector('svg');
+    if (oldSvg) oldSvg.remove();
+    return;
+  }
+  if (emptyMsg) emptyMsg.hidden = true;
+
+  const W = 560, H = 200, PAD_X = 52, PAD_Y = 24;
+  const plotW = W - PAD_X * 2;
+  const plotH = H - PAD_Y * 2;
+
+  const values = history.map(p => p.netWorth);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+
+  function x(i) { return PAD_X + (i / (history.length - 1)) * plotW; }
+  function y(v) { return PAD_Y + plotH - ((v - minV) / range) * plotH; }
+
+  const points = history.map((p, i) => `${x(i).toFixed(1)},${y(p.netWorth).toFixed(1)}`);
+  const polyline = points.join(' ');
+
+  const areaPoints = [
+    `${x(0).toFixed(1)},${(PAD_Y + plotH).toFixed(1)}`,
+    ...points,
+    `${x(history.length - 1).toFixed(1)},${(PAD_Y + plotH).toFixed(1)}`,
+  ].join(' ');
+
+  const zeroInRange = minV <= 0 && maxV >= 0;
+  const zeroY = zeroInRange ? y(0).toFixed(1) : null;
+
+  const midV = (minV + maxV) / 2;
+  function fmtAxis(v) {
+    const abs = Math.abs(v);
+    if (abs >= 1000) return (v < 0 ? '-' : '') + '$' + (abs / 1000).toFixed(0) + 'k';
+    return (v < 0 ? '-' : '') + '$' + abs.toFixed(0);
+  }
+
+  function fmtShortDate(iso) {
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  const oldSvg = wrap.querySelector('svg');
+  if (oldSvg) oldSvg.remove();
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('class', 'vnext-nw-climb-svg');
+  svg.setAttribute('aria-label', 'Net worth over time');
+  svg.setAttribute('role', 'img');
+
+  const gridLines = [PAD_Y, PAD_Y + plotH / 2, PAD_Y + plotH];
+  for (const gy of gridLines) {
+    const line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', PAD_X); line.setAttribute('x2', W - PAD_X);
+    line.setAttribute('y1', gy.toFixed(1)); line.setAttribute('y2', gy.toFixed(1));
+    line.setAttribute('class', 'vnext-nw-grid');
+    svg.appendChild(line);
+  }
+
+  if (zeroY) {
+    const zLine = document.createElementNS(NS, 'line');
+    zLine.setAttribute('x1', PAD_X); zLine.setAttribute('x2', W - PAD_X);
+    zLine.setAttribute('y1', zeroY); zLine.setAttribute('y2', zeroY);
+    zLine.setAttribute('class', 'vnext-nw-zero');
+    svg.appendChild(zLine);
+  }
+
+  const defs = document.createElementNS(NS, 'defs');
+  const grad = document.createElementNS(NS, 'linearGradient');
+  grad.id = 'nw-fill-grad';
+  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+  grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+  const stop1 = document.createElementNS(NS, 'stop');
+  stop1.setAttribute('offset', '0%'); stop1.setAttribute('class', 'vnext-nw-grad-top');
+  const stop2 = document.createElementNS(NS, 'stop');
+  stop2.setAttribute('offset', '100%'); stop2.setAttribute('class', 'vnext-nw-grad-bot');
+  grad.appendChild(stop1); grad.appendChild(stop2);
+  defs.appendChild(grad);
+  svg.appendChild(defs);
+
+  const area = document.createElementNS(NS, 'polygon');
+  area.setAttribute('points', areaPoints);
+  area.setAttribute('class', 'vnext-nw-area');
+  svg.appendChild(area);
+
+  const line = document.createElementNS(NS, 'polyline');
+  line.setAttribute('points', polyline);
+  line.setAttribute('class', 'vnext-nw-line');
+  svg.appendChild(line);
+
+  for (let i = 0; i < history.length; i++) {
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('cx', x(i).toFixed(1));
+    dot.setAttribute('cy', y(history[i].netWorth).toFixed(1));
+    dot.setAttribute('r', '4');
+    dot.setAttribute('class', 'vnext-nw-dot');
+    svg.appendChild(dot);
+  }
+
+  const yLabels = [
+    { v: maxV, py: PAD_Y + 4 },
+    { v: midV, py: PAD_Y + plotH / 2 + 4 },
+    { v: minV, py: PAD_Y + plotH + 4 },
+  ];
+  for (const lb of yLabels) {
+    const txt = document.createElementNS(NS, 'text');
+    txt.setAttribute('x', (PAD_X - 6).toString());
+    txt.setAttribute('y', lb.py.toFixed(1));
+    txt.setAttribute('class', 'vnext-nw-label vnext-nw-label-y');
+    txt.textContent = fmtAxis(lb.v);
+    svg.appendChild(txt);
+  }
+
+  const xFirst = document.createElementNS(NS, 'text');
+  xFirst.setAttribute('x', PAD_X.toString());
+  xFirst.setAttribute('y', (H - 4).toString());
+  xFirst.setAttribute('class', 'vnext-nw-label vnext-nw-label-x');
+  xFirst.textContent = fmtShortDate(history[0].date);
+  svg.appendChild(xFirst);
+
+  const xLast = document.createElementNS(NS, 'text');
+  xLast.setAttribute('x', (W - PAD_X).toString());
+  xLast.setAttribute('y', (H - 4).toString());
+  xLast.setAttribute('class', 'vnext-nw-label vnext-nw-label-x vnext-nw-label-x-end');
+  xLast.textContent = fmtShortDate(history[history.length - 1].date);
+  svg.appendChild(xLast);
+
+  wrap.appendChild(svg);
+
+  if (legend && latestEl && changeEl) {
+    const latest = history[history.length - 1].netWorth;
+    const first = history[0].netWorth;
+    const diff = latest - first;
+    latestEl.textContent = `Current: ${fmtDollar(Math.abs(latest))}${latest < 0 ? ' (negative)' : ''}`;
+    const sign = diff > 0 ? '+' : '';
+    changeEl.textContent = `Change: ${sign}${fmtDollar(diff)}`;
+    changeEl.className = 'vnext-nw-climb-change' + (diff > 0 ? ' is-up' : diff < 0 ? ' is-down' : '');
+    legend.hidden = false;
+  }
+}
