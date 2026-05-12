@@ -70,8 +70,60 @@ function initLogout() {
   });
 }
 
+/* ── Browser storage feature-detect ─────────────────────────────
+ * Safari private mode and some hardened browsers throw on
+ * localStorage access. Steward leans on it for the commitment flag,
+ * theme, session-resume hint, etc., so silent failure leaves the
+ * user in a confusing state (commitment screen reappears, theme
+ * doesn't stick). Detect once at boot and surface a banner. */
+function checkBrowserStorageAvailable() {
+  try {
+    const key = '__steward_storage_probe__';
+    localStorage.setItem(key, '1');
+    if (localStorage.getItem(key) !== '1') return false;
+    localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function showStorageDisabledBanner() {
+  if (document.getElementById('storage-disabled-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'storage-disabled-banner';
+  banner.setAttribute('role', 'alert');
+  banner.style.cssText = [
+    'position: sticky',
+    'top: 0',
+    'left: 0',
+    'right: 0',
+    'z-index: 9998',
+    'background: var(--amber-soft, rgba(212,160,48,0.18))',
+    'border-bottom: 1px solid var(--amber, #d4a030)',
+    'color: var(--text, #f0e6c8)',
+    "font-family: 'IBM Plex Sans', sans-serif",
+    'font-size: 13px',
+    'line-height: 1.45',
+    'padding: 10px 16px',
+    'text-align: center',
+  ].join(';');
+  banner.textContent =
+    'Browser storage is disabled. Steward needs it to remember your commitment ' +
+    'between sessions. Enable site data for this page.';
+  if (document.body.firstChild) {
+    document.body.insertBefore(banner, document.body.firstChild);
+  } else {
+    document.body.appendChild(banner);
+  }
+}
+
 /* ── Init ──────────────────────────────────────────────────────── */
 async function init() {
+  if (!checkBrowserStorageAvailable()) {
+    showStorageDisabledBanner();
+  }
+
   const shell = currentShell();
 
   if (shell === 'play') {
