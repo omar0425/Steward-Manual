@@ -843,6 +843,51 @@ h1, h2, h3 {
 .dr-delta.down { color: var(--emerald); }
 .dr-delta.up { color: var(--rose); }
 .dr-spark { display: flex; align-items: center; justify-content: flex-end; width: 64px; height: 14px; opacity: 0.75; }
+.debt-row--paid-off .dr-balance,
+.debt-row--paid-off .dr-name { color: var(--emerald, #10b981); }
+.debt-row--paid-off { opacity: 0.88; }
+.dr-paid-badge {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--emerald, #10b981);
+  color: #000;
+  vertical-align: 2px;
+}
+/* Recent-milestone celebration banner */
+.milestone-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--gold, #d4a849);
+  background: rgba(212, 168, 73, 0.08);
+}
+.milestone-banner__row {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.milestone-banner__row strong { color: var(--gold, #d4a849); }
+/* Preservation note in the manual-entry form */
+.manual-entry-preserved {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--amber, #f59e0b);
+  background: rgba(245, 158, 11, 0.08);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
 
 /* APR chip — display only, not interactive */
 .dr-apr {

@@ -139,14 +139,43 @@ function climbTierIndex(debtRemaining, climbBaselineDebt) {
 function cloneTierWithClimbThreshold(index, climbBaselineDebt) {
   const tier = TIERS[index] || TIERS[0];
   const baseline = validClimbBaseline(climbBaselineDebt);
-  if (!baseline || index >= TIERS.length - 1) return { ...tier };
+  if (!baseline) return { ...tier };
+  // Substitute climb-aware copy whenever we have a baseline. The absolute
+  // TIERS copy talks in dollar thresholds ("Under $50K") which is wrong for
+  // anyone whose baseline isn't ~$80K. Climb copy is keyed to % paid.
+  const climbCopy = climbCopyForIndex(index);
+  if (index >= TIERS.length - 1) {
+    return { ...tier, copy: climbCopy.copy, nextCopy: climbCopy.nextCopy };
+  }
   const nonDebtFreeStages = TIERS.length - 1;
   const exitPct = (index + 1) / nonDebtFreeStages;
   return {
     ...tier,
+    copy: climbCopy.copy,
+    nextCopy: climbCopy.nextCopy,
     threshold: roundMoney(baseline * (1 - exitPct)),
     climbThresholdPct: roundDebtTierBandPct(exitPct * 100),
   };
+}
+
+// Climb-mode copy. The absolute TIERS copy (e.g. "Under $50K") is wrong when
+// the user's baseline is $9K or $400K; phrase progress in percentage of the
+// climb instead. Indexed parallel to TIERS (0 = Stage 01 / Buried).
+const CLIMB_COPY = [
+  { copy: 'Climb started. The first stretch is the hardest.', nextCopy: 'First 11% paid — pace established.' },
+  { copy: 'First 11% paid. Pace established.',                nextCopy: 'One in five dollars cleared.' },
+  { copy: 'Over one in five paid. Pattern is forming.',       nextCopy: 'First third closed.' },
+  { copy: 'First third closed. Real progress now.',           nextCopy: 'Past the midpoint.' },
+  { copy: 'Past the midpoint. The second half is faster.',    nextCopy: 'Over half paid.' },
+  { copy: 'Over half paid. Compounding works for you now.',   nextCopy: 'Two-thirds done.' },
+  { copy: 'Two-thirds done. The end is visible.',             nextCopy: 'Under a quarter left.' },
+  { copy: 'Under a quarter left. Most never reach here.',     nextCopy: 'Final stretch.' },
+  { copy: 'Final stretch. Almost free.',                      nextCopy: 'The climb is done.' },
+  { copy: 'Debt zero. Now build the life after it.',          nextCopy: null },
+];
+
+function climbCopyForIndex(idx) {
+  return CLIMB_COPY[Math.max(0, Math.min(CLIMB_COPY.length - 1, idx))];
 }
 
 function getClimbTier(debtRemaining, climbBaselineDebt) {

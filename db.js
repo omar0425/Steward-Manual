@@ -447,6 +447,29 @@ function resetAllGameState() {
     'turn_start_at',
     'turn_start_balances',
   ];
+  // Counts collected so the API can tell the user what was actually cleared.
+  const countOne = (sql, ...params) => db.prepare(sql).get(userId, ...params);
+  const snapshotsBefore = countOne(`SELECT COUNT(*) AS n FROM snapshots WHERE user_id = ?`).n;
+  const balancesBefore  = countOne(`SELECT COUNT(*) AS n FROM debt_account_balances WHERE user_id = ?`).n;
+  const historyBefore   = countOne(`SELECT COUNT(*) AS n FROM debt_account_history WHERE user_id = ?`).n;
+  const gameStateBefore = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM config WHERE user_id = ? AND key IN (${GAME_STATE_KEYS.map(() => '?').join(',')})`,
+    )
+    .get(userId, ...GAME_STATE_KEYS).n;
+  // Things we deliberately do NOT touch — collect for the response so the user
+  // sees their interest rates / theme weren't wiped out.
+  const interestRatesRaw = db
+    .prepare(`SELECT value FROM config WHERE user_id = ? AND key = 'interest_rates'`)
+    .get(userId);
+  let interestRatesCount = 0;
+  if (interestRatesRaw && interestRatesRaw.value) {
+    try {
+      const o = JSON.parse(interestRatesRaw.value);
+      if (o && typeof o === 'object') interestRatesCount = Object.keys(o).length;
+    } catch (_) { /* ignore */ }
+  }
+
   const del = db.prepare(`DELETE FROM config WHERE user_id = ? AND key = ?`);
   db.exec('BEGIN');
   try {
@@ -459,6 +482,18 @@ function resetAllGameState() {
     db.exec('ROLLBACK');
     throw err;
   }
+
+  return {
+    deleted: {
+      snapshots: snapshotsBefore,
+      debtAccountBalances: balancesBefore,
+      debtAccountHistory: historyBefore,
+      gameStateConfigKeys: gameStateBefore,
+    },
+    preserved: {
+      interestRates: interestRatesCount,
+    },
+  };
 }
 
 function lastNonZeroFinancials() {

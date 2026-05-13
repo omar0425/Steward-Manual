@@ -78,6 +78,22 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 5;
 const _loginAttempts = new Map(); // key: lowercased username → { count, firstAttemptAt }
 
+// Periodic sweep of expired attempt entries. Each unique attempted username
+// otherwise lingers in the Map for up to LOGIN_WINDOW_MS even after no
+// further activity — small but unbounded over time. The sweep clears entries
+// whose window has elapsed.
+const _loginAttemptsSweepHandle = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of _loginAttempts) {
+    if (now - entry.firstAttemptAt >= LOGIN_WINDOW_MS) {
+      _loginAttempts.delete(key);
+    }
+  }
+}, LOGIN_WINDOW_MS);
+if (typeof _loginAttemptsSweepHandle.unref === 'function') {
+  _loginAttemptsSweepHandle.unref();
+}
+
 function _loginAttemptKey(rawUsername) {
   return String(rawUsername || '').trim().toLowerCase();
 }

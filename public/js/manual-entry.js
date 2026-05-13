@@ -338,7 +338,22 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
         renderSavedDebtsList(activeAccounts);
         setSetupStartVisible(activeAccounts.length > 0);
       } else {
-        if (msgEl) msgEl.textContent = `Saved! Tier: ${data.tier}`;
+        if (msgEl) {
+          msgEl.textContent = `Saved! Tier: ${data.tier}`;
+          // Surface preserved-field notice so the user understands why a 0
+          // input didn't replace prior data. The message includes the
+          // "allowZero" escape hatch — friendlier than silent overwrite.
+          if (Array.isArray(data.preservedFields) && data.preservedFields.length > 0) {
+            const note = document.createElement('span');
+            note.className = 'manual-entry-preserved';
+            note.textContent = data.message;
+            msgEl.appendChild(document.createTextNode(' '));
+            msgEl.appendChild(note);
+            // Delay reload so the user can read the notice
+            setTimeout(() => window.location.reload(), 4500);
+            return;
+          }
+        }
         window.location.reload();
       }
     } else {

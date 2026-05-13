@@ -329,10 +329,21 @@ export function fillDebtAccountsList(stats) {
 
     const row = document.createElement('div');
     row.className = 'debt-row';
+    if (acct.paidOff === true || balance === 0) {
+      row.classList.add('debt-row--paid-off');
+      row.setAttribute('aria-label', `${acct.name || 'Account'} paid off`);
+    }
 
     const name = document.createElement('span');
     name.className = 'dr-name debt-row-name';
     name.textContent = acct.name || 'Account';
+    if (acct.paidOff === true || balance === 0) {
+      const badge = document.createElement('span');
+      badge.className = 'dr-paid-badge';
+      badge.textContent = 'PAID OFF';
+      name.appendChild(document.createTextNode(' '));
+      name.appendChild(badge);
+    }
 
     const aprEl = document.createElement('span');
     aprEl.className = 'dr-apr';

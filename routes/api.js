@@ -78,11 +78,19 @@ router.get('/status', (req, res) => {
       : null;
 
   if (gameStartDebt == null) {
+    // Tailor setup message based on whether the user actually has debt to
+    // climb. A debt-free user hitting "In the hole" / "Add every debt" copy
+    // reads as a bug from their perspective.
+    const isDebtFree = Number(snap.debt_remaining) === 0 && Number(snap.total_debt) === 0;
+    const message = isDebtFree
+      ? 'No debt to track yet. When you have one, add it and start the climb. Until then, your snapshots still log net-worth history.'
+      : 'Debt setup saved. Add every debt, then lock your starting debt to begin.';
     return res.json({
       ready: false,
       setupIncomplete: true,
+      debtFree: isDebtFree,
       noData: false,
-      message: 'Debt setup saved. Add every debt, then lock your starting debt to begin.',
+      message,
       lastError: null,
       stats: {
         debtRemaining: snap.debt_remaining,
@@ -145,12 +153,16 @@ router.get('/status', (req, res) => {
     narrative: stabilityNarr,
   };
 
-  // Freshness label
+  // Freshness label. "Live" implies "right now" to users; a 55-minute-old
+  // snapshot wearing that label is dishonest. Add a "Recent" band for the
+  // <1h window past the first ~10 minutes so the label tracks reality.
   const pulledAt  = new Date(snap.pulled_at);
   const ageMs     = Date.now() - pulledAt.getTime();
+  const ageMin    = ageMs / (1000 * 60);
   const ageHours  = ageMs / (1000 * 60 * 60);
   let freshness;
-  if (ageHours < 1)        freshness = 'Live';
+  if (ageMin < 10)         freshness = 'Live';
+  else if (ageHours < 1)   freshness = 'Recent';
   else if (ageHours < 48)  freshness = `${Math.floor(ageHours)}h ago`;
   else                     freshness = 'Stale >48h';
 
@@ -161,14 +173,10 @@ router.get('/status', (req, res) => {
       ? Math.max(0, Math.round((Number(gameStartDebt) - Number(snap.debt_remaining)) * 100) / 100)
       : 0;
 
-  const rawLastPullNewDebtSum =
-    lastDebtSync && Number.isFinite(Number(lastDebtSync.turn_new_debt_sum))
-      ? Number(lastDebtSync.turn_new_debt_sum)
-      : (lastDebtSync && Number.isFinite(Number(lastDebtSync.new_debt_sum)) ? Number(lastDebtSync.new_debt_sum) : null);
-  const rawLastPullPaydownSum =
-    lastDebtSync && Number.isFinite(Number(lastDebtSync.turn_paydown_sum))
-      ? Number(lastDebtSync.turn_paydown_sum)
-      : (lastDebtSync && Number.isFinite(Number(lastDebtSync.paydown_sum)) ? Number(lastDebtSync.paydown_sum) : null);
+  // "Last pull" rows are the per-turn deltas persisted at /snapshot time
+  // (prevBalances → debtBalanceMap), not the last-N-pulls aggregate. Mixing
+  // windows previously confused users: a fresh paydown of $1,500 would render
+  // as the cumulative-since-baseline delta on the same card.
   const rawLastPullAccountLines =
     lastDebtSync && Array.isArray(lastDebtSync.account_lines) ? lastDebtSync.account_lines : null;
   let debtAccountLines =
@@ -185,32 +193,26 @@ router.get('/status', (req, res) => {
       } catch (_) { /* ignore malformed */ }
     }
   }
-  const historyAccountLines = debtAccountChangeLinesFromHistory(
-    getDebtAccountHistory(5),
-    debtAccountLines,
-  );
-  const lastPullAccountLines =
-    historyAccountLines.length > 0 ? historyAccountLines : rawLastPullAccountLines;
-  let historyPaydownSum = 0;
-  let historyNewDebtSum = 0;
-  for (const line of historyAccountLines) {
+
+  const lastPullAccountLines = rawLastPullAccountLines || [];
+  let lastPullPaydownSum = 0;
+  let lastPullNewDebtSum = 0;
+  for (const line of lastPullAccountLines) {
     const d = Number(line && line.delta);
-    if (d < 0) historyPaydownSum += Math.abs(d);
-    else if (d > 0) historyNewDebtSum += d;
+    if (Number.isFinite(d)) {
+      if (d < 0) lastPullPaydownSum += Math.abs(d);
+      else if (d > 0) lastPullNewDebtSum += d;
+    }
   }
-  historyPaydownSum = Math.round(historyPaydownSum * 100) / 100;
-  historyNewDebtSum = Math.round(historyNewDebtSum * 100) / 100;
-  const recoveredTurnPaydown =
-    aggregatePaydownSinceGameStart > 0 &&
-    (!lastPullAccountLines || lastPullAccountLines.length === 0) &&
-    Number(rawLastPullPaydownSum || 0) === 0 &&
-    Number(rawLastPullNewDebtSum || 0) === 0
-      ? aggregatePaydownSinceGameStart
-      : 0;
-  const lastPullNewDebtSum =
-    historyAccountLines.length > 0 ? historyNewDebtSum : rawLastPullNewDebtSum;
-  const lastPullPaydownSum =
-    historyAccountLines.length > 0 ? historyPaydownSum : (recoveredTurnPaydown || rawLastPullPaydownSum);
+  lastPullPaydownSum = Math.round(lastPullPaydownSum * 100) / 100;
+  lastPullNewDebtSum = Math.round(lastPullNewDebtSum * 100) / 100;
+  // If we have aggregate paydown since game start but no per-pull lines yet
+  // (e.g. an aggregate-only pull after restart, or the very first pull),
+  // surface the aggregate so the user sees their progress instead of zero.
+  if (lastPullPaydownSum === 0 && lastPullNewDebtSum === 0 && aggregatePaydownSinceGameStart > 0
+      && lastPullAccountLines.length === 0) {
+    lastPullPaydownSum = aggregatePaydownSinceGameStart;
+  }
   const lastPullAccountChanges = lastPullAccountLines;
   const turnStartAt =
     lastDebtSync && lastDebtSync.turn_start_at ? lastDebtSync.turn_start_at : null;
@@ -236,12 +238,71 @@ router.get('/status', (req, res) => {
     totalDebt: s.total_debt,
   }));
 
+  // Recent milestones: things that happened on the latest pull worth telling
+  // the user about. Tier transitions previously slid by silently; paid-off
+  // accounts emit no celebration. Each milestone has a stable `id`; the
+  // server filters out IDs already recorded in notifications_sent so the
+  // banner shows once per event, not on every refresh.
+  const seenIdsRaw = getConfig('notifications_sent');
+  let seenIds = new Set();
+  if (seenIdsRaw) {
+    try {
+      const parsed = JSON.parse(seenIdsRaw);
+      if (Array.isArray(parsed)) seenIds = new Set(parsed);
+    } catch (_) { /* ignore malformed */ }
+  }
+  const candidateMilestones = [];
+  if (snapshots.length >= 2 && snapshots[0].tier && snapshots[1].tier
+      && snapshots[0].tier !== snapshots[1].tier) {
+    candidateMilestones.push({
+      id: `tier-change:${snapshots[1].tier}->${snapshots[0].tier}:${snap.pulled_at}`,
+      type: 'tier-change',
+      from: snapshots[1].tier,
+      to: snapshots[0].tier,
+      at: snap.pulled_at,
+    });
+  }
+  for (const line of lastPullAccountLines) {
+    if (line && line.kind === 'paid_off') {
+      candidateMilestones.push({
+        id: `account-paid-off:${line.name}:${snap.pulled_at}`,
+        type: 'account-paid-off',
+        accountName: line.name,
+        at: snap.pulled_at,
+      });
+    }
+  }
+  const recentMilestones = candidateMilestones.filter((m) => !seenIds.has(m.id));
+
+  // monthsEstimate: average monthly paydown from recent snapshots, applied to
+  // the gap to the next climb tier. Requires at least a day of elapsed time
+  // across the sample to avoid noisy estimates from rapid-fire snapshots
+  // (e.g. correcting a typo) where dividing by near-zero elapsed time gives a
+  // bogus "1 month away" answer.
+  let monthsEstimateClimb = null;
+  const MIN_DAYS_FOR_PACE = 1;
+  if (next.nextTier && next.gapDollars > 0 && snapshots.length >= 2) {
+    const usable = snapshots.slice(0, Math.min(snapshots.length, 4));
+    const newest = usable[0];
+    const oldest = usable[usable.length - 1];
+    const msElapsed = new Date(newest.pulled_at) - new Date(oldest.pulled_at);
+    const daysElapsed = msElapsed / (1000 * 60 * 60 * 24);
+    if (daysElapsed >= MIN_DAYS_FOR_PACE) {
+      const monthsElapsed = daysElapsed / 30.44;
+      const totalPaydown = oldest.debt_remaining - newest.debt_remaining;
+      const avgMonthlyPaydown = totalPaydown / monthsElapsed;
+      if (avgMonthlyPaydown > 0) {
+        monthsEstimateClimb = Math.ceil(next.gapDollars / avgMonthlyPaydown);
+      }
+    }
+  }
+
   const payload = {
     ready: true,
-    suspectedRestructure: !!(lastDebtSync && lastDebtSync.suspected_restructure === true),
     tier: tierObj,
     stability,
     streak,
+    recentMilestones,
     stats: {
       debtRemaining:    snap.debt_remaining,
       debtDirection,
@@ -277,7 +338,7 @@ router.get('/status', (req, res) => {
           label:          next.nextTier.label,
           badge:          next.nextTier.badge,
           gapDollars:     Math.round(next.gapDollars * 100) / 100,
-          monthsEstimate: next.monthsEstimate,
+          monthsEstimate: monthsEstimateClimb,
           nextCopy:       next.currentTier.nextCopy,
         }
       : null,
@@ -340,6 +401,13 @@ function isNegativeFinite(n) {
 
 router.post('/snapshot', (req, res) => {
   try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    if (Object.keys(body).length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Snapshot body is empty. Include totalAssets, totalDebt, or debtAccounts.',
+      });
+    }
     const {
       totalAssets = 0,
       totalDebt = 0,
@@ -347,7 +415,7 @@ router.post('/snapshot', (req, res) => {
       monthlyExpenses = 0,
       investmentValue = 0,
       debtAccounts = [],
-    } = req.body || {};
+    } = body;
 
     const moneyFields = {
       totalAssets,
@@ -363,22 +431,41 @@ router.post('/snapshot', (req, res) => {
         error: `${negativeField[0]} cannot be negative`,
       });
     }
+    // Reject non-finite money fields. Silent coercion (Number("$3,000") → NaN → 0)
+    // previously zeroed totals and credited phantom paydown.
+    for (const [name, value] of Object.entries(moneyFields)) {
+      if (value !== undefined && value !== null && value !== '' && !Number.isFinite(Number(value))) {
+        return res.status(400).json({
+          ok: false,
+          error: `${name} must be a number (got ${JSON.stringify(value)})`,
+        });
+      }
+    }
 
-    // Preserve non-zero financial fields when user submits 0 (blank form fields).
-    // Walk back to find the last snapshot that had non-zero financial data.
+    // Preserve non-zero financial fields when user submits 0 (blank form fields)
+    // by walking back to the last non-zero snapshot. Surface which fields were
+    // swapped so the response can tell the user — silent preservation has
+    // confused users who couldn't see why their input was ignored. A genuine
+    // zero can be recorded by passing { allowZero: true }.
+    const allowZero = body.allowZero === true;
     const prevFinancials = lastNonZeroFinancials();
-    const resolveFinancial = (submitted, prevField) => {
+    const preservedFields = [];
+    const resolveFinancial = (submitted, prevField, label) => {
       const s = roundMoney(submitted);
       if (s > 0) return s;
+      if (allowZero) return s; // explicit opt-in: record 0 verbatim
       const p = prevFinancials ? roundMoney(prevFinancials[prevField] || 0) : 0;
+      if (p > 0 && Number(submitted) === 0) {
+        preservedFields.push({ field: label, value: p });
+      }
       return p;
     };
 
-    const assets   = resolveFinancial(totalAssets,    'total_assets');
+    const assets   = resolveFinancial(totalAssets,    'total_assets',     'totalAssets');
     const debt     = roundMoney(totalDebt);
-    const income   = resolveFinancial(monthlyIncome,  'monthly_income');
-    const expenses = resolveFinancial(monthlyExpenses,'monthly_expenses');
-    const invest   = resolveFinancial(investmentValue,'investment_value');
+    const income   = resolveFinancial(monthlyIncome,  'monthly_income',   'monthlyIncome');
+    const expenses = resolveFinancial(monthlyExpenses,'monthly_expenses', 'monthlyExpenses');
+    const invest   = resolveFinancial(investmentValue,'investment_value', 'investmentValue');
     const now      = new Date().toISOString();
     const gameActive = getGameStart().gameStartDebt != null;
 
@@ -400,30 +487,34 @@ router.post('/snapshot', (req, res) => {
         if (isNegativeFinite(acct.balance)) {
           return res.status(400).json({ ok: false, error: `Debt account ${id} balance cannot be negative` });
         }
-        // roundMoney coerces non-numeric input to 0, which is then dropped by
-        // the `bal > 0` gate below. Warn so silent client/data corruption
-        // shows up in logs instead of disappearing from the snapshot.
-        if (acct.balance !== undefined && acct.balance !== null && acct.balance !== '') {
-          const probe = Number(acct.balance);
-          if (!Number.isFinite(probe)) {
-            console.warn(
-              `[api] /snapshot: dropping debt account ${JSON.stringify(id)} ` +
-              `— balance is not a finite number (got ${JSON.stringify(acct.balance)})`,
-            );
-          }
+        // Reject missing or non-finite balances. Silent coercion to 0 was the
+        // root of two bugs: a typo like "$3,000.00" rolled the user to
+        // "wealthy", and an omitted field silently recorded the account as
+        // paid off. Both are now explicit 400s.
+        if (acct.balance === undefined || acct.balance === null || acct.balance === '') {
+          return res.status(400).json({
+            ok: false,
+            error: `Debt account ${id} is missing a balance. Send 0 explicitly to mark it paid off.`,
+          });
+        }
+        if (!Number.isFinite(Number(acct.balance))) {
+          return res.status(400).json({
+            ok: false,
+            error: `Debt account ${id} balance must be a number (got ${JSON.stringify(acct.balance)})`,
+          });
         }
         const bal = roundMoney(acct.balance);
         const rawName = typeof acct.name === 'string' && acct.name.trim() ? acct.name.trim() : 'Account';
         const name = rawName.slice(0, 100);
-        if (bal > 0) {
-          sumFromAccounts += bal;
-          debtBalanceMap.set(id, bal);
-          debtDisplayRows.push({ id, name, balance: bal });
-        }
+        // Keep zero balances in the map so explicit payoff (prev=X → curr=0)
+        // is credited as paydown by the per-account diff. Accounts removed
+        // entirely from the input still go through the "removed → no effect"
+        // path, which is the right behavior for data cleanup / renames.
+        sumFromAccounts += bal;
+        debtBalanceMap.set(id, bal);
+        debtDisplayRows.push({ id, name, balance: bal, paidOff: bal === 0 });
       }
-      if (sumFromAccounts > 0) {
-        debtRemaining = roundMoney(sumFromAccounts);
-      }
+      debtRemaining = roundMoney(sumFromAccounts);
     }
 
     // Safety liquid: use total assets as proxy (all manually entered assets are presumed liquid)
@@ -500,13 +591,19 @@ router.post('/snapshot', (req, res) => {
       setConfig('last_aggregate_debt_for_climb', String(debtRemaining));
     }
 
-    return res.json({
+    const response = {
       ok: true,
       message: 'Snapshot saved.',
       debtRemaining,
       tier: tierObj.id,
       setupIncomplete: !gameActive,
-    });
+    };
+    if (preservedFields.length > 0) {
+      response.preservedFields = preservedFields;
+      const labels = preservedFields.map((p) => p.field).join(', ');
+      response.message = `Snapshot saved. Kept your last non-zero value for: ${labels}. To record an actual zero, resend with "allowZero": true.`;
+    }
+    return res.json(response);
   } catch (err) {
     console.error('[api] manual snapshot error:', err);
     return res.status(500).json({
@@ -532,6 +629,15 @@ router.post('/start-game', (req, res) => {
         error: 'No data yet — enter your first snapshot, then try again.',
       });
     }
+    // Climb math (% paid, tier bands, gap to next) divides by baseline; baseline 0
+    // collapses every band and leaves the user permanently at Stage 01. Reject so
+    // a debt-free user gets a clear message instead of degenerate state.
+    if (!(Number(snap.debt_remaining) > 0)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'No debt to climb yet. Add at least one debt with a balance > $0 first.',
+      });
+    }
     initGameState(snap.debt_remaining, snap.pulled_at);
     const { gameStartDebt, gameStartAt } = getGameStart();
     return res.json({ ok: true, gameStartDebt, gameStartAt });
@@ -551,9 +657,9 @@ router.post('/reset-game', (req, res) => {
     if (!(req.body && req.body.confirm === true)) {
       return res.status(400).json({ ok: false, error: 'confirm: true required to reset game' });
     }
-    resetAllGameState();
+    const summary = resetAllGameState();
     clearLastDebtSyncDebug();
-    return res.json({ ok: true });
+    return res.json({ ok: true, ...summary });
   } catch (err) {
     console.error('[api] reset-game', err);
     return res.status(500).json({
@@ -658,53 +764,5 @@ router.get('/brokerage', (req, res) => {
 router.get('/health', (req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function debtAccountChangeLinesFromHistory(byAccount, currentAccountLines) {
-  if (!byAccount || typeof byAccount !== 'object') return [];
-
-  const accountArr = Array.isArray(currentAccountLines) ? currentAccountLines : [];
-  const nameById = new Map();
-  for (const acct of accountArr) {
-    if (acct && acct.id) {
-      nameById.set(String(acct.id), acct.name || 'Account');
-    }
-  }
-
-  const rows = [];
-  for (const [id, points] of Object.entries(byAccount)) {
-    if (!Array.isArray(points) || points.length < 2) continue;
-    const ordered = points
-      .map((p) => ({
-        date: p && p.date ? String(p.date) : '',
-        balance: Number(p && p.balance),
-      }))
-      .filter((p) => p.date && Number.isFinite(p.balance))
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    if (ordered.length < 2) continue;
-
-    const first = ordered[0].balance;
-    const last = ordered[ordered.length - 1].balance;
-    const delta = Math.round((last - first) * 100) / 100;
-    if (delta === 0) continue;
-
-    let name = nameById.get(String(id));
-    if (!name) {
-      // manual-acct-N IDs are assigned before the user names accounts — resolve by index
-      const m = String(id).match(/^manual-acct-(\d+)$/);
-      if (m) name = accountArr[Number(m[1])]?.name;
-    }
-
-    rows.push({
-      name: name || 'Account',
-      delta,
-      kind: delta < 0 ? 'decreased' : 'increased',
-    });
-  }
-
-  rows.sort((a, b) => Math.abs(Number(b.delta)) - Math.abs(Number(a.delta)));
-  return rows;
-}
 
 module.exports = router;

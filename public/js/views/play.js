@@ -302,7 +302,7 @@ function buildStageProgressDetail() {
   const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
     <p class="tc-section-label" style="margin-bottom:20px;">Stage progress</p>
-    <p class="progress-note" id="progress-restructure-note" hidden style="font-size:12px;color:var(--text-2);margin-bottom:12px;"></p>
+    <div id="progress-milestone-recent" class="milestone-banner" hidden aria-live="polite"></div>
     <p class="progress-note" id="progress-stale-note" hidden style="font-size:12px;color:var(--amber);margin-bottom:12px;"></p>
     <ul class="sp-grid" id="progress-detail-bullets" aria-label="Session progress">
       <li id="progress-bullet-paid"></li>

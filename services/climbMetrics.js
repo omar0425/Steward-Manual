@@ -179,7 +179,12 @@ function perAccountDebtDeltaDisplayRows(previousByAccountId, currentByAccountId,
     }
     const delta = roundMoney(currBal - prevBal);
     if (delta !== 0) {
-      const kind = delta < 0 ? 'decreased' : 'increased';
+      const kind =
+        delta < 0 && currBal === 0
+          ? 'paid_off'
+          : delta < 0
+            ? 'decreased'
+            : 'increased';
       rows.push({ name: nameById.get(id) || 'Account', delta, kind });
     }
   }
@@ -381,11 +386,23 @@ function getClimbStatsFromConfig() {
  * Snapshots must be sorted newest-first (as returned by recentSnapshots).
  *
  * @param {Array<{ debt_remaining: number, pulled_at: string }>} snapshots
- * @returns {{ current: number, best: number, lastBroken: number, lastBrokenAt: string|null }}
+ * @returns {{ current: number, best: number, previousStreakLength: number, previousStreakEndedAt: string|null, lastBroken: number, lastBrokenAt: string|null }}
+ *
+ * Note: `previousStreakLength` / `previousStreakEndedAt` are the canonical names.
+ * `lastBroken` / `lastBrokenAt` are deprecated aliases kept for compatibility
+ * with older clients — they refer to the *prior* streak's length, not the
+ * current one.
  */
 function computeStreak(snapshots) {
   if (!Array.isArray(snapshots) || snapshots.length < 2) {
-    return { current: 0, best: 0, lastBroken: 0, lastBrokenAt: null };
+    return {
+      current: 0,
+      best: 0,
+      previousStreakLength: 0,
+      previousStreakEndedAt: null,
+      lastBroken: 0,
+      lastBrokenAt: null,
+    };
   }
 
   // Walk from newest to oldest, comparing each pair
@@ -444,7 +461,14 @@ function computeStreak(snapshots) {
     }
   }
 
-  return { current, best, lastBroken, lastBrokenAt };
+  return {
+    current,
+    best,
+    previousStreakLength: lastBroken,
+    previousStreakEndedAt: lastBrokenAt,
+    lastBroken,    // deprecated alias
+    lastBrokenAt,  // deprecated alias
+  };
 }
 
 module.exports = {

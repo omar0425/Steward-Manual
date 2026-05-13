@@ -303,8 +303,9 @@ export function renderStatsBlock({
     if (streak && streak.current > 0) {
       streakEl.textContent = `🔥 ${streak.current}-period streak`;
       streakEl.hidden = false;
-    } else if (streak && streak.current === 0 && streak.lastBroken > 0) {
-      streakEl.textContent = `You broke a ${streak.lastBroken}-period streak. Start a new one.`;
+    } else if (streak && streak.current === 0 && (streak.previousStreakLength || streak.lastBroken) > 0) {
+      const len = streak.previousStreakLength || streak.lastBroken;
+      streakEl.textContent = `You broke a ${len}-period streak. Start a new one.`;
       streakEl.hidden = false;
     } else {
       streakEl.textContent = '';

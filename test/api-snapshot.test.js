@@ -212,3 +212,252 @@ test('POST /api/snapshot: negative debt is rejected before write', async () => {
     assert.equal(withUser(0, () => latestSnapshot()), null);
   });
 });
+
+test('POST /api/snapshot: empty body is rejected', async () => {
+  await withApp(async (baseUrl) => {
+    const res = await postJson(baseUrl, '/api/snapshot', {});
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.match(body.error, /empty/i);
+    assert.equal(withUser(0, () => latestSnapshot()), null);
+  });
+});
+
+test('POST /api/snapshot: non-finite balance string is rejected, not silently zeroed', async () => {
+  await withApp(async (baseUrl) => {
+    // First a real snapshot + start-game so a typo on the next pull would
+    // otherwise have collapsed debtRemaining to 0 and crowned the user "wealthy".
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 1000,
+      debtAccounts: [{ id: 'card-a', name: 'Card A', balance: 4000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // The bug: a string like "$3,000.00" used to coerce to NaN → 0 → dropped.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'card-a', name: 'Card A', balance: '$3,000.00' }],
+    });
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.match(body.error, /balance must be a number/i);
+
+    // State is unchanged: still 4000, still not "Debt Free".
+    const statusRes = await fetch(`${baseUrl}/api/status`);
+    const status = await statusRes.json();
+    assert.equal(status.stats.debtRemaining, 4000);
+    assert.notEqual(status.tier.id, 'wealthy');
+  });
+});
+
+test('POST /api/snapshot: paying an account to 0 counts as paydown, keeps it on the milestone list', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 1000,
+      debtAccounts: [
+        { id: 'card-a', name: 'Card A', balance: 4200 },
+        { id: 'card-b', name: 'Card B', balance: 1000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Pay Card A all the way off
+    res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 1000,
+      debtAccounts: [
+        { id: 'card-a', name: 'Card A', balance: 0 },
+        { id: 'card-b', name: 'Card B', balance: 1000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+
+    const statusRes = await fetch(`${baseUrl}/api/status`);
+    const status = await statusRes.json();
+    assert.equal(status.stats.cumulativePaidDown, 4200, 'paid-off balance should count as paydown');
+    assert.equal(status.stats.debtRemaining, 1000);
+    const paidOffMilestone = status.recentMilestones.find((m) => m.type === 'account-paid-off');
+    assert.ok(paidOffMilestone, 'milestone for paid-off account should fire');
+    assert.equal(paidOffMilestone.accountName, 'Card A');
+    // Per-pull change should be present with the real name (not "Account")
+    const changeRow = status.stats.lastPullAccountChanges.find((r) => r.name === 'Card A');
+    assert.ok(changeRow);
+    assert.equal(changeRow.kind, 'paid_off');
+    assert.equal(changeRow.delta, -4200);
+  });
+});
+
+test('POST /api/snapshot: removing an account from the array still does NOT count as paydown', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'card-a', name: 'Card A', balance: 4200 },
+        { id: 'card-b', name: 'Card B', balance: 1000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    res = await postJson(baseUrl, '/api/snapshot', {
+      // Card A removed (data cleanup, not paid off)
+      debtAccounts: [{ id: 'card-b', name: 'Card B', balance: 1000 }],
+    });
+    assert.equal(res.status, 200);
+
+    const statusRes = await fetch(`${baseUrl}/api/status`);
+    const status = await statusRes.json();
+    assert.equal(status.stats.cumulativePaidDown, 0, 'removed account is not paydown');
+  });
+});
+
+test('POST /api/snapshot: tier-change is surfaced as a milestone', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'card-a', name: 'Card A', balance: 9000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Cross rock_bottom→broke: with baseline 9000, idx 1 spans paid ∈ [1/9, 2/9)
+    // i.e. debt ∈ (7000, 8000]. Pay $1,500 → debt $7,500 lands in broke (idx 1).
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'card-a', name: 'Card A', balance: 7500 }],
+    });
+    assert.equal(res.status, 200);
+
+    const statusRes = await fetch(`${baseUrl}/api/status`);
+    const status = await statusRes.json();
+    assert.equal(status.tier.id, 'broke');
+    const tierMilestone = status.recentMilestones.find((m) => m.type === 'tier-change');
+    assert.ok(tierMilestone, 'tier-change milestone should fire');
+    assert.equal(tierMilestone.from, 'rock_bottom');
+    assert.equal(tierMilestone.to, 'broke');
+  });
+});
+
+test('POST /api/snapshot: zero totalAssets is preserved silently UNLESS allowZero, and is surfaced in response', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 1500,
+      debtAccounts: [{ id: 'card-a', name: 'Card A', balance: 4000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Submit 0 — should preserve and tell the user
+    res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 0,
+      debtAccounts: [{ id: 'card-a', name: 'Card A', balance: 4000 }],
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(Array.isArray(body.preservedFields), 'preservedFields should be present');
+    const preserved = body.preservedFields.find((f) => f.field === 'totalAssets');
+    assert.ok(preserved);
+    assert.equal(preserved.value, 1500);
+    assert.match(body.message, /allowZero/i);
+
+    // Now opt in to zero
+    res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 0,
+      allowZero: true,
+      debtAccounts: [{ id: 'card-a', name: 'Card A', balance: 4000 }],
+    });
+    assert.equal(res.status, 200);
+    const body2 = await res.json();
+    assert.ok(!body2.preservedFields, 'allowZero should suppress preservation');
+    const statusRes = await fetch(`${baseUrl}/api/status`);
+    const status = await statusRes.json();
+    assert.equal(status.stats.totalAssets, 0);
+  });
+});
+
+test('POST /api/reset-game: response reports what was deleted and preserved', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 1000,
+      debtAccounts: [
+        { id: 'card-a', name: 'Card A', balance: 4000 },
+        { id: 'card-b', name: 'Card B', balance: 2000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    res = await postJson(baseUrl, '/api/config/interest-rates', {
+      rates: { 'card-a': 18.99, 'card-b': 22 },
+    });
+    assert.equal(res.status, 200);
+
+    res = await postJson(baseUrl, '/api/reset-game', { confirm: true });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.ok(body.deleted, 'deleted summary should be present');
+    assert.ok(body.deleted.snapshots >= 1);
+    assert.ok(body.deleted.debtAccountBalances >= 2);
+    assert.ok(body.deleted.gameStateConfigKeys >= 1);
+    assert.equal(body.preserved.interestRates, 2);
+
+    // Verify interest_rates actually survive (not just reported as preserved)
+    const ratesRes = await fetch(`${baseUrl}/api/config/interest-rates`);
+    const ratesBody = await ratesRes.json();
+    assert.equal(Object.keys(ratesBody.rates).length, 2);
+  });
+});
+
+test('GET /api/status: debt-free user gets a friendly message, not "In the hole"', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 10000,
+      totalDebt: 0,
+    });
+    assert.equal(res.status, 200);
+
+    res = await fetch(`${baseUrl}/api/status`);
+    const status = await res.json();
+    assert.equal(status.setupIncomplete, true);
+    assert.equal(status.debtFree, true);
+    assert.match(status.message, /No debt to track/i);
+  });
+});
+
+test('POST /api/start-game: rejects when there is no debt to climb', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 10000,
+      totalDebt: 0,
+    });
+    assert.equal(res.status, 200);
+
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.match(body.error, /No debt to climb/i);
+  });
+});
+
+test('GET /api/status: monthsEstimate stays null until at least a day of history exists', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'a', name: 'A', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'a', name: 'A', balance: 9500 }],
+    });
+    assert.equal(res.status, 200);
+
+    res = await fetch(`${baseUrl}/api/status`);
+    const status = await res.json();
+    // Two snapshots seconds apart should NOT yield a misleading "1 month away"
+    // estimate. Min sample window is 1 day.
+    assert.equal(status.nextTier.monthsEstimate, null);
+  });
+});

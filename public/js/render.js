@@ -57,7 +57,7 @@ export function render(status, snapshots) {
     debtSync: status.debug && status.debug.debtSync,
     meta,
     stats,
-    suspectedRestructure: status.suspectedRestructure,
+    recentMilestones: status.recentMilestones,
   });
 
   fillVnextHeroTurnAccounts(stats);

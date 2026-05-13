@@ -7,6 +7,13 @@ import {
   snapshotPaydownWindow, snapshotPaceIsNoisy, snapshotDeltaSinceOldest,
   paceQualitative, formatApproxDurationFromMonths, timeAgo,
 } from './format.js';
+import { TIER_FLOW, TIER_META } from './tiers.js';
+
+function escapeText(s) {
+  const d = document.createElement('span');
+  d.textContent = String(s == null ? '' : s);
+  return d.innerHTML;
+}
 
 function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
   if (debtDirEl) {
@@ -64,19 +71,60 @@ export function fillProgressNarrative({
   debtSync,
   meta,
   stats,
-  suspectedRestructure,
+  recentMilestones,
 }) {
-  const restructureFlag =
-    suspectedRestructure === true || !!(debtSync && debtSync.suspected_restructure);
-  const restructureEl = document.getElementById('progress-restructure-note');
-  if (restructureEl) {
-    if (restructureFlag) {
-      restructureEl.textContent =
-        'This may reflect a refinance or account change, not a true payoff.';
-      restructureEl.hidden = false;
+  const milestoneEl = document.getElementById('progress-milestone-recent');
+  if (milestoneEl) {
+    milestoneEl.textContent = '';
+    const milestones = Array.isArray(recentMilestones) ? recentMilestones : [];
+    if (milestones.length === 0) {
+      milestoneEl.hidden = true;
     } else {
-      restructureEl.textContent = '';
-      restructureEl.hidden = true;
+      const idsToMark = [];
+      for (const m of milestones) {
+        const row = document.createElement('div');
+        row.className = 'milestone-banner__row';
+        let rendered = true;
+        if (m.type === 'tier-change') {
+          // Determine direction by comparing tier indices in TIER_FLOW.
+          // Climb mode runs rock_bottom → wealthy as you pay down; "up" means
+          // higher in the climb (less debt). If we can't tell, fall back to neutral.
+          const fromIdx = TIER_FLOW.findIndex((t) => t.id === m.from);
+          const toIdx = TIER_FLOW.findIndex((t) => t.id === m.to);
+          const climbed = fromIdx >= 0 && toIdx >= 0 && toIdx > fromIdx;
+          const slipped = fromIdx >= 0 && toIdx >= 0 && toIdx < fromIdx;
+          const toMeta = TIER_META[m.to] || {};
+          const fromMeta = TIER_META[m.from] || {};
+          const toLabel = toMeta.label || m.to;
+          const fromLabel = fromMeta.label || m.from;
+          if (climbed) {
+            row.innerHTML = `🎯 <strong>Stage up</strong> — ${fromLabel} → ${toLabel}.`;
+          } else if (slipped) {
+            row.innerHTML = `⚠️ Stage slipped — ${fromLabel} → ${toLabel}. Tomorrow's a new pull.`;
+          } else {
+            row.innerHTML = `<strong>Stage change</strong>: ${fromLabel} → ${toLabel}.`;
+          }
+        } else if (m.type === 'account-paid-off') {
+          row.innerHTML = `🎉 <strong>Paid off:</strong> ${escapeText(m.accountName || 'an account')}.`;
+        } else {
+          rendered = false;
+        }
+        if (rendered) {
+          milestoneEl.appendChild(row);
+          if (m.id) idsToMark.push(m.id);
+        }
+      }
+      milestoneEl.hidden = milestoneEl.children.length === 0;
+      // Mark displayed milestones seen so refreshing doesn't keep showing them.
+      // Fire-and-forget; failure just means the banner reappears on next load,
+      // which is better than blocking the render.
+      for (const id of idsToMark) {
+        fetch('/api/config/notifications-sent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ milestone: id }),
+        }).catch(() => {});
+      }
     }
   }
 

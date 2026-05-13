@@ -182,6 +182,190 @@ no change needed there.
 
 ---
 
+## Batch 4 — on branch `claude/serene-spence-fa6bba`, awaiting review
+**Driven by:** end-to-end UX test playing through a six-month Maya scenario
+(see Round 1 test report in the PR description). Twelve issues found across
+behaviour and UX; all twelve fixed in two rounds plus polish.
+
+### Round 1 — server-side correctness
+
+1. **Malformed balance silently zeros debt** — POSTing a
+   `{"balance":"$3,000.00"}` used to coerce via `Number(...) → NaN → 0`,
+   drop the account, then credit the prior aggregate balance as
+   phantom paydown. One typo flipped the user to `tier:"wealthy"` with
+   $24K of fake paydown. `routes/api.js` now rejects non-finite (and
+   absent) balances with 400 before any state change.
+2. **Paying an account to $0 erased the paydown credit** — the
+   per-account diff treated balance-to-zero identically to "account
+   removed from the input," so a $4,200 payoff went uncounted. The
+   `/snapshot` handler now keeps explicit zero balances in the diff map
+   (`routes/api.js`) and `perAccountDebtDeltaDisplayRows`
+   (`services/climbMetrics.js`) emits `kind: "paid_off"` for those rows.
+   Removed-from-input behaviour is unchanged.
+3. **`lastPullAccountChanges` reported the wrong window** — the route
+   preferred a 5-pull aggregate from `getDebtAccountHistory(5)` over
+   the per-turn deltas, so a fresh $1,500 paydown rendered as the
+   cumulative-since-baseline delta. The override is gone; the
+   persisted `account_lines` from `setLastDebtSyncDebug` are
+   authoritative again. The unused historical-window helper has been
+   deleted entirely.
+4. **Paid-off accounts lost their display name** — the helper that
+   resolved names looked only at the current `debtAccountLines` list;
+   a paid-off account dropped from that list rendered as
+   `"name":"Account"`. Fixed implicitly by #2 (paid-off accounts now
+   stay in `debtAccountLines` with `paidOff:true`).
+5. **Tier transitions were silent** — no field on `/api/status`
+   signalled "you just changed stage." A new `recentMilestones` array
+   surfaces `tier-change` (with `from`/`to`) and `account-paid-off`
+   (with `accountName`) entries. Each milestone has a stable `id` and
+   is filtered against the existing `notifications_sent` config so the
+   banner shows once per event, not on every refresh.
+6. **`nextTier.monthsEstimate` was always `null` in climb mode** —
+   `nextClimbTierInfo` had no snapshot context to compute pace. The
+   route now computes `monthsEstimateClimb` from the newest 4
+   snapshots, with a **1-day minimum elapsed-time guard** so
+   rapid-fire snapshots (e.g. correcting a typo) don't produce a bogus
+   "1 month away" answer.
+7. **Silent zero-asset preservation** — submitting `totalAssets:0`
+   silently kept the user's last non-zero value with no UI signal. The
+   response now includes `preservedFields: [{field, value}]`, the
+   message names the swapped fields, and clients can opt in with
+   `{"allowZero": true}` to record a genuine zero.
+8. **Dead `suspectedRestructure` surface** — exposed by the API,
+   referenced by `render-progress.js`, but never written by any
+   server code. Removed from both ends.
+9. **`POST /api/reset-game` told the user nothing** — `resetAllGameState`
+   now returns counts: `{deleted: {snapshots, debtAccountBalances,
+   debtAccountHistory, gameStateConfigKeys}, preserved: {interestRates}}`.
+   The API echoes the summary so the user can verify their interest
+   rates and theme survived.
+10. **Climb-mode tier copy described absolute dollars** — at
+    `debtRemaining` of $24K with a $43K baseline the dashboard said
+    *"Past the midpoint. Under $50K. The number shrinks"*, copy
+    written for a fixed $80K-anchored scale. `services/tiers.js` now
+    overlays a 10-stage `CLIMB_COPY` table keyed to % paid, so every
+    user reads progress in their own terms.
+11. **Empty `POST /api/snapshot` body accepted** — `{}` would create a
+    useless all-zeros row. Now returns 400 with
+    `"Snapshot body is empty. Include totalAssets, totalDebt, or
+    debtAccounts."`.
+
+### Round 2 — frontend wiring and polish
+
+Half the API work was invisible because the renderer didn't read the
+new fields. Round 2 wired them up.
+
+- **Milestone banner** — `#progress-milestone-recent` element in the
+  Stage Progress panel renders `recentMilestones` with celebratory
+  copy for stage-ups (`🎯 Stage up — Buried → Digging`), softer copy
+  for slips (`⚠️ Stage slipped — …`), and a confetti note for
+  payoffs (`🎉 Paid off: Amex Gold`). After display, each milestone
+  ID is POSTed to `/api/config/notifications-sent` for dedupe.
+- **Paid-off badge** — `render-debts.js` keeps balance-zero rows in
+  the list with a `PAID OFF` chip (emerald) and a tinted row. They no
+  longer silently vanish.
+- **Preserved-fields notice** — `manual-entry.js` surfaces the
+  `preservedFields` message inline below the save button after a
+  successful submit, with an amber border, and delays the reload so
+  the user can read it.
+- **Debt-free user UX** — a user with `totalDebt:0` no longer sees
+  "In the hole. The meter is running." `/api/status` returns
+  `debtFree:true` with the message *"No debt to track yet. When you
+  have one, add it and start the climb. Until then, your snapshots
+  still log net-worth history."* `POST /api/start-game` returns 400
+  if the latest debt is 0 — climb math divides by baseline and would
+  pin the user permanently at Stage 01.
+- **Freshness label** — added a `Recent` band so the thresholds are:
+  `<10min: "Live"`, `<1h: "Recent"`, `<48h: "Nh ago"`, `≥48h:
+  "Stale >48h"`. The old code labelled a 55-minute-old snapshot as
+  "Live," which read as "right now" to users.
+- **Streak field rename** — `streak.lastBroken` was the length of the
+  *previous* streak, not the *current* one, so an unbroken 10-pull
+  run reported `lastBroken: 10` confusingly. Added canonical
+  `previousStreakLength` / `previousStreakEndedAt`; old names are
+  kept as deprecated aliases so external clients aren't broken.
+- **Login-attempts Map sweep** — `_loginAttempts` in `routes/auth.js`
+  grew unbounded with one entry per attempted username for up to 15
+  min. Added a `setInterval` sweep (with `.unref()`) that prunes
+  expired entries.
+- **Dead `progress-restructure-note` element** — removed from
+  `play.js` and the dead branch in `render-progress.js`. The hidden
+  `<p>` element from the `suspectedRestructure` feature was lingering
+  with no purpose.
+
+### Tests
+
+- **+10 regression tests** in `test/api-snapshot.test.js`:
+  empty body rejected, string balance rejected with state intact,
+  paying an account to zero counts as paydown, removing an account
+  still does not, tier-change milestone fires, zero-asset
+  preservation surfaces in response + `allowZero` opt-in, reset
+  response reports deleted/preserved counts, debt-free user gets
+  friendly copy, `start-game` refuses with no debt, monthsEstimate
+  null until ≥1 day of history exists.
+- **Suite: 71/71 passing.** The previously-listed "Known failure" for
+  `api-state-machine` was already passing at the start of this batch
+  (the test file calls `reset-game` with `{confirm:true}`); see the
+  Known failure section below — entry is stale, kept for history.
+
+### New API surface (for QA / external clients)
+
+- `GET /api/status`
+  - `recentMilestones: [{id, type, ...}]` — `tier-change` or
+    `account-paid-off`. Each ID is stable; POST to
+    `/api/config/notifications-sent` with `{milestone: id}` to dedupe.
+  - `stats.debtAccountLines[*].paidOff: boolean` — true when the
+    submitted balance is 0.
+  - `streak.previousStreakLength` / `previousStreakEndedAt` — preferred
+    names. `lastBroken` / `lastBrokenAt` remain as deprecated aliases.
+  - `meta.freshness` adds `"Recent"` between `"Live"` and `"Nh ago"`.
+  - `debtFree: true` on the setupIncomplete branch when the user has
+    no debt.
+- `POST /api/snapshot`
+  - Accepts `allowZero: true` to record a genuine zero for income /
+    expenses / assets / investments (otherwise zeros are preserved).
+  - Returns `preservedFields: [{field, value}]` when preservation
+    kicked in.
+  - **400** for: empty body, missing balance on a submitted debt
+    account, non-finite balance, non-finite money field.
+- `POST /api/start-game`
+  - **400** when `debtRemaining === 0` — there's nothing to climb.
+- `POST /api/reset-game`
+  - Returns `{ok:true, deleted: {...counts}, preserved: {interestRates}}`.
+
+### Browser-side smoke tests (Batch 4)
+
+Run against `npm start` before merging:
+
+1. **Stage-up celebration** — register fresh, post a baseline, lock the
+   climb, then post a snapshot that crosses the rock_bottom→broke
+   boundary. Expect the gold milestone banner with `🎯 Stage up`.
+   Refresh once — banner should *not* reappear (dedupe).
+2. **Account paid off** — submit a snapshot where one account's balance
+   is `0`. Expect the `🎉 Paid off: …` row in the milestone banner
+   and a `PAID OFF` chip on the debt list row. Refresh — chip stays,
+   banner gone.
+3. **Preserved fields notice** — post a snapshot omitting
+   `totalAssets` (the manual-entry form does this by default). Expect
+   the amber `manual-entry-preserved` note below the save button
+   explaining the preservation + `allowZero`.
+4. **Malformed balance** — paste `"$1,234.00"` into a debt-account
+   input (or POST via DevTools). Expect inline 400 error mentioning
+   `must be a number`. State unchanged.
+5. **Debt-free welcome** — register fresh, submit
+   `{"totalAssets":1000,"totalDebt":0}`. Expect the friendly
+   "No debt to track yet…" message and no "In the hole" copy
+   anywhere on the page.
+6. **Freshness label** — leave the page open for 15+ minutes without
+   submitting. Expect the freshness chip to change from `Live` to
+   `Recent`.
+7. **Reset summary** — load up some debts + interest rates, hit
+   reset. Network response should include `deleted` and `preserved`
+   counts. Interest rates should still be present after reset
+   confirmation.
+
+---
+
 ## Known failure (pre-existing, **not** caused by these batches)
 
 `test/api-state-machine.test.js:60` —
