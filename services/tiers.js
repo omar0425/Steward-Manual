@@ -159,20 +159,23 @@ function cloneTierWithClimbThreshold(index, climbBaselineDebt) {
 }
 
 // Climb-mode copy. The absolute TIERS copy (e.g. "Under $50K") is wrong when
-// the user's baseline is $9K or $400K; phrase progress in percentage of the
-// climb instead. Indexed parallel to TIERS (0 = Stage 01 / Buried).
+// the user's baseline is $9K or $400K; phrase progress in stage terms instead.
+// Indexed parallel to TIERS (0 = Stage 01 / Buried).
 //
 // `copy` = present state ("you are here"). Past-tense or descriptive.
-// `nextCopy` = next goal. ALWAYS imperative/forward-looking so the UI banner
-//             that renders it can't be misread as "you achieved this."
+// `nextCopy` = next goal. ALWAYS forward-looking AND anchored to stage names
+//   or fractions that match the math, not approximate percentages. The 9
+//   non-debt-free stages each span 1/9 (≈11.11%) of paydown; rounding to
+//   clean integers ("11%", "20%", "50%") created label/math mismatches —
+//   user paid $8,861 to escape Stage 01, but 11% × baseline was $88 short.
 const CLIMB_COPY = [
-  { copy: 'Climb started. The first stretch is the hardest.', nextCopy: 'Reach 11% paid down.' },
-  { copy: 'First 11% paid. Pace established.',                nextCopy: 'Clear one in five dollars.' },
-  { copy: 'Over one in five paid. Pattern is forming.',       nextCopy: 'Close the first third.' },
-  { copy: 'First third closed. Real progress now.',           nextCopy: 'Cross the midpoint.' },
-  { copy: 'Past the midpoint. The second half is faster.',    nextCopy: 'Pass the halfway mark.' },
-  { copy: 'Over half paid. Compounding works for you now.',   nextCopy: 'Reach two-thirds done.' },
-  { copy: 'Two-thirds done. The end is visible.',             nextCopy: 'Get under a quarter remaining.' },
+  { copy: 'Climb started. The first stretch is the hardest.', nextCopy: 'Reach Stage 02 — Digging.' },
+  { copy: 'First stage cleared. Pace established.',           nextCopy: 'Reach Stage 03 — Pushing.' },
+  { copy: 'Two stages down. Pattern is forming.',             nextCopy: 'Close the first third.' },
+  { copy: 'First third closed. Real progress now.',           nextCopy: 'Reach Stage 05 — Steady.' },
+  { copy: 'Almost halfway. Momentum building.',               nextCopy: 'Cross the halfway mark.' },
+  { copy: 'Over half paid. Compounding works for you now.',   nextCopy: 'Reach two-thirds paid.' },
+  { copy: 'Two-thirds paid. The end is visible.',             nextCopy: 'Drop under a quarter remaining.' },
   { copy: 'Under a quarter left. Most never reach here.',     nextCopy: 'Enter the final stretch.' },
   { copy: 'Final stretch. Almost free.',                      nextCopy: 'Finish the climb.' },
   { copy: 'Debt zero. Now build the life after it.',          nextCopy: null },
