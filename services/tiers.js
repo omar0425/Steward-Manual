@@ -161,16 +161,20 @@ function cloneTierWithClimbThreshold(index, climbBaselineDebt) {
 // Climb-mode copy. The absolute TIERS copy (e.g. "Under $50K") is wrong when
 // the user's baseline is $9K or $400K; phrase progress in percentage of the
 // climb instead. Indexed parallel to TIERS (0 = Stage 01 / Buried).
+//
+// `copy` = present state ("you are here"). Past-tense or descriptive.
+// `nextCopy` = next goal. ALWAYS imperative/forward-looking so the UI banner
+//             that renders it can't be misread as "you achieved this."
 const CLIMB_COPY = [
-  { copy: 'Climb started. The first stretch is the hardest.', nextCopy: 'First 11% paid — pace established.' },
-  { copy: 'First 11% paid. Pace established.',                nextCopy: 'One in five dollars cleared.' },
-  { copy: 'Over one in five paid. Pattern is forming.',       nextCopy: 'First third closed.' },
-  { copy: 'First third closed. Real progress now.',           nextCopy: 'Past the midpoint.' },
-  { copy: 'Past the midpoint. The second half is faster.',    nextCopy: 'Over half paid.' },
-  { copy: 'Over half paid. Compounding works for you now.',   nextCopy: 'Two-thirds done.' },
-  { copy: 'Two-thirds done. The end is visible.',             nextCopy: 'Under a quarter left.' },
-  { copy: 'Under a quarter left. Most never reach here.',     nextCopy: 'Final stretch.' },
-  { copy: 'Final stretch. Almost free.',                      nextCopy: 'The climb is done.' },
+  { copy: 'Climb started. The first stretch is the hardest.', nextCopy: 'Reach 11% paid down.' },
+  { copy: 'First 11% paid. Pace established.',                nextCopy: 'Clear one in five dollars.' },
+  { copy: 'Over one in five paid. Pattern is forming.',       nextCopy: 'Close the first third.' },
+  { copy: 'First third closed. Real progress now.',           nextCopy: 'Cross the midpoint.' },
+  { copy: 'Past the midpoint. The second half is faster.',    nextCopy: 'Pass the halfway mark.' },
+  { copy: 'Over half paid. Compounding works for you now.',   nextCopy: 'Reach two-thirds done.' },
+  { copy: 'Two-thirds done. The end is visible.',             nextCopy: 'Get under a quarter remaining.' },
+  { copy: 'Under a quarter left. Most never reach here.',     nextCopy: 'Enter the final stretch.' },
+  { copy: 'Final stretch. Almost free.',                      nextCopy: 'Finish the climb.' },
   { copy: 'Debt zero. Now build the life after it.',          nextCopy: null },
 ];
 

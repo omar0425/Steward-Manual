@@ -229,6 +229,15 @@ h1, h2, h3 {
   transition: background 300ms ease;
 }
 .milestone-icon { font-size: 17px; flex-shrink: 0; }
+.milestone-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
 .milestone-text { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; line-height: 1.4; }
 .milestone-text strong { color: var(--gold-2); }
 .milestone-dismiss {
@@ -858,8 +867,10 @@ h1, h2, h3 {
   color: #000;
   vertical-align: 2px;
 }
-/* Recent-milestone celebration banner */
-.milestone-banner {
+/* Recent-milestone celebration banner (events that just happened — tier-up,
+   account paid off). Class is namespaced to avoid colliding with the
+   pre-existing top-of-page `.milestone-banner` which shows the next goal. */
+.milestone-recent-banner {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -869,13 +880,13 @@ h1, h2, h3 {
   border: 1px solid var(--gold, #d4a849);
   background: rgba(212, 168, 73, 0.08);
 }
-.milestone-banner__row {
+.milestone-recent-banner__row {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 13px;
   color: var(--text);
   line-height: 1.4;
 }
-.milestone-banner__row strong { color: var(--gold, #d4a849); }
+.milestone-recent-banner__row strong { color: var(--gold, #d4a849); }
 /* Preservation note in the manual-entry form */
 .manual-entry-preserved {
   display: block;

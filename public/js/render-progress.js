@@ -83,7 +83,7 @@ export function fillProgressNarrative({
       const idsToMark = [];
       for (const m of milestones) {
         const row = document.createElement('div');
-        row.className = 'milestone-banner__row';
+        row.className = 'milestone-recent-banner__row';
         let rendered = true;
         if (m.type === 'tier-change') {
           // Determine direction by comparing tier indices in TIER_FLOW.

@@ -82,8 +82,11 @@ function buildMilestoneBanner() {
     'aria-live': 'polite',
     hidden: true,
   });
+  // \uD83C\uDFAF (target) instead of \uD83C\uDFC6 (trophy) \u2014 this banner shows the *next goal*,
+  // not an achievement. The label prefix "Next:" makes the framing explicit.
   banner.innerHTML = `
-    <span class="milestone-icon">\uD83C\uDFC6</span>
+    <span class="milestone-icon" aria-hidden="true">\uD83C\uDFAF</span>
+    <span class="milestone-label">Next:</span>
     <div class="milestone-text" id="milestone-text"></div>
     <button class="milestone-dismiss" id="milestone-dismiss" aria-label="Dismiss">\u00D7</button>
   `;
@@ -302,7 +305,7 @@ function buildStageProgressDetail() {
   const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
     <p class="tc-section-label" style="margin-bottom:20px;">Stage progress</p>
-    <div id="progress-milestone-recent" class="milestone-banner" hidden aria-live="polite"></div>
+    <div id="progress-milestone-recent" class="milestone-recent-banner" hidden aria-live="polite"></div>
     <p class="progress-note" id="progress-stale-note" hidden style="font-size:12px;color:var(--amber);margin-bottom:12px;"></p>
     <ul class="sp-grid" id="progress-detail-bullets" aria-label="Session progress">
       <li id="progress-bullet-paid"></li>
