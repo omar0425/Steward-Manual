@@ -135,6 +135,16 @@ app.get(['/login', '/login/'], (req, res) => {
   res.sendFile(path.join(publicDir, 'login.html'));
 });
 
+// Forgot / reset live in login.html and switch panels based on URL pathname,
+// so both paths serve the same shell. No auth guard — reset must work for
+// users who can't sign in.
+app.get(['/forgot-password', '/forgot-password/'], (req, res) => {
+  res.sendFile(path.join(publicDir, 'login.html'));
+});
+app.get(['/reset-password', '/reset-password/'], (req, res) => {
+  res.sendFile(path.join(publicDir, 'login.html'));
+});
+
 app.get(['/showcase', '/showcase/'], (req, res) => {
   res.sendFile(path.join(publicDir, 'showcase.html'));
 });

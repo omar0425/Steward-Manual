@@ -186,6 +186,17 @@
 
     .login-error.is-visible { display: block; }
 
+    .login-success {
+      font-size: 12px;
+      color: var(--emerald, #14a469);
+      background: var(--emerald-soft, rgba(20,164,105,0.10));
+      border: 1px solid rgba(20,164,105,0.20);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      margin-bottom: 18px;
+      line-height: 1.45;
+    }
+
     /* Submit button */
     .login-btn {
       width: 100%;
@@ -388,6 +399,10 @@
             <button class="login-btn" id="login-submit" type="submit">Sign in</button>
           </form>
 
+          <div class="login-toggle" style="margin-top:14px;">
+            <button class="login-toggle-link" id="goto-forgot" type="button">Forgot your password?</button>
+          </div>
+
           <div class="login-google-section" id="google-login-section">
             <div class="login-google-divider">or</div>
             <button class="login-google-btn" id="google-login-btn" type="button">
@@ -417,6 +432,13 @@
                      type="text" autocomplete="username" placeholder="choose a username" required />
             </div>
             <div class="login-field">
+              <label class="login-label" for="reg-email">Email</label>
+              <input class="login-input" id="reg-email" name="email"
+                     type="email" autocomplete="email" placeholder="you@example.com" required maxlength="254"
+                     aria-describedby="reg-email-hint" />
+              <div class="login-hint" id="reg-email-hint">Used only for password resets.</div>
+            </div>
+            <div class="login-field">
               <label class="login-label" for="reg-password">Password</label>
               <input class="login-input" id="reg-password" name="password"
                      type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200"
@@ -443,6 +465,60 @@
           <div class="login-toggle">
             Already have an account?
             <button class="login-toggle-link" id="goto-login">Sign in</button>
+          </div>
+        </div>
+
+        <!-- ── Forgot password panel ── -->
+        <div class="login-panel" id="panel-forgot">
+          <div class="login-headline">Reset your password.</div>
+          <div class="login-sub">Enter your account email. We'll send a reset link if there's a matching account.</div>
+          <div class="login-divider"></div>
+
+          <div class="login-error" id="forgot-error"></div>
+          <div class="login-success" id="forgot-success" style="display:none;"></div>
+
+          <form id="forgot-form" autocomplete="on" novalidate>
+            <div class="login-field">
+              <label class="login-label" for="forgot-email">Email</label>
+              <input class="login-input" id="forgot-email" name="email"
+                     type="email" autocomplete="email" placeholder="you@example.com" required maxlength="254" />
+            </div>
+            <button class="login-btn" id="forgot-submit" type="submit">Send reset link</button>
+          </form>
+
+          <div class="login-toggle" style="margin-top:18px;">
+            Remember it now?
+            <button class="login-toggle-link" id="goto-login-from-forgot" type="button">Back to sign in</button>
+          </div>
+        </div>
+
+        <!-- ── Reset password panel (loaded via /reset-password?token=…) ── -->
+        <div class="login-panel" id="panel-reset">
+          <div class="login-headline">Set a new password.</div>
+          <div class="login-sub" id="reset-sub">Pick a new password to finish resetting your account.</div>
+          <div class="login-divider"></div>
+
+          <div class="login-error" id="reset-error"></div>
+          <div class="login-success" id="reset-success" style="display:none;"></div>
+
+          <form id="reset-form" autocomplete="on" novalidate>
+            <div class="login-field">
+              <label class="login-label" for="reset-password">New password</label>
+              <input class="login-input" id="reset-password" name="password"
+                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200"
+                     aria-describedby="reset-password-hint" />
+              <div class="login-hint" id="reset-password-hint">Minimum 10 characters</div>
+            </div>
+            <div class="login-field">
+              <label class="login-label" for="reset-confirm">Confirm password</label>
+              <input class="login-input" id="reset-confirm" name="confirm"
+                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200" />
+            </div>
+            <button class="login-btn" id="reset-submit" type="submit">Save new password</button>
+          </form>
+
+          <div class="login-toggle" style="margin-top:18px;">
+            <button class="login-toggle-link" id="goto-login-from-reset" type="button">Back to sign in</button>
           </div>
         </div>
 
@@ -479,18 +555,46 @@
     // ── Panel toggle ──────────────────────────────────────────────────
     const panelLogin    = document.getElementById('panel-login');
     const panelRegister = document.getElementById('panel-register');
+    const panelForgot   = document.getElementById('panel-forgot');
+    const panelReset    = document.getElementById('panel-reset');
+    const allPanels = [panelLogin, panelRegister, panelForgot, panelReset];
+
+    function activate(panel) {
+      allPanels.forEach(p => p && p.classList.remove('is-active'));
+      if (panel) panel.classList.add('is-active');
+    }
 
     document.getElementById('goto-register').addEventListener('click', () => {
-      panelLogin.classList.remove('is-active');
-      panelRegister.classList.add('is-active');
+      activate(panelRegister);
       document.getElementById('reg-username').focus();
     });
-
     document.getElementById('goto-login').addEventListener('click', () => {
-      panelRegister.classList.remove('is-active');
-      panelLogin.classList.add('is-active');
+      activate(panelLogin);
       document.getElementById('login-username').focus();
     });
+    document.getElementById('goto-forgot').addEventListener('click', () => {
+      activate(panelForgot);
+      document.getElementById('forgot-email').focus();
+    });
+    document.getElementById('goto-login-from-forgot').addEventListener('click', () => {
+      activate(panelLogin);
+      document.getElementById('login-username').focus();
+    });
+    document.getElementById('goto-login-from-reset').addEventListener('click', () => {
+      activate(panelLogin);
+      document.getElementById('login-username').focus();
+    });
+
+    // Decide initial panel based on URL pathname. /forgot-password and
+    // /reset-password are served by the same shell as /login.
+    (() => {
+      const p = window.location.pathname;
+      if (p === '/reset-password' || p === '/reset-password/') {
+        activate(panelReset);
+      } else if (p === '/forgot-password' || p === '/forgot-password/') {
+        activate(panelForgot);
+      }
+    })();
 
     // ── Helpers ───────────────────────────────────────────────────────
     function showError(id, msg) {
@@ -546,17 +650,35 @@
       }
     });
 
+    // Permissive client-side email shape check (the server enforces a stricter version).
+    function looksLikeEmail(s) {
+      return typeof s === 'string'
+        && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
+        && s.trim().length <= 254;
+    }
+
     // ── Register form ─────────────────────────────────────────────────
     document.getElementById('register-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       clearError('register-error');
       const btn      = document.getElementById('register-submit');
       const username = document.getElementById('reg-username').value.trim();
+      const email    = document.getElementById('reg-email').value.trim();
       const password = document.getElementById('reg-password').value;
       const confirm  = document.getElementById('reg-confirm').value;
 
       if (!username) {
         showError('register-error', 'Please enter a username.');
+        return;
+      }
+      if (!email) {
+        showError('register-error', 'Please enter your email so you can reset your password later.');
+        document.getElementById('reg-email').classList.add('is-error');
+        return;
+      }
+      if (!looksLikeEmail(email)) {
+        showError('register-error', 'That email doesn’t look right. Double-check the format.');
+        document.getElementById('reg-email').classList.add('is-error');
         return;
       }
       if (!password) {
@@ -585,15 +707,14 @@
         return;
       }
 
-      document.getElementById('reg-password').classList.remove('is-error');
-      document.getElementById('reg-confirm').classList.remove('is-error');
+      ['reg-email', 'reg-password', 'reg-confirm'].forEach(id => document.getElementById(id).classList.remove('is-error'));
 
       setLoading(btn, true);
       try {
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, email, password }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
@@ -605,6 +726,107 @@
         showError('register-error', 'Could not reach the server. Try again.');
       } finally {
         setLoading(btn, false);
+      }
+    });
+
+    // ── Forgot password form ──────────────────────────────────────────
+    document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError('forgot-error');
+      const successEl = document.getElementById('forgot-success');
+      successEl.style.display = 'none';
+
+      const btn   = document.getElementById('forgot-submit');
+      const email = document.getElementById('forgot-email').value.trim();
+
+      if (!email || !looksLikeEmail(email)) {
+        showError('forgot-error', 'Enter the email address you registered with.');
+        document.getElementById('forgot-email').classList.add('is-error');
+        return;
+      }
+      document.getElementById('forgot-email').classList.remove('is-error');
+
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        // Server always returns a generic 200 (no enumeration). Show that
+        // back to the user — same message regardless of whether the email
+        // is on file.
+        successEl.textContent = data.message || 'If an account with that email exists, a reset link is on its way.';
+        successEl.style.display = 'block';
+      } catch {
+        showError('forgot-error', 'Could not reach the server. Try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send reset link';
+      }
+    });
+
+    // ── Reset password form ───────────────────────────────────────────
+    document.getElementById('reset-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError('reset-error');
+      const successEl = document.getElementById('reset-success');
+      successEl.style.display = 'none';
+
+      const btn = document.getElementById('reset-submit');
+      const password = document.getElementById('reset-password').value;
+      const confirm  = document.getElementById('reset-confirm').value;
+      const token = new URLSearchParams(window.location.search).get('token') || '';
+
+      if (!token) {
+        showError('reset-error', 'No reset token in the URL. Request a new reset link.');
+        return;
+      }
+      if (!password || password.length < 10) {
+        showError('reset-error', 'Password must be at least 10 characters.');
+        document.getElementById('reset-password').classList.add('is-error');
+        return;
+      }
+      if (password.length > 200) {
+        showError('reset-error', 'Password must be 200 characters or fewer.');
+        document.getElementById('reset-password').classList.add('is-error');
+        return;
+      }
+      if (password !== confirm) {
+        showError('reset-error', 'Passwords do not match.');
+        document.getElementById('reset-confirm').classList.add('is-error');
+        return;
+      }
+      ['reset-password', 'reset-confirm'].forEach(id => document.getElementById(id).classList.remove('is-error'));
+
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          successEl.textContent = data.message || 'Password updated. Please log in.';
+          successEl.style.display = 'block';
+          // Auto-bounce to the sign-in panel after a moment.
+          setTimeout(() => {
+            activate(panelLogin);
+            window.history.replaceState({}, '', '/login');
+            document.getElementById('login-username').focus();
+          }, 1500);
+        } else {
+          showError('reset-error', data.error || 'Reset failed. Request a new link and try again.');
+        }
+      } catch {
+        showError('reset-error', 'Could not reach the server. Try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save new password';
       }
     });
 

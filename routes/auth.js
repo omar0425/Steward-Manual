@@ -5,12 +5,27 @@ const router  = express.Router();
 const {
   createLocalUser,
   findUserByUsername,
+  findUserByEmail,
+  findUserById,
   findOrCreateGoogleUser,
+  setUserEmail,
+  setUserPassword,
   createSession,
   deleteSession,
+  deleteUserSessions,
   verifyPassword,
+  createPasswordResetToken,
+  findValidPasswordResetToken,
+  consumePasswordResetToken,
+  PASSWORD_RESET_TTL_MS,
   SESSION_TTL_MS,
 } = require('../db-auth');
+const {
+  sendEmail,
+  buildPasswordResetEmail,
+  looksLikeEmail,
+  APP_BASE_URL,
+} = require('../services/email');
 
 const COOKIE_NAME = 'steward_sid';
 
@@ -27,7 +42,7 @@ function setSessionCookie(res, session) {
 
 router.post('/register', (req, res) => {
   try {
-    const { username, password } = req.body || {};
+    const { username, password, email } = req.body || {};
 
     if (!username || typeof username !== 'string' || !username.trim()) {
       return res.status(400).json({ ok: false, error: 'Username is required.' });
@@ -47,6 +62,18 @@ router.post('/register', (req, res) => {
     if (password.length > 200) {
       return res.status(400).json({ ok: false, error: 'Password must be 200 characters or fewer.' });
     }
+    // Email required for password reset capability. Accept missing only when
+    // STEWARD_ALLOW_REGISTER_WITHOUT_EMAIL=1 (single-user / dev mode).
+    const allowMissingEmail = process.env.STEWARD_ALLOW_REGISTER_WITHOUT_EMAIL === '1';
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      if (!allowMissingEmail) {
+        return res.status(400).json({ ok: false, error: 'Email is required.' });
+      }
+    } else if (!looksLikeEmail(email)) {
+      return res.status(400).json({ ok: false, error: 'Email looks invalid.' });
+    } else if (email.length > 254) {
+      return res.status(400).json({ ok: false, error: 'Email is too long.' });
+    }
 
     const existing = findUserByUsername(username.trim());
     if (existing) {
@@ -55,12 +82,19 @@ router.post('/register', (req, res) => {
       // does not confirm whether an account exists.
       return res.status(400).json({ ok: false, error: 'Could not create account. Try a different username.' });
     }
+    // Same protection for email: don't leak "this email is taken." Return the
+    // identical generic error so register can't be used to test which emails
+    // have accounts.
+    const normalizedEmail = email && email.trim() ? email.trim().toLowerCase() : null;
+    if (normalizedEmail && findUserByEmail(normalizedEmail)) {
+      return res.status(400).json({ ok: false, error: 'Could not create account. Try a different username.' });
+    }
 
-    const user = createLocalUser(username.trim(), password);
+    const user = createLocalUser(username.trim(), password, normalizedEmail);
     const session = createSession(user.id);
     setSessionCookie(res, session);
 
-    return res.json({ ok: true, user: { id: user.id, username: user.username } });
+    return res.json({ ok: true, user: { id: user.id, username: user.username, email: user.email } });
   } catch (err) {
     console.error('[auth/register]', err);
     return res.status(500).json({ ok: false, error: 'Registration failed.' });
@@ -162,7 +196,13 @@ router.post('/login', (req, res) => {
     const session = createSession(user.id);
     setSessionCookie(res, session);
 
-    return res.json({ ok: true, user: { id: user.id, username: user.username } });
+    return res.json({
+      ok: true,
+      user: { id: user.id, username: user.username, email: user.email || null },
+      // Flag legacy accounts so the frontend can prompt for an email so the
+      // user can use password reset later. Doesn't block login.
+      needsEmail: user.provider === 'local' && !user.email,
+    });
   } catch (err) {
     console.error('[auth/login]', err);
     return res.status(500).json({ ok: false, error: 'Login failed.' });
@@ -194,7 +234,171 @@ router.get('/me', (req, res) => {
       email: req.user.email,
       provider: req.user.provider,
     },
+    needsEmail: req.user.provider === 'local' && !req.user.email,
   });
+});
+
+// ── PATCH /api/auth/me/email ──────────────────────────────────────────────────
+//
+// Authenticated route that lets a legacy local user attach an email to their
+// account (or update an existing one). Required so existing accounts can
+// opt into password reset without forcing them to recreate the account.
+router.patch('/me/email', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ ok: false, error: 'Not authenticated.' });
+  }
+  const { email } = req.body || {};
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    return res.status(400).json({ ok: false, error: 'Email is required.' });
+  }
+  if (!looksLikeEmail(email)) {
+    return res.status(400).json({ ok: false, error: 'Email looks invalid.' });
+  }
+  if (email.length > 254) {
+    return res.status(400).json({ ok: false, error: 'Email is too long.' });
+  }
+  const normalized = email.trim().toLowerCase();
+  const taken = findUserByEmail(normalized);
+  if (taken && taken.id !== req.user.userId) {
+    // Don't leak account existence — same generic copy as register.
+    return res.status(400).json({ ok: false, error: 'Could not save email. Try a different one.' });
+  }
+  try {
+    setUserEmail(req.user.userId, normalized);
+  } catch (err) {
+    console.error('[auth/me/email]', err);
+    return res.status(500).json({ ok: false, error: 'Could not save email.' });
+  }
+  return res.json({ ok: true, email: normalized });
+});
+
+// ── POST /api/auth/forgot-password ────────────────────────────────────────────
+//
+// Always returns a generic success response — never leaks whether an email is
+// registered. Internally: if a local user with that email exists, mint a
+// single-use reset token (1h expiry) and dispatch via Resend (or console in
+// dev). Rate-limited per email + per source IP to blunt enumeration / abuse.
+
+const FORGOT_WINDOW_MS = 60 * 60 * 1000;        // 1 hour
+const FORGOT_MAX_PER_WINDOW = 5;
+const _forgotAttempts = new Map();              // key → { count, firstAt }
+const _forgotSweepHandle = setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _forgotAttempts) {
+    if (now - v.firstAt >= FORGOT_WINDOW_MS) _forgotAttempts.delete(k);
+  }
+}, FORGOT_WINDOW_MS);
+if (typeof _forgotSweepHandle.unref === 'function') _forgotSweepHandle.unref();
+
+function _forgotKey(email, ip) {
+  return `${String(email || '').trim().toLowerCase()}|${String(ip || '').slice(0, 64)}`;
+}
+function _forgotShouldThrottle(key) {
+  const entry = _forgotAttempts.get(key);
+  if (!entry) return false;
+  if (Date.now() - entry.firstAt >= FORGOT_WINDOW_MS) {
+    _forgotAttempts.delete(key);
+    return false;
+  }
+  return entry.count >= FORGOT_MAX_PER_WINDOW;
+}
+function _forgotBumpCount(key) {
+  const entry = _forgotAttempts.get(key);
+  if (!entry || Date.now() - entry.firstAt >= FORGOT_WINDOW_MS) {
+    _forgotAttempts.set(key, { count: 1, firstAt: Date.now() });
+  } else {
+    entry.count += 1;
+  }
+}
+
+router.post('/forgot-password', async (req, res) => {
+  // Generic response so attackers can't distinguish "email exists" from "no".
+  const genericResponse = {
+    ok: true,
+    message: 'If an account with that email exists, a reset link is on its way.',
+  };
+  try {
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string' || !looksLikeEmail(email)) {
+      // Still 200 — don't leak input-validity either.
+      return res.json(genericResponse);
+    }
+    const normalized = email.trim().toLowerCase();
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().split(',')[0].trim();
+    const key = _forgotKey(normalized, ip);
+    if (_forgotShouldThrottle(key)) {
+      // Even when throttled, respond 200 generically so attackers don't learn anything.
+      return res.json(genericResponse);
+    }
+    _forgotBumpCount(key);
+
+    const user = findUserByEmail(normalized);
+    // Only dispatch for local users with an email. Google-provider accounts
+    // don't have a password to reset; tell the user via their generic response.
+    if (user && user.provider === 'local' && user.email) {
+      const { token, expiresAt } = createPasswordResetToken(user.id);
+      const resetUrl = `${APP_BASE_URL}/reset-password?token=${encodeURIComponent(token)}`;
+      const ttlMinutes = Math.round(PASSWORD_RESET_TTL_MS / 60000);
+      const built = buildPasswordResetEmail({
+        username: user.username,
+        resetUrl,
+        ttlMinutes,
+      });
+      // Fire-and-await — but failure to dispatch must NOT change the response
+      // shape (otherwise we leak success vs failure for known emails).
+      const result = await sendEmail({
+        to: user.email,
+        subject: built.subject,
+        text: built.text,
+        html: built.html,
+      });
+      if (!result.ok) {
+        console.error('[auth/forgot-password] email dispatch failed:', result.error);
+      }
+      // Hand back expiresAt in non-production for easier testing; never in prod.
+      if (process.env.NODE_ENV !== 'production') {
+        return res.json({ ...genericResponse, _devTokenExpiresAt: expiresAt });
+      }
+    }
+    return res.json(genericResponse);
+  } catch (err) {
+    console.error('[auth/forgot-password]', err);
+    // Still respond 200 generically — don't reveal server errors here.
+    return res.json(genericResponse);
+  }
+});
+
+// ── POST /api/auth/reset-password ─────────────────────────────────────────────
+//
+// Consumes a single-use token, sets the new password, deletes all sessions
+// for that user (so a thief can't keep a stolen session alive after reset).
+router.post('/reset-password', (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+    if (!token || typeof token !== 'string' || !password || typeof password !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Token and new password are required.' });
+    }
+    if (password.length < 10) {
+      return res.status(400).json({ ok: false, error: 'Password must be at least 10 characters.' });
+    }
+    if (password.length > 200) {
+      return res.status(400).json({ ok: false, error: 'Password must be 200 characters or fewer.' });
+    }
+    const row = findValidPasswordResetToken(token);
+    if (!row) {
+      // Single generic error — don't disambiguate expired vs used vs unknown.
+      return res.status(400).json({ ok: false, error: 'Reset link is invalid or expired. Request a new one.' });
+    }
+    setUserPassword(row.user_id, password);
+    consumePasswordResetToken(row.id);
+    // Invalidate every existing session for this user — covers the case where
+    // the original account was compromised. The user logs in fresh after reset.
+    deleteUserSessions(row.user_id);
+    return res.json({ ok: true, message: 'Password updated. Please log in with your new password.' });
+  } catch (err) {
+    console.error('[auth/reset-password]', err);
+    return res.status(500).json({ ok: false, error: 'Password reset failed.' });
+  }
 });
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────

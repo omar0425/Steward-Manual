@@ -1,7 +1,7 @@
 'use strict';
 
 const { DatabaseSync } = require('node:sqlite');
-const { scryptSync, randomBytes, timingSafeEqual } = require('node:crypto');
+const { scryptSync, randomBytes, timingSafeEqual, createHash } = require('node:crypto');
 const path = require('path');
 
 const DB_PATH = process.env.STEWARD_DB_PATH
@@ -27,6 +27,20 @@ db.exec(`
     created_at TEXT    NOT NULL,
     expires_at TEXT    NOT NULL
   );
+
+  -- Password reset tokens. token_hash stores a SHA-256 of the raw token so a
+  -- DB leak doesn't hand attackers usable reset links. Tokens are single-use
+  -- (used_at NOT NULL after redemption) and short-lived (1 hour).
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT    NOT NULL UNIQUE,
+    expires_at TEXT    NOT NULL,
+    used_at    TEXT,
+    created_at TEXT    NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user
+    ON password_reset_tokens(user_id);
 `);
 
 // ── Password hashing (scrypt) ─────────────────────────────────────────────────
@@ -50,14 +64,31 @@ function verifyPassword(plain, stored) {
 
 // ── User CRUD ─────────────────────────────────────────────────────────────────
 
-function createLocalUser(username, password) {
+function createLocalUser(username, password, email) {
   const now = new Date().toISOString();
   const hash = hashPassword(password);
+  const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
   const info = db.prepare(`
-    INSERT INTO users (username, password, provider, created_at)
-    VALUES (?, ?, 'local', ?)
-  `).run(username, hash, now);
-  return { id: Number(info.lastInsertRowid), username, provider: 'local' };
+    INSERT INTO users (username, email, password, provider, created_at)
+    VALUES (?, ?, ?, 'local', ?)
+  `).run(username, normalizedEmail, hash, now);
+  return {
+    id: Number(info.lastInsertRowid),
+    username,
+    email: normalizedEmail,
+    provider: 'local',
+  };
+}
+
+function setUserEmail(userId, email) {
+  const normalized = email ? String(email).trim().toLowerCase() : null;
+  db.prepare(`UPDATE users SET email = ? WHERE id = ?`).run(normalized, userId);
+  return normalized;
+}
+
+function setUserPassword(userId, newPlainPassword) {
+  const hash = hashPassword(newPlainPassword);
+  db.prepare(`UPDATE users SET password = ? WHERE id = ?`).run(hash, userId);
 }
 
 function findUserByUsername(username) {
@@ -133,17 +164,79 @@ function pruneExpiredSessions() {
   db.prepare(`DELETE FROM sessions WHERE expires_at < ?`).run(new Date().toISOString());
 }
 
+// ── Password reset tokens ─────────────────────────────────────────────────────
+
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function _hashToken(raw) {
+  return createHash('sha256').update(String(raw), 'utf8').digest('hex');
+}
+
+/**
+ * Issue a single-use password reset token for `userId`. Returns the *raw*
+ * token (only ever in memory — never persisted) so the caller can drop it
+ * into an email link. Storage is the SHA-256 hash; if the DB leaks, attackers
+ * still need the raw token from the original email to redeem.
+ */
+function createPasswordResetToken(userId) {
+  const raw = randomBytes(32).toString('base64url');
+  const hash = _hashToken(raw);
+  const now = new Date();
+  const expires = new Date(now.getTime() + PASSWORD_RESET_TTL_MS);
+  db.prepare(`
+    INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(userId, hash, expires.toISOString(), now.toISOString());
+  return { token: raw, expiresAt: expires.toISOString() };
+}
+
+/**
+ * Look up a token by its raw value. Returns null if missing, expired, or
+ * already used. Caller must still mark it used after applying the reset.
+ */
+function findValidPasswordResetToken(rawToken) {
+  if (!rawToken) return null;
+  const hash = _hashToken(rawToken);
+  const row = db.prepare(`
+    SELECT t.id, t.user_id, t.expires_at, t.used_at, u.username, u.email
+    FROM password_reset_tokens t
+    JOIN users u ON u.id = t.user_id
+    WHERE t.token_hash = ?
+  `).get(hash);
+  if (!row) return null;
+  if (row.used_at) return null;
+  if (new Date(row.expires_at) < new Date()) return null;
+  return row;
+}
+
+function consumePasswordResetToken(tokenRowId) {
+  db.prepare(`UPDATE password_reset_tokens SET used_at = ? WHERE id = ?`)
+    .run(new Date().toISOString(), tokenRowId);
+}
+
+function purgeExpiredPasswordResetTokens() {
+  db.prepare(`DELETE FROM password_reset_tokens WHERE expires_at < ?`)
+    .run(new Date().toISOString());
+}
+
 module.exports = {
   createLocalUser,
   findUserByUsername,
   findUserByEmail,
   findUserById,
   findOrCreateGoogleUser,
+  setUserEmail,
+  setUserPassword,
   createSession,
   validateSession,
   deleteSession,
   deleteUserSessions,
   pruneExpiredSessions,
   verifyPassword,
+  createPasswordResetToken,
+  findValidPasswordResetToken,
+  consumePasswordResetToken,
+  purgeExpiredPasswordResetTokens,
+  PASSWORD_RESET_TTL_MS,
   SESSION_TTL_MS,
 };

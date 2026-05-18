@@ -74,6 +74,89 @@ function initLogout() {
   });
 }
 
+/* ── Legacy account email prompt ──────────────────────────────────
+ * Local accounts created before email was required can't reset their
+ * password. /api/auth/me returns needsEmail:true for those; show a one-time
+ * banner with an inline input so the user can attach an email without
+ * leaving the dashboard. Dismissed via localStorage so we don't badger. */
+function initEmailPrompt() {
+  const DISMISS_KEY = 'steward-email-prompt-dismissed';
+  (async () => {
+    let me;
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      me = await res.json();
+    } catch { return; }
+    if (!me || !me.needsEmail) return;
+    try { if (localStorage.getItem(DISMISS_KEY) === '1') return; } catch { /* ignore */ }
+
+    const banner = document.createElement('div');
+    banner.id = 'email-prompt-banner';
+    banner.setAttribute('role', 'region');
+    banner.setAttribute('aria-label', 'Add email for password reset');
+    banner.style.cssText =
+      'display:flex;align-items:center;gap:12px;padding:10px 18px;background:var(--amber-soft,rgba(212,160,48,0.10));border-bottom:1px solid rgba(212,160,48,0.22);font-family:\'IBM Plex Sans\',sans-serif;font-size:13px;';
+    banner.innerHTML = `
+      <span style="flex:1;color:var(--text);">
+        <strong style="color:var(--amber,#d4a030);">Add an email</strong> to your account so you can reset your password later.
+      </span>
+      <input id="email-prompt-input" type="email" placeholder="you@example.com" maxlength="254"
+             style="flex:0 1 260px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;" />
+      <button id="email-prompt-save" type="button"
+              style="padding:6px 14px;background:var(--gold,#c8a84c);border:none;border-radius:4px;color:#1a1a1a;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">
+        Save
+      </button>
+      <button id="email-prompt-dismiss" type="button" aria-label="Dismiss"
+              style="padding:4px 8px;background:transparent;border:none;color:var(--text-3);font-size:18px;cursor:pointer;">×</button>
+      <span id="email-prompt-msg" aria-live="polite" style="font-size:12px;color:var(--text-3);"></span>
+    `;
+    document.body.insertBefore(banner, document.body.firstChild);
+
+    const input = banner.querySelector('#email-prompt-input');
+    const save  = banner.querySelector('#email-prompt-save');
+    const msg   = banner.querySelector('#email-prompt-msg');
+    banner.querySelector('#email-prompt-dismiss').addEventListener('click', () => {
+      try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ }
+      banner.remove();
+    });
+    save.addEventListener('click', async () => {
+      const v = (input.value || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || v.length > 254) {
+        msg.textContent = 'That email doesn’t look right.';
+        msg.style.color = 'var(--rose, #d94f6e)';
+        return;
+      }
+      msg.textContent = 'Saving…';
+      msg.style.color = 'var(--text-3)';
+      save.disabled = true;
+      try {
+        const res = await fetch('/api/auth/me/email', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ email: v }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          msg.textContent = 'Saved.';
+          msg.style.color = 'var(--emerald, #14a469)';
+          try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ }
+          setTimeout(() => banner.remove(), 1200);
+        } else {
+          msg.textContent = data.error || 'Could not save.';
+          msg.style.color = 'var(--rose, #d94f6e)';
+          save.disabled = false;
+        }
+      } catch {
+        msg.textContent = 'Network error.';
+        msg.style.color = 'var(--rose, #d94f6e)';
+        save.disabled = false;
+      }
+    });
+  })();
+}
+
 /* ── Browser storage feature-detect ─────────────────────────────
  * Safari private mode and some hardened browsers throw on
  * localStorage access. Steward leans on it for the commitment flag,
@@ -147,6 +230,7 @@ async function init() {
 
     initTheme();
     initLogout();
+    initEmailPrompt();
     await loadCharacterTemplate();
 
     if (typeof window !== 'undefined') {
