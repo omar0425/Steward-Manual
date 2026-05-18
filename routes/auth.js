@@ -389,6 +389,18 @@ router.post('/reset-password', (req, res) => {
       // Single generic error — don't disambiguate expired vs used vs unknown.
       return res.status(400).json({ ok: false, error: 'Reset link is invalid or expired. Request a new one.' });
     }
+    // Reject "new" passwords that match the current one. Otherwise a user
+    // can complete the reset flow without actually rotating their password —
+    // wasting the reset and (if the original was compromised) leaving the
+    // door open. Token is NOT consumed on this branch so the user can submit
+    // a different password against the same link.
+    const fullUser = findUserById(row.user_id);
+    if (fullUser && fullUser.password && verifyPassword(password, fullUser.password)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'New password must be different from your current password.',
+      });
+    }
     setUserPassword(row.user_id, password);
     consumePasswordResetToken(row.id);
     // Invalidate every existing session for this user — covers the case where

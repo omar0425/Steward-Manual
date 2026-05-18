@@ -192,6 +192,33 @@ test('full flow: register → forgot → mint token directly → reset → login
   });
 });
 
+test('reset-password: rejects a "new" password that matches the existing one', async () => {
+  await withApp(async (baseUrl) => {
+    await postJson(baseUrl, '/api/auth/register', {
+      username: 'sameuser',
+      email: 'sameuser@example.com',
+      password: 'starting-password',
+    });
+    const user = findUserByEmail('sameuser@example.com');
+    const { token } = createPasswordResetToken(user.id);
+
+    const r = await postJson(baseUrl, '/api/auth/reset-password', {
+      token,
+      password: 'starting-password', // identical to current
+    });
+    assert.equal(r.status, 400);
+    const b = await r.json();
+    assert.match(b.error, /different from your current/i);
+
+    // Token should NOT be consumed — user can retry with a real new password
+    const r2 = await postJson(baseUrl, '/api/auth/reset-password', {
+      token,
+      password: 'actually-new-password',
+    });
+    assert.equal(r2.status, 200);
+  });
+});
+
 test('reset token is single-use: second redemption is rejected', async () => {
   await withApp(async (baseUrl) => {
     await postJson(baseUrl, '/api/auth/register', {
