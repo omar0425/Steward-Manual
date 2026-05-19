@@ -131,3 +131,75 @@ export function initPlayResetBtn() {
     window.location.href = window.location.pathname;
   });
 }
+
+/* ── Inline commitment-reason editor ─────────────────────────────────────── */
+/* Click pencil → swap display for input, save on Enter/blur, cancel on Escape. */
+export function initCommitmentReasonEditor() {
+  const wrap = document.getElementById('commitment-reason-wrap');
+  if (!wrap || wrap.dataset.editorBound === '1') return;
+  wrap.dataset.editorBound = '1';
+
+  const displayEl = document.getElementById('commitment-reason-display');
+  const editBtn = document.getElementById('commitment-reason-edit-btn');
+  const inputEl = document.getElementById('commitment-reason-input');
+  if (!displayEl || !editBtn || !inputEl) return;
+
+  function readReason() {
+    try {
+      return (localStorage.getItem(STEWARD_PROMISE_TEXT_KEY) || '').trim();
+    } catch {
+      return '';
+    }
+  }
+  function writeReason(text) {
+    try {
+      const t = (text || '').trim();
+      if (t) localStorage.setItem(STEWARD_PROMISE_TEXT_KEY, t);
+      else localStorage.removeItem(STEWARD_PROMISE_TEXT_KEY);
+    } catch (err) {
+      console.warn('[commitment] could not save reason', err);
+    }
+  }
+  function refreshDisplay() {
+    const r = readReason();
+    if (r) {
+      displayEl.textContent = r;
+      displayEl.hidden = false;
+      editBtn.textContent = '✎';
+      editBtn.setAttribute('aria-label', 'Edit your reason');
+      editBtn.title = 'Edit your reason';
+      editBtn.dataset.empty = '';
+    } else {
+      displayEl.hidden = true;
+      editBtn.textContent = '+ Add your reason';
+      editBtn.setAttribute('aria-label', 'Add your reason for climbing');
+      editBtn.title = 'Add your reason for climbing';
+      editBtn.dataset.empty = '1';
+    }
+  }
+  function enterEdit() {
+    const current = readReason();
+    inputEl.value = current;
+    inputEl.placeholder = 'Write your reason — keep it close.';
+    inputEl.hidden = false;
+    displayEl.hidden = true;
+    editBtn.hidden = true;
+    try { inputEl.focus(); inputEl.select(); } catch (_) { /* ignore */ }
+  }
+  function exitEdit(save) {
+    if (save) writeReason(inputEl.value);
+    inputEl.hidden = true;
+    editBtn.hidden = false;
+    refreshDisplay();
+  }
+
+  editBtn.addEventListener('click', enterEdit);
+  displayEl.addEventListener('click', enterEdit);
+  inputEl.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); exitEdit(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); exitEdit(false); }
+  });
+  inputEl.addEventListener('blur', () => exitEdit(true));
+
+  refreshDisplay();
+}

@@ -54,11 +54,19 @@ function initTheme() {
   };
 
   update();
+  /* Tracks the transient transition state so rapid clicks don't pile up timers. */
+  let transitionTimer = null;
   btn.addEventListener('click', () => {
     const isDark = document.body.dataset.theme === 'dark';
+    document.body.dataset.themeTransitioning = '1';
     document.body.dataset.theme = isDark ? 'light' : 'dark';
     localStorage.setItem('steward-theme', document.body.dataset.theme);
     update();
+    if (transitionTimer) window.clearTimeout(transitionTimer);
+    transitionTimer = window.setTimeout(() => {
+      delete document.body.dataset.themeTransitioning;
+      transitionTimer = null;
+    }, 260);
   });
 }
 

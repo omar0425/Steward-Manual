@@ -291,17 +291,22 @@ export function fillDebtAccountsList(stats) {
   }
 
   const reasonEl = document.getElementById('commitment-reason-display');
+  const reasonWrap = document.getElementById('commitment-reason-wrap');
   if (reasonEl) {
     try {
       const reason = localStorage.getItem('steward_promise_text');
       if (reason && reason.trim()) {
         reasonEl.textContent = reason.trim();
         reasonEl.hidden = false;
+        if (reasonWrap) reasonWrap.hidden = false;
       } else {
         reasonEl.hidden = true;
+        /* Keep the wrap visible — empty-state shows a "+ Add your reason" prompt. */
+        if (reasonWrap) reasonWrap.hidden = false;
       }
     } catch (_) {
       reasonEl.hidden = true;
+      if (reasonWrap) reasonWrap.hidden = true;
     }
   }
 
@@ -329,6 +334,12 @@ export function fillDebtAccountsList(stats) {
 
     const row = document.createElement('div');
     row.className = 'debt-row';
+    /* Tagged so the live-mirror in manual-entry.js can find rows by account id
+       without having to re-query by name (which isn't unique). */
+    if (acct.id != null) row.dataset.accountId = String(acct.id);
+    /* Snapshot balance kept on the row so we can restore it cleanly if the
+       user reverts a live edit. */
+    row.dataset.snapshotBalance = String(balance);
     if (acct.paidOff === true || balance === 0) {
       row.classList.add('debt-row--paid-off');
       row.setAttribute('aria-label', `${acct.name || 'Account'} paid off`);

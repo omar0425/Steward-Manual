@@ -61,6 +61,7 @@ function buildTopNav() {
     </a>
     <div class="nav-links">
       <a href="/" class="nav-link active">Dashboard</a>
+      <button type="button" class="nav-link nav-link-btn" id="nav-how-it-works-btn">How it works</button>
     </div>
     <div class="nav-right">
       <span class="nav-badge" id="nav-stage-tag" hidden></span>
@@ -148,12 +149,12 @@ function buildHeroSection() {
             <div id="hero-steward-mount"></div>
           </div>
           <div class="tier-card-footer">
-            <div class="tier-card-gap" id="card-tier-gap-headline">\u2192 \u2014</div>
+            <div class="tier-card-gap" id="card-tier-gap-headline" title="Escape gap \u2014 dollars left to unlock the next payoff stage.">\u2192 \u2014</div>
             <div class="tier-card-name" id="card-tier-name">Buried</div>
-            <div class="tier-card-bar-track">
+            <div class="tier-card-bar-track" title="In-stage progress \u2014 how far you are through this stage.">
               <div class="tier-card-bar-fill" id="card-bar-fill"></div>
             </div>
-            <div class="tier-card-debt" id="card-footer-debt">\u2014 remaining</div>
+            <div class="tier-card-debt" id="card-footer-debt" title="Debt remaining \u2014 total of all balances you still owe.">\u2014 remaining</div>
           </div>
         </div>
 
@@ -195,14 +196,14 @@ function buildHeroSection() {
       </div>
       <p class="sr-only" id="hero-tier-label" aria-live="polite">Buried</p>
 
-      <p class="hero-escape-primary" id="hero-escape-primary" aria-live="polite">\u2014</p>
+      <p class="hero-escape-primary" id="hero-escape-primary" aria-live="polite" title="Escape gap \u2014 dollars left to unlock the next payoff stage. Not your total debt; the next threshold.">\u2014</p>
       <p class="hero-cta-line" id="hero-primary-cta">Kill <span class="val" id="stat-daily-target">\u2014</span> today</p>
 
       <span class="stat-sentinel" id="stat-debt-remaining" hidden></span>
       <span class="stat-sentinel" id="stat-net-worth" hidden></span>
 
       <!-- In-stage position (secondary to the dollar headline; thin) -->
-      <div class="stage-gap-section">
+      <div class="stage-gap-section" title="In-stage progress — how far you are through the current stage. Resets when the next stage unlocks.">
         <div class="progress-bar progress-bar--hero" id="command-progress-widget" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
           <div class="progress-fill" id="command-progress-bar-fill" style="width:0%"></div>
         </div>
@@ -229,15 +230,17 @@ function buildHeroSection() {
 }
 
 function buildDebtReductionChart() {
-  const section = el('section', { class: 'section-panel dashboard-only-section' });
+  /* Wrapped in <details> so users can collapse the chart to compress the page.
+     Open by default; the section-summary mirrors the original header layout. */
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', open: '' });
   section.innerHTML = `
-    <div class="chart-header">
-      <p class="section-label">Debt Reduction Trend</p>
-      <span>
+    <summary class="section-summary chart-header" title="Total debt still owed, plotted across your most recent snapshots.">
+      <span class="section-label">Debt Remaining</span>
+      <span class="section-summary-meta">
         <span class="chart-current neg" id="stat-net-worth-chart">\u2014</span>
-        <span class="chart-trend" id="chart-trend-delta"></span>
+        <span class="chart-trend" id="chart-trend-delta" title="Change since the first snapshot in this window. Down is paydown; up means debt grew."></span>
       </span>
-    </div>
+    </summary>
     <div class="chart-wrap">
       <svg id="networth-chart-svg" viewBox="0 0 600 110" width="100%" height="110" preserveAspectRatio="none">
         <defs>
@@ -251,7 +254,7 @@ function buildDebtReductionChart() {
       </svg>
     </div>
     <div class="chart-x-labels" id="chart-x-labels"></div>
-    <p class="chart-memo">Debt remaining trend - latest 60 snapshots</p>
+    <p class="chart-memo">Latest 60 snapshots · line down = paydown · line up = balances grew</p>
   `;
   return section;
 }
@@ -260,7 +263,7 @@ function buildSessionPanel() {
   const section = el('section', { class: 'section-panel session-card dashboard-only-section', id: 'session-card' });
   section.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-      <p class="tc-section-label" style="margin:0;">This Turn</p>
+      <p class="tc-section-label" style="margin:0;" title="This Turn — net change in your debt since the previous snapshot. Negative = you paid down; positive = balances grew.">This Turn</p>
       <span class="turn-since-label" id="turn-since-label"></span>
     </div>
     <div class="session-hero">
@@ -296,15 +299,22 @@ function buildDebtAccountsPanel() {
       <span class="game-start-meta" id="game-start-meta"></span>
       <span class="game-start-val" id="game-start-val"></span>
     </div>
-    <p class="commitment-reason-display" id="commitment-reason-display" hidden></p>
+    <div class="commitment-reason-wrap" id="commitment-reason-wrap" hidden>
+      <p class="commitment-reason-display" id="commitment-reason-display"></p>
+      <button class="commitment-reason-edit-btn" id="commitment-reason-edit-btn" type="button" title="Edit your reason" aria-label="Edit your reason">✎</button>
+      <input type="text" class="commitment-reason-input" id="commitment-reason-input" maxlength="120" hidden autocomplete="off" spellcheck="false" />
+    </div>
   `;
   return section;
 }
 
 function buildStageProgressDetail() {
-  const section = el('section', { class: 'section-panel dashboard-only-section' });
+  /* Collapsible — same pattern as the trend chart. */
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', open: '' });
   section.innerHTML = `
-    <p class="tc-section-label" style="margin-bottom:20px;">Stage progress</p>
+    <summary class="section-summary">
+      <span class="tc-section-label" style="margin:0;">Stage progress</span>
+    </summary>
     <div id="progress-milestone-recent" class="milestone-recent-banner" hidden aria-live="polite"></div>
     <p class="progress-note" id="progress-stale-note" hidden style="font-size:12px;color:var(--amber);margin-bottom:12px;"></p>
     <ul class="sp-grid" id="progress-detail-bullets" aria-label="Session progress">
@@ -324,9 +334,9 @@ function buildCumulativePaydownTrophy() {
   const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
     <div class="trophy-row">
-      <div class="trophy-icon" aria-hidden="true">\uD83D\uDC80</div>
+      <div class="trophy-icon" aria-hidden="true">\uD83C\uDFC6</div>
       <div class="trophy-body">
-        <p class="trophy-label">Total Cleared</p>
+        <p class="trophy-label" title="Total Cleared — every dollar paid against principal since tracking began. Never decreases, even if new debt is added.">Total Cleared</p>
         <p class="trophy-val" id="stat-cumulative-paydown">\u2014</p>
         <p class="trophy-sub" id="cumulative-pct"></p>
       </div>
@@ -389,11 +399,11 @@ function buildManualEntryForm() {
 function buildDataStrip() {
   const section = el('section', { class: 'data-strip dashboard-only-section', 'aria-label': 'Data sync' });
   section.innerHTML = `
-    <div class="data-chip">
+    <div class="data-chip" title="The most recent time you saved a snapshot of your balances.">
       <span class="data-chip-k">Last snapshot</span>
       <span class="data-chip-v" id="data-last-snapshot">\u2014</span>
     </div>
-    <div class="data-chip">
+    <div class="data-chip" title="Freshness \u2014 green when your data is recent, amber/red when it is stale and likely out of date.">
       <span class="data-chip-k">Freshness</span>
       <span class="data-chip-v fresh freshness-dot" id="freshness-badge">\u2014</span>
     </div>
@@ -425,13 +435,36 @@ export function mountPlayShell(root) {
   dashboard.appendChild(buildStageProgressDetail());
   dashboard.appendChild(buildCumulativePaydownTrophy());
   dashboard.appendChild(buildDataStrip());
-  dashboard.appendChild(
-    el('div', { class: 'play-meta-actions', style: 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:16px 0;' },
-      el('button', { type: 'button', class: 'refresh-btn', id: 'play-clear-local-btn', style: 'opacity:0.5;' }, 'Clear local session'),
-      el('button', { type: 'button', class: 'refresh-btn', id: 'play-reset-btn', style: 'opacity:0.5;' }, '\u21BA Reset game'),
+  /* Danger zone \u2014 destructive actions tucked behind a disclosure so they can't be
+     hit accidentally from the bottom of the dashboard. Confirmation prompts remain
+     in commitment.js as a second line of defence. */
+  const dangerZone = el('details', { class: 'play-danger-zone' });
+  dangerZone.innerHTML = `
+    <summary class="play-danger-summary">Danger zone</summary>
+    <p class="play-danger-hint">These wipe state. Read the confirmation before clicking.</p>
+  `;
+  dangerZone.appendChild(
+    el('div', { class: 'play-meta-actions' },
+      el('button', { type: 'button', class: 'refresh-btn', id: 'play-clear-local-btn' }, 'Clear local session'),
+      el('button', { type: 'button', class: 'refresh-btn', id: 'play-reset-btn' }, '\u21BA Reset game'),
     ),
   );
+  dashboard.appendChild(dangerZone);
 
   root.appendChild(dashboard);
+
+  /* Sticky floating action — scrolls back to the manual-entry panel.
+     Hidden by default; initStickyUpdateFab() shows it when the panel scrolls
+     out of view and at least one saved debt exists. */
+  const fab = el('button', {
+    type: 'button',
+    class: 'fab-update-balances',
+    id: 'fab-update-balances',
+    'aria-label': 'Scroll to update balances',
+    title: 'Update your balances',
+    hidden: true,
+  });
+  fab.innerHTML = '<span class="fab-icon" aria-hidden="true">✎</span><span class="fab-label">Update balances</span>';
+  root.appendChild(fab);
 }
 

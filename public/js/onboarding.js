@@ -6,42 +6,51 @@ import { DASHBOARD_ONBOARDING_KEY } from './commitment.js';
 /* ── Dashboard onboarding (localStorage; guided walkthrough + spotlight) ─ */
 const DASHBOARD_ONBOARDING_STEPS = [
   {
-    lead: 'This is your escape gap.',
-    body: [
-      'It is the money left to unlock the next payoff stage \u2014 not your total debt. This is the number the hero is asking you to close right now.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#hero-escape-primary'),
-  },
-  {
     lead: 'This card is your current payoff stage.',
     body: [
-      'The stage name, badge, character, and locked next card update as you move. It reflects where you are now \u2014 not where you want to be.',
+      'The badge, character, and stage name show where you are now. The line below the bar (\u201c$X debt remaining\u201d) is your full balance \u2014 every dollar still owed.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('#hero-state-card'),
   },
   {
-    lead: 'The thin bar is only in-stage progress.',
+    lead: 'This is your escape gap.',
     body: [
-      'It shows how far you are through this payoff stage. The big dollar line is still the main signal; this bar resets when the next stage unlocks.',
+      'The dollars to unlock the next stage \u2014 not your total debt. This is the number to close next.',
+    ],
+    resolveTarget: () => onboardingResolveDashboardTarget('#hero-escape-primary'),
+  },
+  {
+    lead: 'The thin bar is in-stage progress.',
+    body: [
+      'How far you are through this stage. The dollar headline above is still the main signal; this bar resets when the next stage unlocks.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('#command-progress-widget'),
   },
   {
-    lead: 'Debt remaining is your full balance.',
+    lead: 'Your journey is the full 10-stage climb.',
     body: [
-      'This is different from the escape gap. Debt remaining is everything still owed; the escape gap is only the next threshold.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#card-footer-debt'),
-  },
-  {
-    lead: 'Your journey shows the full 10-stage climb.',
-    body: [
-      'This gives context for the whole payoff path. The stage counter shows where you are now, while the hero line tells you the next amount to close.',
+      'Context for the whole path. The stage counter shows where you are; the escape gap above tells you what to close next.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('.journey-section'),
   },
   {
-    lead: 'Debt Accounts shows the balances underneath.',
+    lead: 'The next stage is locked.',
+    body: [
+      'This card previews what you unlock by closing the escape gap. The amount shown is the same dollars-to-go number — keep it shrinking and the lock breaks.',
+    ],
+    resolveTarget: () => onboardingResolveDashboardTarget('#locked-next-card'),
+  },
+  {
+    lead: 'This is where you update your numbers.',
+    body: [
+      'Edit balances inline whenever you make a payment, then hit Update Balances. Add new debts here too \u2014 this is your main action surface.',
+    ],
+    resolveTarget: () =>
+      onboardingResolveDashboardTarget('#manual-entry-panel')
+        || onboardingResolveDashboardTarget('#update-balances-btn'),
+  },
+  {
+    lead: 'Debt Accounts breaks down what you owe.',
     body: [
       'Sort by Balance or APR, edit APRs, and use the sparkline plus recent change to see which accounts are moving.',
     ],
@@ -50,14 +59,14 @@ const DASHBOARD_ONBOARDING_STEPS = [
   {
     lead: 'Total Cleared is your permanent record.',
     body: [
-      'It only goes up. New debt does not reduce it; this tracks every dollar paid against principal since tracking began.',
+      'It only goes up. New debt does not reduce it \u2014 this tracks every dollar paid against principal since tracking began.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('#stat-cumulative-paydown'),
   },
   {
-    lead: 'Update your balances anytime.',
+    lead: 'We stamp every save.',
     body: [
-      'Enter your latest balances whenever you make a payment, then hit Update Balances. The app tracks every change.',
+      'Last snapshot and freshness live here so you know when your data was last touched. Stale numbers mean the climb is paused, not over.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('.data-strip'),
   },
@@ -589,14 +598,27 @@ export function offerFirstVisitDashboardOnboarding() {
 }
 
 export function installDashboardHowItWorksButton() {
-  if (!getDashboardRoot() || document.getElementById('dashboard-how-it-works-btn')) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.id = 'dashboard-how-it-works-btn';
-  btn.className = 'dashboard-how-btn';
-  btn.textContent = 'How this works';
-  btn.addEventListener('click', () => startDashboardOnboarding({ force: true }));
-  document.body.appendChild(btn);
+  if (!getDashboardRoot()) return;
+
+  /* Preferred surface: the top-nav button rendered by play.js. */
+  const navBtn = document.getElementById('nav-how-it-works-btn');
+  if (navBtn && navBtn.dataset.bound !== '1') {
+    navBtn.dataset.bound = '1';
+    navBtn.addEventListener('click', () => startDashboardOnboarding({ force: true }));
+  }
+
+  /* Legacy floating button — kept off when the nav surface exists so we don't
+     double-install. If somehow the nav button isn't present (older shell),
+     fall back to the original floating button so the tour stays reachable. */
+  if (!navBtn && !document.getElementById('dashboard-how-it-works-btn')) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'dashboard-how-it-works-btn';
+    btn.className = 'dashboard-how-btn';
+    btn.textContent = 'How this works';
+    btn.addEventListener('click', () => startDashboardOnboarding({ force: true }));
+    document.body.appendChild(btn);
+  }
 }
 
 /* Button install is deferred — called from boot.js after mountPlayShell builds the DOM. */

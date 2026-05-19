@@ -80,10 +80,22 @@ export function renderNetWorthChart(snapshots) {
   }
 
   if (deltaEl) {
+    /* `reduction > 0` means debt went down since the first snapshot in this
+       window. We render it with a directional arrow + an explicit reference
+       point so the chip is unambiguous regardless of which "direction is
+       good" the reader assumes. */
     const reduction = values[0] - values[values.length - 1];
-    const sign = reduction >= 0 ? '-' : '+';
-    deltaEl.textContent = sign + '$' + Math.abs(Math.round(reduction)).toLocaleString();
-    deltaEl.className = 'chart-trend ' + (reduction >= 0 ? 'pos' : 'neg');
+    const amt = '$' + Math.abs(Math.round(reduction)).toLocaleString();
+    if (reduction > 0) {
+      deltaEl.textContent = `↓ ${amt} since first snapshot`;
+      deltaEl.className = 'chart-trend pos';
+    } else if (reduction < 0) {
+      deltaEl.textContent = `↑ ${amt} since first snapshot`;
+      deltaEl.className = 'chart-trend neg';
+    } else {
+      deltaEl.textContent = 'flat since first snapshot';
+      deltaEl.className = 'chart-trend';
+    }
   }
 
   if (debtDisplay) {

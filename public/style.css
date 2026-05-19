@@ -190,6 +190,8 @@ h1, h2, h3 {
 .nav-link:hover, .nav-link.active { color: var(--text); }
 .nav-link.active { position: relative; }
 .nav-link.active::after { content: ''; position: absolute; bottom: -4px; left: 0; right: 0; height: 1px; background: var(--gold); }
+.nav-link.nav-link-btn { background: none; border: none; padding: 0; cursor: pointer; font: inherit; letter-spacing: inherit; }
+.nav-link.nav-link-btn:focus-visible { outline: 1px dashed var(--gold); outline-offset: 3px; border-radius: 2px; }
 .nav-right { display: flex; align-items: center; gap: 12px; }
 .nav-badge {
   font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
@@ -476,6 +478,18 @@ h1, h2, h3 {
   border-radius: 999px;
   font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
   color: var(--amber); white-space: nowrap;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+/* Zero state is interactive — make it visibly tappable. */
+.streak-badge[data-zero="1"] { cursor: pointer; }
+.streak-badge[data-zero="1"]:hover {
+  background: rgba(212,160,48,0.18);
+  border-color: rgba(212,160,48,0.45);
+  transform: translateY(-1px);
+}
+.streak-badge[data-zero="1"]:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
 }
 
 /* render.js: hero-tier-label ← tier.label (classic shells); play uses .hero-escape-primary */
@@ -728,6 +742,8 @@ h1, h2, h3 {
 .chart-current.neg { color: var(--rose); }
 .chart-current.pos { color: var(--emerald); }
 .chart-trend { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); margin-left: 8px; letter-spacing: 0.06em; }
+.chart-trend.pos { color: var(--emerald); }
+.chart-trend.neg { color: var(--rose); }
 .nw-single-dot { fill: var(--gold); opacity: 0.75; }
 .chart-wrap { height: 110px; position: relative; }
 .chart-wrap svg { display: block; }
@@ -1035,10 +1051,66 @@ h1, h2, h3 {
 .game-start-val   { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); flex-shrink: 0; }
 
 /* Commitment reason — shown below game-start row in debt panel */
-.commitment-reason-display { font-family: 'Cormorant Garamond', serif; font-size: 13px; font-style: italic; color: var(--text-3); text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); opacity: 0.80; letter-spacing: 0.01em; }
+.commitment-reason-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.commitment-reason-wrap[hidden] { display: none; }
+.commitment-reason-display {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-3);
+  text-align: center;
+  opacity: 0.80;
+  letter-spacing: 0.01em;
+  margin: 0;
+  cursor: text;
+  flex: 0 1 auto;
+  max-width: calc(100% - 32px);
+}
+.commitment-reason-display:hover { color: var(--text-2); opacity: 1; }
 .commitment-reason-display::before { content: '\201C'; }
 .commitment-reason-display::after  { content: '\201D'; }
 .commitment-reason-display[hidden] { display: none; }
+.commitment-reason-edit-btn {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  color: var(--text-3);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.12s ease, color 0.12s ease;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+}
+.commitment-reason-edit-btn:hover { opacity: 1; color: var(--gold); }
+.commitment-reason-edit-btn[data-empty="1"] {
+  font-size: 11px;
+  opacity: 0.55;
+}
+.commitment-reason-edit-btn[hidden] { display: none; }
+.commitment-reason-input {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  text-align: center;
+  width: min(420px, 100%);
+  outline: none;
+}
+.commitment-reason-input:focus { border-color: var(--gold); }
+.commitment-reason-input[hidden] { display: none; }
 
 .turn-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .turn-row:last-child { border-bottom: none; }
@@ -1279,7 +1351,12 @@ h1, h2, h3 {
   .hero-primary-stats { grid-template-columns: 1fr; }
   .micro-targets { flex-direction: column; }
   .top-nav { padding: 0 12px; }
-  .nav-links { display: none; }
+  /* Hide the static Dashboard anchor (you're already on it) but keep the
+     How-it-works button reachable on mobile — the floating fallback button
+     is also blocked at this width. */
+  .nav-links { display: flex; gap: 12px; }
+  .nav-links a.nav-link { display: none; }
+  .nav-links .nav-link-btn { font-size: 11px; min-height: 44px; padding: 0 6px; }
   .nav-right { gap: 8px; }
   .nav-badge { font-size: 10px; padding: 3px 7px; }
   .milestone-dismiss { min-width: 44px; min-height: 44px; }
@@ -1476,8 +1553,244 @@ body[data-setup-mode="first"] #dashboard {
   padding-top: 32px;
 }
 body[data-setup-mode="first"] .dashboard-only-section,
-body[data-setup-mode="first"] .play-meta-actions {
+body[data-setup-mode="first"] .play-meta-actions,
+body[data-setup-mode="first"] .play-danger-zone {
   display: none !important;
+}
+
+/* ── Mascot click → tier-quote pulse (feedback that the click registered) ── */
+@keyframes tierQuotePulse {
+  0%   { transform: translateY(2px); opacity: 0.4; }
+  60%  { transform: translateY(0);   opacity: 1; }
+  100% { transform: translateY(0);   opacity: 1; }
+}
+.tier-quote-pulse { animation: tierQuotePulse 320ms ease-out both; }
+
+/* ── Collapsible section panels (chart, stage progress) ── */
+details.section-collapsible {
+  /* Inherit panel padding from .section-panel; summary needs cursor + arrow. */
+}
+details.section-collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  position: relative;
+}
+details.section-collapsible > summary::-webkit-details-marker { display: none; }
+details.section-collapsible > summary::after {
+  content: '▾';
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+details.section-collapsible[open] > summary::after { transform: rotate(180deg); color: var(--text-2); }
+details.section-collapsible:not([open]) > summary { padding-bottom: 0; }
+details.section-collapsible > summary:hover::after { color: var(--gold); }
+details.section-collapsible > summary:focus-visible {
+  outline: 1px dashed var(--gold);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+/* When closed, hide the gap-after-summary that originally came from chart-header margin. */
+details.section-collapsible:not([open]) {
+  padding-bottom: 16px;
+}
+.section-summary-meta { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ── Theme transition: softens dark↔light flip ── */
+/* Only fires while [data-theme-transitioning] is set on <body>, so we don't
+   slow every hover/state change with a global color transition. */
+body[data-theme-transitioning],
+body[data-theme-transitioning] .section-panel,
+body[data-theme-transitioning] .tier-card,
+body[data-theme-transitioning] .tier-quote-card,
+body[data-theme-transitioning] .top-nav,
+body[data-theme-transitioning] .nav-link,
+body[data-theme-transitioning] .nav-badge,
+body[data-theme-transitioning] .nav-theme-btn,
+body[data-theme-transitioning] .nav-logout-btn,
+body[data-theme-transitioning] .commitment-overlay,
+body[data-theme-transitioning] .manual-entry-panel,
+body[data-theme-transitioning] .commitment-btn,
+body[data-theme-transitioning] .refresh-btn,
+body[data-theme-transitioning] .data-strip,
+body[data-theme-transitioning] .data-chip {
+  transition:
+    background-color 220ms ease,
+    color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease !important;
+}
+
+/* ── Validation chip (Save Debts inline error) ── */
+.manual-entry-validation {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  margin-top: 6px;
+  border: 1px solid rgba(217,79,110,0.32);
+  background: var(--rose-soft);
+  color: var(--rose);
+  border-radius: 999px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  animation: validationFadeIn 140ms ease-out both;
+}
+.manual-entry-validation-text { white-space: nowrap; }
+.manual-entry-validation-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(217,79,110,0.15);
+  color: var(--rose);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: background 120ms ease;
+}
+.manual-entry-validation-close:hover { background: rgba(217,79,110,0.32); color: var(--text); }
+.manual-entry-validation-close:focus-visible { outline: 1px solid var(--rose); outline-offset: 2px; }
+@keyframes validationFadeIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Live-edit indicators for read-only debt table ── */
+.debt-row.debt-row--live-edit { background: rgba(200,168,76,0.05); }
+.debt-row.debt-row--live-edit .dr-balance { color: var(--gold); }
+.saved-debts-unsaved-badge {
+  display: inline-block;
+  margin-left: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border: 1px solid rgba(212,160,48,0.25);
+  border-radius: 999px;
+  padding: 2px 10px;
+  text-transform: uppercase;
+}
+
+/* ── Sticky FAB: scroll to manual entry / focus first balance input ── */
+.fab-update-balances {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px 11px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(200,168,76,0.42);
+  background: linear-gradient(135deg, rgba(35,42,64,0.96), rgba(15,18,30,0.96));
+  color: var(--gold);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(200,168,76,0.10) inset;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+  opacity: 0.96;
+}
+.fab-update-balances:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, rgba(50,58,86,0.98), rgba(20,24,38,0.98));
+  box-shadow: 0 14px 36px rgba(0,0,0,0.55), 0 0 0 1px rgba(200,168,76,0.20) inset;
+  color: var(--gold-2);
+}
+.fab-update-balances:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+.fab-update-balances[hidden] { display: none; }
+.fab-update-balances .fab-icon { font-size: 14px; line-height: 1; }
+@media (max-width: 600px) {
+  .fab-update-balances {
+    right: 12px;
+    bottom: 14px;
+    padding: 10px 14px;
+    font-size: 11px;
+  }
+  .fab-update-balances .fab-label { display: none; }
+  .fab-update-balances .fab-icon { font-size: 18px; }
+}
+
+/* ── Danger zone disclosure (destructive actions, collapsed by default) ── */
+.play-danger-zone {
+  margin: 24px auto 32px;
+  max-width: 480px;
+  border-top: 1px solid var(--border);
+  padding: 18px 12px 4px;
+  color: var(--text-3);
+}
+.play-danger-zone[open] {
+  padding-bottom: 14px;
+}
+.play-danger-summary {
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  list-style: none;
+  user-select: none;
+  text-align: center;
+  padding: 6px 0;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+.play-danger-summary:hover { opacity: 1; color: var(--rose); }
+.play-danger-summary::-webkit-details-marker { display: none; }
+.play-danger-summary::before {
+  content: '▸ ';
+  display: inline-block;
+  font-size: 10px;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+}
+.play-danger-zone[open] .play-danger-summary::before {
+  transform: rotate(90deg);
+}
+.play-danger-hint {
+  margin: 10px 0 8px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-3);
+  opacity: 0.75;
+}
+.play-danger-zone .play-meta-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 4px 0 0;
+}
+.play-danger-zone .play-meta-actions .refresh-btn {
+  opacity: 0.7;
+}
+.play-danger-zone .play-meta-actions .refresh-btn:hover {
+  opacity: 1;
+  border-color: var(--rose);
+  color: var(--rose);
 }
 body[data-setup-mode="first"] #manual-entry-panel {
   width: 100%;

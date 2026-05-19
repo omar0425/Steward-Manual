@@ -19,6 +19,16 @@ function fmtDollar(n) {
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+/* Normalize a balance value for display in a number input. Always shows two
+   decimals so every row reads the same regardless of the underlying value
+   ("2098.00" beside "18055.43" — uniform precision). QA bug #6: a mix of
+   integer-rendered and 2-decimal-rendered inputs looks inconsistent. */
+function formatBalanceForInput(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '';
+  return (Math.round(v * 100) / 100).toFixed(2);
+}
+
 function nextDebtAccountId() {
   const used = new Set(
     Array.from(document.querySelectorAll('[data-account-id]'))
@@ -130,7 +140,7 @@ function renderSavedDebtsList(debtLines) {
       <div class="saved-debt-name"></div>
       <div class="saved-debt-balance">
         <span class="saved-debt-dollar">$</span>
-        <input type="number" class="saved-debt-balance-input" step="0.01" min="0" value="${acct.balance}" />
+        <input type="number" class="saved-debt-balance-input" step="0.01" min="0" value="${formatBalanceForInput(acct.balance)}" />
       </div>
       <button type="button" class="saved-debt-remove" title="Remove">&times;</button>
     `;
@@ -190,6 +200,160 @@ function updateSavedTotal() {
     if (Number.isFinite(val) && val >= 0) total += val;
   }
   totalEl.textContent = fmtDollar(total);
+  /* Live state changed — mirror into the read-only debt table, hero card,
+     and panel total so the rest of the dashboard isn't lying about totals. */
+  mirrorLiveDebtState(rows, total);
+}
+
+/* ── Live-state mirror ────────────────────────────────────────────────────── */
+/* When the user edits or removes debts in the saved-debts list, the read-only
+   "Debt Accounts" table and the hero stage card still show the last-saved
+   snapshot. This function pushes the live state into those surfaces so they
+   stop lying about totals. A small "Unsaved" badge is shown so users know
+   they're previewing — the snapshot only updates when they click Save / Update.
+   QA bugs #3 + #5. */
+function mirrorLiveDebtState(rows, liveTotal) {
+  if (!rows) rows = document.querySelectorAll('#saved-debts-rows .saved-debt-row');
+  if (liveTotal == null) {
+    liveTotal = 0;
+    for (const row of rows) {
+      const input = row.querySelector('.saved-debt-balance-input');
+      const v = parseFloat(input && input.value);
+      if (Number.isFinite(v) && v >= 0) liveTotal += v;
+    }
+  }
+  /* Build a snapshot of live state by account id. Missing id == removed. */
+  const liveById = new Map();
+  let dirty = false;
+  for (const row of rows) {
+    const id = row.dataset.accountId;
+    const input = row.querySelector('.saved-debt-balance-input');
+    const v = parseFloat(input && input.value);
+    if (id && Number.isFinite(v) && v >= 0) {
+      liveById.set(id, v);
+      const prev = parseFloat(row.dataset.prevBalance);
+      if (Number.isFinite(prev) && Math.abs(prev - v) >= 0.005) dirty = true;
+    }
+  }
+
+  /* Read-only debt accounts list: update or hide each row. */
+  const readonlyList = document.getElementById('debt-accounts-list');
+  if (readonlyList) {
+    const readonlyRows = readonlyList.querySelectorAll('.debt-row');
+    for (const r of readonlyRows) {
+      const id = r.dataset.accountId;
+      const balEl = r.querySelector('.dr-balance');
+      if (!id || !balEl) continue;
+      if (liveById.has(id)) {
+        const liveVal = liveById.get(id);
+        const snapshotVal = parseFloat(r.dataset.snapshotBalance);
+        balEl.textContent = fmtDollar(Math.round(liveVal));
+        if (Number.isFinite(snapshotVal) && Math.abs(snapshotVal - liveVal) >= 0.005) {
+          r.classList.add('debt-row--live-edit');
+          dirty = true;
+        } else {
+          r.classList.remove('debt-row--live-edit');
+        }
+        r.classList.remove('debt-row--removed');
+        r.hidden = false;
+      } else {
+        r.classList.add('debt-row--removed');
+        r.hidden = true;
+        dirty = true;
+      }
+    }
+  }
+
+  /* Panel total in the read-only Debt Accounts header. */
+  const debtTotal = document.getElementById('debt-total-val');
+  if (debtTotal) debtTotal.textContent = fmtDollar(Math.round(liveTotal));
+
+  /* Hero stage card: live debt remaining. */
+  const cardFooterDebt = document.getElementById('card-footer-debt');
+  if (cardFooterDebt) cardFooterDebt.textContent = `${fmtDollar(Math.round(liveTotal))} debt remaining`;
+
+  /* Session-level diff: replace the per-bullet rendering that came from the
+     last snapshot with one driven by the LIVE list. Net = sum(live - prev)
+     across rows still present, plus -prev for rows the user removed. This
+     fixes QA bug #2 where adding-then-removing showed a net positive. */
+  let liveAdded = 0;     // dollars added by edits (balance went UP)
+  let livePaidDown = 0;  // dollars paid down by edits
+  let liveNet = 0;
+  for (const row of rows) {
+    const prev = parseFloat(row.dataset.prevBalance);
+    const input = row.querySelector('.saved-debt-balance-input');
+    const curr = parseFloat(input && input.value);
+    if (!Number.isFinite(prev) || !Number.isFinite(curr)) continue;
+    const delta = curr - prev; // positive = balance grew = new debt
+    if (delta > 0) liveAdded += delta;
+    else if (delta < 0) livePaidDown += -delta;
+    liveNet += delta;
+  }
+  /* Removed rows in saved-debts: snapshot value remains in
+     _originalDebtAccounts. The live state collapsed them to zero, so the
+     "diff" credits paid-down by the full prev balance. This is what the QA
+     expects — "removed in same session" cancels the addition. */
+  const liveIds = new Set();
+  for (const row of rows) if (row.dataset.accountId) liveIds.add(row.dataset.accountId);
+  for (const orig of _originalDebtAccounts) {
+    if (!liveIds.has(orig.id)) {
+      livePaidDown += orig.balance;
+      liveNet += -orig.balance;
+    }
+  }
+
+  /* Update Stage progress bullets (re-renders are gated by ENG_BUSY so we just
+     overwrite the innerHTML). Mirrors fillPlayProgressDetailBullets in
+     render-progress.js, but for the LIVE delta. */
+  const elTurn = document.getElementById('progress-bullet-turn');
+  if (elTurn) {
+    const hasMove = Math.abs(liveNet) >= 0.01;
+    const sign = liveNet > 0 ? '+' : liveNet < 0 ? '-' : '';
+    const valStr = hasMove ? `${sign}$${Math.abs(Math.round(liveNet)).toLocaleString()}` : '$0';
+    const cls = liveNet > 0 ? 'sp-val--bad' : liveNet < 0 ? 'sp-val--good' : '';
+    elTurn.innerHTML = `<span class="sp-label">This turn</span><span class="sp-val ${cls}">${valStr}</span>`;
+  }
+  const elNew = document.getElementById('progress-bullet-newdebt');
+  if (elNew) {
+    const ndStr = liveAdded > 0.005 ? '+$' + Math.round(liveAdded).toLocaleString() : '$0';
+    const cls = liveAdded > 0.005 ? 'sp-val--bad' : '';
+    elNew.innerHTML = `<span class="sp-label">New debt added</span><span class="sp-val ${cls}">${ndStr}</span>`;
+  }
+  const elDir = document.getElementById('progress-bullet-direction');
+  if (elDir) {
+    let d = 'flat', cls = '';
+    if (liveNet > 0.005) { d = 'backward'; cls = 'sp-val--bad'; }
+    else if (liveNet < -0.005) { d = 'forward'; cls = 'sp-val--good'; }
+    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val ${cls}">${d}</span>`;
+  }
+  /* "This Turn" big number in the session card. */
+  const sessionNet = document.getElementById('this-turn-net');
+  if (sessionNet) {
+    const hasMove = Math.abs(liveNet) >= 0.01;
+    const sign = liveNet > 0 ? '+' : liveNet < 0 ? '-' : '';
+    sessionNet.textContent = hasMove ? `${sign}$${Math.abs(Math.round(liveNet)).toLocaleString()}` : '$0';
+  }
+
+  /* "Unsaved changes" badge — non-blocking nudge that the dashboard is showing
+     a preview. Lives next to the saved-debts total so it's near the action. */
+  ensureUnsavedBadge(dirty);
+}
+
+function ensureUnsavedBadge(show) {
+  let badge = document.getElementById('saved-debts-unsaved-badge');
+  if (!show) {
+    if (badge) badge.remove();
+    return;
+  }
+  if (!badge) {
+    const totalRow = document.querySelector('.saved-debts-total');
+    if (!totalRow) return;
+    badge = document.createElement('span');
+    badge.id = 'saved-debts-unsaved-badge';
+    badge.className = 'saved-debts-unsaved-badge';
+    badge.textContent = 'Unsaved — click Update Balances to commit';
+    totalRow.appendChild(badge);
+  }
 }
 
 /* ── Paydown confirmation summary ─────────────────────────────────────────── */
@@ -403,17 +567,67 @@ export function initManualEntryForm() {
   }
 
   // "Save Debts" — adds new debts (from the add form)
+  /* Validation toast: snappy 3s auto-dismiss, a clear × button so users can
+     get rid of it instantly, and dismissal on any subsequent interaction with
+     the add-debt form. QA bug #7. */
+  let validationClearTimer = null;
+  function getFormMsg() {
+    return msg || document.getElementById('snapshot-save-msg');
+  }
+  function setValidationMsg(text) {
+    const formMsg = getFormMsg();
+    if (!formMsg) return;
+    if (validationClearTimer) { window.clearTimeout(validationClearTimer); validationClearTimer = null; }
+    if (!text) {
+      formMsg.textContent = '';
+      formMsg.classList.remove('manual-entry-validation');
+      return;
+    }
+    /* Build a dismissible chip: text + × button. We re-render every call so
+       the close button is fresh and rebound. */
+    formMsg.textContent = '';
+    formMsg.classList.add('manual-entry-validation');
+    const label = document.createElement('span');
+    label.className = 'manual-entry-validation-text';
+    label.textContent = text;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'manual-entry-validation-close';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.textContent = '×';
+    close.addEventListener('click', () => dismissValidationMsg());
+    formMsg.appendChild(label);
+    formMsg.appendChild(close);
+    validationClearTimer = window.setTimeout(() => {
+      dismissValidationMsg();
+    }, 3000);
+  }
+  /* Dismiss the validation message as soon as the user starts typing or adds
+     a row in the add form — they're acting on it, no need to keep nagging. */
+  function dismissValidationMsg() {
+    const formMsg = getFormMsg();
+    if (validationClearTimer) { window.clearTimeout(validationClearTimer); validationClearTimer = null; }
+    if (!formMsg) return;
+    formMsg.textContent = '';
+    formMsg.classList.remove('manual-entry-validation');
+  }
+  container.addEventListener('input', dismissValidationMsg);
+  container.addEventListener('focusin', dismissValidationMsg);
+  addBtn.addEventListener('click', dismissValidationMsg);
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const newAccounts = collectDebtAccounts();
-    const formMsg = msg || document.getElementById('snapshot-save-msg');
     if (newAccounts.length === 0) {
-      if (formMsg) formMsg.textContent = 'Add at least one account above before saving.';
+      setValidationMsg('Add at least one account above before saving.');
       return;
     }
+    /* Successful submit clears any stale validation chip before kicking off the save. */
+    dismissValidationMsg();
     const existingAccounts = collectSavedDebtUpdates();
     const allAccounts = [...existingAccounts, ...newAccounts];
     const saveBtn = document.getElementById('save-snapshot-btn');
+    const formMsg = getFormMsg();
     await saveSnapshot(allAccounts, formMsg, saveBtn);
   });
 

@@ -5,7 +5,7 @@ import { readSessionMeta, writeSessionMeta, startPlaytimeTracking, SESSION_APP_R
 import { render, setDebtSortMode, refreshDebtPanelData } from './render.js';
 import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';
-import { readPromiseMadeFlag, openCommitmentGate, initPlayResetBtn, initPlayClearLocalBtn } from './commitment.js';
+import { readPromiseMadeFlag, openCommitmentGate, initPlayResetBtn, initPlayClearLocalBtn, initCommitmentReasonEditor } from './commitment.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
 
 const STARTUP_UI_DEBUG = false;
@@ -319,9 +319,54 @@ function startSessionAndLoad(reasonTag) {
   });
 }
 
+function initStickyUpdateFab() {
+  const fab = document.getElementById('fab-update-balances');
+  const panel = document.getElementById('manual-entry-panel');
+  if (!fab || !panel || fab.dataset.bound === '1') return;
+  fab.dataset.bound = '1';
+
+  function panelHasSavedDebts() {
+    const list = document.getElementById('saved-debts-list');
+    if (!list) return false;
+    if (list.style.display === 'none') return false;
+    return !!list.querySelector('.saved-debt-row');
+  }
+  function setVisibleByContext(panelInView) {
+    if (panelInView || !panelHasSavedDebts()) fab.hidden = true;
+    else fab.hidden = false;
+  }
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) setVisibleByContext(entry.isIntersecting);
+      },
+      { threshold: 0.05 },
+    );
+    io.observe(panel);
+  } else {
+    /* Fallback: show whenever scrolled more than panel height. */
+    window.addEventListener('scroll', () => {
+      const r = panel.getBoundingClientRect();
+      setVisibleByContext(r.bottom > 0 && r.top < window.innerHeight);
+    }, { passive: true });
+  }
+  fab.addEventListener('click', () => {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    /* After scroll settles, focus the first editable input if present. */
+    window.setTimeout(() => {
+      const first = panel.querySelector('.saved-debt-balance-input, .debt-acct-balance, .debt-acct-name');
+      if (first && typeof first.focus === 'function') {
+        try { first.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+      }
+    }, 420);
+  });
+}
+
 export function initDashboardBoot() {
   initPlayResetBtn();
   initPlayClearLocalBtn();
+  initCommitmentReasonEditor();
+  initStickyUpdateFab();
   const root = document.getElementById('commitment-screen');
   if (!root) {
     initStartGameGate();

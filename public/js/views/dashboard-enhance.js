@@ -6,7 +6,7 @@
  */
 
 import { renderNetWorthChart } from './networth-chart.js';
-import { tierQuote } from '../tiers.js';
+import { tierQuote, tierBehaviorLine, TIER_META } from '../tiers.js';
 
 const TIER_IDS = [
   'rock_bottom', 'broke', 'struggling', 'surviving', 'stabilizing',
@@ -40,14 +40,91 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     quoteText.textContent = tierQuote(tier.id) || 'Keep the number moving in the right direction.';
   }
 
-  /* ── Streak badge ── */
+  /* ── Mascot click interaction: cycle quote ↔ behavior ↔ cue, gentle pulse ──
+     The character itself has no react animation; this gives the user feedback
+     that the mascot is alive without requiring a new SVG state. Bound once. */
+  const mount = document.getElementById('hero-steward-mount');
+  if (tier && quoteText && mount && mount.dataset.clickBound !== '1') {
+    mount.dataset.clickBound = '1';
+    mount.style.cursor = 'pointer';
+    mount.setAttribute('role', 'button');
+    mount.setAttribute('tabindex', '0');
+    mount.setAttribute('aria-label', 'Steward — click to hear another line');
+    mount.title = 'Click for another line from Steward';
+    const cycleQuote = () => {
+      const meta = TIER_META[mount.dataset.tierId] || tier;
+      const id = (meta && meta.id) || tier.id;
+      /* Dedupe so back-to-back identical lines (the data sometimes overlaps)
+         don't make a click feel like nothing happened. */
+      const lines = Array.from(new Set([
+        tierQuote(id),
+        tierBehaviorLine(id),
+        meta && meta.cue ? meta.cue : '',
+      ].filter(Boolean)));
+      if (!lines.length) return;
+      const i = Number(mount.dataset.quoteIdx || '0');
+      const next = (i + 1) % lines.length;
+      mount.dataset.quoteIdx = String(next);
+      quoteText.textContent = lines[next];
+      quoteText.classList.remove('tier-quote-pulse');
+      void quoteText.offsetWidth;
+      quoteText.classList.add('tier-quote-pulse');
+    };
+    mount.addEventListener('click', cycleQuote);
+    mount.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); cycleQuote(); }
+    });
+  }
+  if (mount && tier) mount.dataset.tierId = tier.id;
+
+  /* ── Streak badge ──
+     At zero, the badge becomes a real interactive button that scrolls to the
+     manual-entry panel and focuses the first balance input — clicking it is
+     how you "start" a streak (by logging a paydown). At >0 it's purely
+     informational and not interactive. */
   const streakBadge = document.getElementById('streak-badge');
-  const streakCount = document.getElementById('streak-count');
-  if (streakBadge && streakCount && streak && streak.current > 0) {
-    streakCount.textContent = streak.current;
+  if (streakBadge) {
+    const cur = streak && Number.isFinite(Number(streak.current)) ? Number(streak.current) : 0;
+    if (cur > 0) {
+      streakBadge.innerHTML = `🔥 <span id="streak-count">${cur}</span> day streak`;
+      streakBadge.dataset.zero = '';
+      streakBadge.title = `${cur} consecutive sessions trimming debt.`;
+      streakBadge.removeAttribute('role');
+      streakBadge.removeAttribute('tabindex');
+      streakBadge.style.cursor = '';
+    } else {
+      streakBadge.innerHTML = '🌱 <span id="streak-count" hidden>0</span>Start a streak';
+      streakBadge.dataset.zero = '1';
+      streakBadge.title = 'Log a paydown to start your streak — opens the update form.';
+      streakBadge.setAttribute('role', 'button');
+      streakBadge.setAttribute('tabindex', '0');
+      streakBadge.style.cursor = 'pointer';
+    }
     streakBadge.hidden = false;
-  } else if (streakBadge) {
-    streakBadge.hidden = true;
+
+    /* Bind once. Re-renders only re-run when streak.current changes, but the
+       handler reads the live dataset.zero flag, so a single binding handles
+       both states. */
+    if (streakBadge.dataset.clickBound !== '1') {
+      streakBadge.dataset.clickBound = '1';
+      const trigger = () => {
+        if (streakBadge.dataset.zero !== '1') return;
+        const panel = document.getElementById('manual-entry-panel');
+        if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.setTimeout(() => {
+          const focusTarget = (panel && panel.querySelector('.saved-debt-balance-input, .debt-acct-balance, .debt-acct-name'))
+            || document.getElementById('update-balances-btn')
+            || document.getElementById('save-snapshot-btn');
+          if (focusTarget && typeof focusTarget.focus === 'function') {
+            try { focusTarget.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+          }
+        }, 420);
+      };
+      streakBadge.addEventListener('click', trigger);
+      streakBadge.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); trigger(); }
+      });
+    }
   }
 
   /* ── Months to next tier ── */
