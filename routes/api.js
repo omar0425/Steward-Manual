@@ -21,13 +21,9 @@ const {
   getAllDebtAccountBalances,
 } = require('../db');
 const {
-  getTier,
   getClimbTier,
-  nextTierInfo,
   nextClimbTierInfo,
-  debtTierBandProgress,
   climbTierBandProgress,
-  debtTierJourneyProgress,
   climbTierJourneyProgress,
   explainDebtTierBandProgress,
 } = require('../services/tiers');
@@ -46,7 +42,6 @@ const {
   computeStability,
   stabilityNarrative,
 } = require('../services/stability');
-const { projectedDebugDebtSync } = require('../services/debtSyncDebugApi');
 const stewardAi = require('../services/stewardAi');
 const stewardAiContext = require('../services/stewardAiContext');
 const stewardAiLedger = require('../services/stewardAiLedger');
@@ -60,8 +55,6 @@ router.use((req, res, next) => {
 router.get('/status', (req, res) => {
   const debugDebtTier =
     req.query.debugDebtTier === '1';
-  const debugDebtSync =
-    req.query.debugDebtSync === '1';
   const snap = latestCombined();
 
   if (!snap) {
@@ -353,26 +346,15 @@ router.get('/status', (req, res) => {
     netWorthHistory,
   };
 
-  if (debugDebtTier || debugDebtSync) {
+  if (debugDebtTier) {
     payload.debug = {
-      ...(debugDebtTier
-        ? {
-            debtTierBand: explainDebtTierBandProgress(
-              snap.debt_remaining,
-              tierObj,
-              snapshots,
-              climb.climbBaselineDebt,
-            ),
-          }
-        : {}),
-      ...(debugDebtSync ? { debtSync: lastDebtSync } : {}),
+      debtTierBand: explainDebtTierBandProgress(
+        snap.debt_remaining,
+        tierObj,
+        snapshots,
+        climb.climbBaselineDebt,
+      ),
     };
-  }
-
-  if (debugDebtSync) {
-    const debtSyncFields = projectedDebugDebtSync(lastDebtSync);
-    payload.sync_valid = debtSyncFields.sync_valid;
-    payload.sync_errors = debtSyncFields.sync_errors;
   }
 
   res.json(payload);

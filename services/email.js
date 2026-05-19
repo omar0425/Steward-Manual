@@ -128,6 +128,5 @@ module.exports = {
   sendEmail,
   buildPasswordResetEmail,
   looksLikeEmail,
-  isConfigured,
   APP_BASE_URL,
 };

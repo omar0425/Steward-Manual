@@ -326,39 +326,6 @@ function getDebtAccountHistory(daysBack = 30) {
   return byAccount;
 }
 
-// ── Turn-start snapshot (7-day rolling window for display deltas) ─────────────
-
-const TURN_START_AT_KEY      = 'turn_start_at';
-const TURN_START_BAL_KEY     = 'turn_start_balances';
-const TURN_DURATION_MS       = 5 * 24 * 60 * 60 * 1000;
-
-function getTurnStart() {
-  const userId = currentUserId();
-  const at  = db.prepare(`SELECT value FROM config WHERE user_id = ? AND key = ?`).get(userId, TURN_START_AT_KEY);
-  const raw = db.prepare(`SELECT value FROM config WHERE user_id = ? AND key = ?`).get(userId, TURN_START_BAL_KEY);
-  const balances = new Map();
-  if (raw && raw.value) {
-    try {
-      const obj = JSON.parse(raw.value);
-      for (const [id, bal] of Object.entries(obj)) {
-        const b = Number(bal);
-        if (Number.isFinite(b) && b >= 0) balances.set(String(id), b);
-      }
-    } catch { /* ignore */ }
-  }
-  return { turnStartAt: at ? at.value : null, turnStartBalances: balances };
-}
-
-function setTurnStart(at, balanceMap) {
-  const userId = currentUserId();
-  const obj = {};
-  for (const [id, bal] of balanceMap) {
-    obj[String(id)] = Math.round(Number(bal) * 100) / 100;
-  }
-  db.prepare(`INSERT OR REPLACE INTO config (user_id, key, value) VALUES (?, ?, ?)`).run(userId, TURN_START_AT_KEY, at);
-  db.prepare(`INSERT OR REPLACE INTO config (user_id, key, value) VALUES (?, ?, ?)`).run(userId, TURN_START_BAL_KEY, JSON.stringify(obj));
-}
-
 // ── Game-start snapshot (write-once, seeded from first snapshot) ──────────────
 
 const GAME_START_DEBT_KEY = 'game_start_debt';
@@ -427,11 +394,6 @@ function setConfig(key, value) {
 function setConfigIfAbsent(key, value) {
   db.prepare(`INSERT OR IGNORE INTO config (user_id, key, value) VALUES (?, ?, ?)`).run(currentUserId(), key, String(value));
   return getConfig(key);
-}
-
-/** All snapshot rows (net worth history, last pull pointers). */
-function deleteAllSnapshots() {
-  return db.prepare('DELETE FROM snapshots WHERE user_id = ?').run(currentUserId());
 }
 
 /**
@@ -529,16 +491,12 @@ module.exports = {
   latestSnapshot,
   latestCombined,
   recentSnapshots,
-  deleteAllSnapshots,
   resetAllGameState,
   getAllDebtAccountBalances,
   replaceDebtAccountBalances,
   getConfig,
   setConfig,
   setConfigIfAbsent,
-  getTurnStart,
-  setTurnStart,
-  TURN_DURATION_MS,
   appendDebtAccountHistory,
   getDebtAccountHistory,
   getGameStart,

@@ -21,7 +21,11 @@ const express    = require('express');
 const apiRouter  = require('./routes/api');
 const authRouter = require('./routes/auth');
 const { COOKIE_NAME } = require('./routes/auth');
-const { validateSession, pruneExpiredSessions } = require('./db-auth');
+const {
+  validateSession,
+  pruneExpiredSessions,
+  purgeExpiredPasswordResetTokens,
+} = require('./db-auth');
 
 const app  = express();
 const publicDir = path.join(__dirname, 'public');
@@ -209,8 +213,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ ok: false, error: 'Internal server error.' });
 });
 
-// ── Prune expired sessions every hour ─────────────────────────────────────────
-setInterval(pruneExpiredSessions, 60 * 60 * 1000);
+// ── Prune expired sessions + reset tokens every hour ──────────────────────────
+setInterval(() => {
+  pruneExpiredSessions();
+  purgeExpiredPasswordResetTokens();
+}, 60 * 60 * 1000);
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

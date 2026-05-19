@@ -68,7 +68,6 @@ export function fillProgressNarrative({
   snapshots,
   theme,
   stability,
-  debtSync,
   meta,
   stats,
   recentMilestones,

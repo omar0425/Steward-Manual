@@ -416,7 +416,7 @@ async function load(options = {}) {
       return fetch(cacheBust(url), { signal: ctrl.signal, cache: 'no-store' }).finally(() => clearTimeout(tid));
     };
     const [statusRes, snapsRes] = await Promise.all([
-      fetchWithTimeout(stewardApiUrl('/api/status?debugDebtSync=1')),
+      fetchWithTimeout(stewardApiUrl('/api/status')),
       fetchWithTimeout(stewardApiUrl('/api/snapshots')),
     ]);
     const [status, snapshots] = await Promise.all([

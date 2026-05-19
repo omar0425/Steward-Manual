@@ -112,4 +112,4 @@ function refreshNicknames(currentAccounts, aprMap, historyByAccount) {
   return nicks;
 }
 
-module.exports = { readNicknames, refreshNicknames, detectNickname };
+module.exports = { refreshNicknames };

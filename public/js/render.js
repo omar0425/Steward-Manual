@@ -54,7 +54,6 @@ export function render(status, snapshots) {
     snapshots,
     theme,
     stability: stab,
-    debtSync: status.debug && status.debug.debtSync,
     meta,
     stats,
     recentMilestones: status.recentMilestones,
