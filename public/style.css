@@ -2167,6 +2167,146 @@ body[data-setup-mode="first"] .setup-welcome {
   cursor: pointer;
 }
 
+/* ── Steward AI dialog ── */
+.steward-ai-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: steward-ai-fade-in 160ms ease-out;
+}
+.steward-ai-card {
+  background: var(--bg-2, #1a1a2e);
+  border: 1px solid var(--gold, #d4af37);
+  border-radius: var(--radius-lg, 12px);
+  padding: 26px 30px 22px;
+  max-width: 460px;
+  width: 100%;
+  /* Long quarterly letters / certificates can exceed the viewport on a
+     phone in landscape. Cap to the visible area minus overlay padding,
+     then let the card body scroll inside instead of pushing actions
+     off-screen. */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+.steward-ai-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold, #d4af37);
+  margin-bottom: 8px;
+}
+.steward-ai-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 14px;
+  line-height: 1.2;
+}
+.steward-ai-body {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0 0 20px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  white-space: pre-wrap;
+  /* Protects against an unbroken model token / URL forcing horizontal
+     overflow on narrow phones. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.steward-ai-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.steward-ai-dismiss {
+  padding: 8px 22px;
+  background: var(--gold, #d4af37);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  color: #1a1a1a;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.steward-ai-dismiss:hover { filter: brightness(1.08); }
+@keyframes steward-ai-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .steward-ai-overlay { animation: none; }
+}
+
+/* ── Steward AI: Closing Certificate variant ── */
+.steward-ai-card.is-certificate {
+  border: 2px double var(--gold, #d4af37);
+  background:
+    linear-gradient(135deg, rgba(212,175,55,0.05) 0%, transparent 50%, rgba(212,175,55,0.05) 100%),
+    var(--bg-2, #1a1a2e);
+  padding: 32px 36px 26px;
+  max-width: 500px;
+  text-align: center;
+  position: relative;
+}
+.steward-ai-card.is-certificate::before,
+.steward-ai-card.is-certificate::after {
+  content: "✦";
+  position: absolute;
+  color: var(--gold, #d4af37);
+  font-size: 14px;
+  opacity: 0.7;
+}
+.steward-ai-card.is-certificate::before { top: 10px; left: 14px; }
+.steward-ai-card.is-certificate::after  { top: 10px; right: 14px; }
+.steward-ai-card.is-certificate .steward-ai-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.32em;
+}
+.steward-ai-card.is-certificate .steward-ai-title {
+  font-style: italic;
+  font-size: 26px;
+  margin-bottom: 18px;
+}
+.steward-ai-card.is-certificate .steward-ai-body {
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.steward-ai-card.is-certificate .steward-ai-actions {
+  justify-content: center;
+}
+
+/* ── Steward AI: Quarterly Letter variant ── */
+.steward-ai-card.is-letter {
+  max-width: 540px;
+  padding: 28px 34px 24px;
+  border-color: rgba(212,175,55,0.5);
+  background:
+    linear-gradient(180deg, rgba(212,175,55,0.04) 0%, transparent 8%),
+    var(--bg-2, #1a1a2e);
+}
+.steward-ai-card.is-letter .steward-ai-title {
+  font-style: italic;
+  font-size: 22px;
+}
+.steward-ai-card.is-letter .steward-ai-body {
+  font-family: 'Cormorant Garamond', 'IBM Plex Sans', serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
 /* ── First-time onboarding hint ── */
 .first-time-hint {
   background: rgba(212,175,55,0.08);
@@ -2195,6 +2335,22 @@ body[data-setup-mode="first"] .setup-welcome {
   .saved-debt-balance-input { width: 90px; font-size: 14px; padding: 6px 8px; }
   .saved-debt-name { font-size: 14px; }
   .paydown-confirm-card { padding: 20px 18px; }
+  /* Steward AI dialog — squeeze paddings, titles, and the decorative
+     certificate flourishes so nothing crowds the edge on a 320–414px screen. */
+  .steward-ai-overlay { padding: 12px; }
+  .steward-ai-card { padding: 20px 18px; }
+  .steward-ai-card.is-certificate { padding: 24px 18px 20px; max-width: 100%; }
+  .steward-ai-card.is-letter      { padding: 22px 18px 20px; max-width: 100%; }
+  .steward-ai-card.is-certificate::before,
+  .steward-ai-card.is-certificate::after { top: 8px; }
+  .steward-ai-card.is-certificate::before { left: 10px; }
+  .steward-ai-card.is-certificate::after  { right: 10px; }
+  .steward-ai-title { font-size: 21px; }
+  .steward-ai-card.is-certificate .steward-ai-title { font-size: 22px; }
+  .steward-ai-card.is-letter      .steward-ai-title { font-size: 20px; }
+  .steward-ai-card.is-letter      .steward-ai-body  { font-size: 15px; line-height: 1.6; }
+  /* Larger tap target on the dismiss — 8px vertical is borderline on touch. */
+  .steward-ai-dismiss { padding: 10px 22px; min-height: 40px; }
   .paydown-line { flex-direction: column; gap: 2px; }
   .manual-entry-panel { padding: 14px !important; }
   .debt-account-entry-row { flex-wrap: wrap; }

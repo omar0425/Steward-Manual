@@ -4,10 +4,24 @@
 const { DatabaseSync } = require('node:sqlite');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const path = require('path');
+const fs = require('fs');
 
 const DB_PATH = process.env.STEWARD_DB_PATH
   ? path.resolve(process.env.STEWARD_DB_PATH)
   : path.join(__dirname, 'steward.db');
+
+// Ensure the parent directory exists. Matters on first Railway/Fly boot when
+// the user mounts a fresh volume at e.g. /data — the directory exists but the
+// .db file doesn't, and DatabaseSync would still throw if any intermediate
+// directory is missing. mkdirSync with recursive:true is idempotent.
+try {
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+} catch (err) {
+  // Fall through and let DatabaseSync produce the canonical error message —
+  // suppressing here would only mask the real cause (e.g. read-only fs).
+  console.error('[db] mkdir for DB parent failed:', err && err.message);
+}
+
 const db = new DatabaseSync(DB_PATH);
 const userScope = new AsyncLocalStorage();
 

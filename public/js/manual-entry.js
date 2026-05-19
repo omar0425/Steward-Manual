@@ -1,6 +1,7 @@
 'use strict';
 
 import { stewardApiUrl, readJsonRes } from './api.js';
+import { manualRefresh } from './boot.js';
 
 let _debtAccountCounter = 0;
 let _originalDebtAccounts = [];
@@ -513,12 +514,17 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
             note.textContent = data.message;
             msgEl.appendChild(document.createTextNode(' '));
             msgEl.appendChild(note);
-            // Delay reload so the user can read the notice
-            setTimeout(() => window.location.reload(), 4500);
+            // Delay the soft refresh so the user can read the notice. Using
+            // manualRefresh() (not location.reload) means the message stays
+            // on-screen while the dashboard underneath updates in place.
+            setTimeout(() => { void manualRefresh(); }, 4500);
             return;
           }
         }
-        window.location.reload();
+        // Soft refresh — re-fetches /api/status and re-renders without the
+        // full-page flash. Also lets the Steward AI dialog fire as soon as
+        // the new "Live" snapshot lands, rather than after a fresh page boot.
+        await manualRefresh();
       }
     } else {
       if (msgEl) msgEl.textContent = data.error || 'Failed to save.';
@@ -654,7 +660,10 @@ export function initManualEntryForm() {
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Could not start climb.');
         if (formMsg) formMsg.textContent = 'Climb started.';
-        window.location.reload();
+        // Soft refresh — /api/status will now return ready:true with the
+        // baseline locked, so the dashboard re-renders into play mode
+        // without the start-game gate flashing back in mid-transition.
+        await manualRefresh();
       } catch (err) {
         if (formMsg) formMsg.textContent = err && err.message ? err.message : 'Could not start climb.';
         startBtn.disabled = false;

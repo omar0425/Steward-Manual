@@ -3,10 +3,16 @@
 const { DatabaseSync } = require('node:sqlite');
 const { scryptSync, randomBytes, timingSafeEqual, createHash } = require('node:crypto');
 const path = require('path');
+const fs = require('fs');
 
 const DB_PATH = process.env.STEWARD_DB_PATH
   ? path.resolve(process.env.STEWARD_DB_PATH)
   : path.join(__dirname, 'steward.db');
+
+// Same as db.js: ensure parent dir exists. Belt-and-suspenders in case
+// db-auth is required before db.js by some future entry point.
+try { fs.mkdirSync(path.dirname(DB_PATH), { recursive: true }); } catch { /* ignore */ }
+
 const db = new DatabaseSync(DB_PATH);
 
 // ── Schema ────────────────────────────────────────────────────────────────────

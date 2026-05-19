@@ -7,6 +7,7 @@ import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';
 import { readPromiseMadeFlag, openCommitmentGate, initPlayResetBtn, initPlayClearLocalBtn, initCommitmentReasonEditor } from './commitment.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
+import { maybeShowStewardAiComment } from './steward-ai.js';
 
 const STARTUP_UI_DEBUG = false;
 
@@ -457,6 +458,10 @@ async function load(options = {}) {
     if (document.body) delete document.body.dataset.setupMode;
     render(status, snapshots);
     await checkPayoffMilestones(status);
+    // Steward AI comment runs once per fresh snapshot (server caches, client
+    // marks-as-seen in localStorage). Fire-and-forget so a slow / unreachable
+    // model never blocks the dashboard finishing its boot sequence.
+    void maybeShowStewardAiComment(status);
 
     // After a reset the commitment gate runs before data exists, so
     // POST /api/start-game fails silently. On the first successful data load,

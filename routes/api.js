@@ -47,6 +47,9 @@ const {
   stabilityNarrative,
 } = require('../services/stability');
 const { projectedDebugDebtSync } = require('../services/debtSyncDebugApi');
+const stewardAi = require('../services/stewardAi');
+const stewardAiContext = require('../services/stewardAiContext');
+const stewardAiLedger = require('../services/stewardAiLedger');
 
 router.use((req, res, next) => {
   withUser(req.user && req.user.userId, next);
@@ -757,6 +760,121 @@ router.get('/brokerage', (req, res) => {
     strategies: [],
     lastError: null,
   });
+});
+
+// ── POST /api/steward-ai/comment ──────────────────────────────────────────────
+//
+// Generates the Steward AI dialog for the latest snapshot. Three-layer model:
+//
+//   Layer 1 — Deterministic events (take precedence):
+//     - 'closing_certificate'   an account just hit $0
+//     - 'quarterly_letter'      90+ days since the last one
+//
+//   Layer 2 — Rotating dialog (server gates eligibility, AI picks the mode):
+//     'adversary' / 'todays_deal' / 'climb_forecast' / 'if_you_do_nothing' /
+//     'anti_flattery' / 'observation'
+//
+//   Layer 3 — Always-on side effects: ledger append, nickname assignment.
+//
+// Responses:
+//   204  no API key, no data, generation failure → client closes dialog
+//        silently as if nothing happened.
+//   200  { ok, mode, title?, text, cached? } — client renders per-mode framing.
+//
+// Cached per-snapshot in config (key prefix below) so reloads cost 0 tokens.
+
+const STEWARD_AI_CACHE_PREFIX = 'steward_ai_dialog_at:';
+
+function readCachedDialog(pulledAt) {
+  const raw = getConfig(STEWARD_AI_CACHE_PREFIX + pulledAt);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch { return null; }
+}
+
+function writeCachedDialog(pulledAt, payload) {
+  setConfig(STEWARD_AI_CACHE_PREFIX + pulledAt, JSON.stringify(payload));
+}
+
+router.post('/steward-ai/comment', (req, res) => {
+  (async () => {
+    try {
+      if (!stewardAi.isConfigured()) return res.status(204).end();
+
+      const ctx = stewardAiContext.buildContext();
+      if (ctx.skip) return res.status(204).end();
+
+      const pulledAt = ctx.snapshot.pulledAt;
+      const cached = readCachedDialog(pulledAt);
+      if (cached) {
+        return res.json({ ...cached, cached: true });
+      }
+
+      let result;
+      let modeForLedger = 'observation';
+
+      if (ctx.event && ctx.event.kind === 'closing_certificate') {
+        result = await stewardAi.generateClosingCertificate({
+          closing: ctx.event.data,
+          payload: ctx.payload,
+        });
+        modeForLedger = 'closing_certificate';
+      } else if (ctx.event && ctx.event.kind === 'quarterly_letter') {
+        result = await stewardAi.generateQuarterlyLetter({ payload: ctx.payload });
+        modeForLedger = 'quarterly_letter';
+      } else {
+        result = await stewardAi.generateModeDialog({
+          eligibleModes: ctx.eligibleModes,
+          payload: ctx.payload,
+        });
+        modeForLedger = (result && result.mode) || 'observation';
+      }
+
+      if (!result || !result.ok || !result.dialog_text) {
+        return res.status(204).end();
+      }
+
+      // Side effects: ledger append, mode-fired-at markers
+      stewardAiLedger.appendLedger({
+        pulled_at: pulledAt,
+        line: result.ledger_line || result.dialog_text,
+        mode: modeForLedger,
+      });
+      if (modeForLedger === 'if_you_do_nothing') {
+        stewardAiContext.markIfDoNothingFired(pulledAt);
+      } else if (modeForLedger === 'quarterly_letter') {
+        stewardAiContext.markQuarterlyLetterFired(pulledAt);
+      }
+
+      const responsePayload = {
+        ok: true,
+        mode: result.mode || modeForLedger,
+        title: result.title || null,
+        text: result.dialog_text,
+      };
+      writeCachedDialog(pulledAt, responsePayload);
+      return res.json({ ...responsePayload, cached: false });
+    } catch (err) {
+      console.error('[api] steward-ai/comment', err);
+      return res.status(204).end();
+    }
+  })();
+});
+
+// ── GET /api/steward-ai/ledger ────────────────────────────────────────────────
+// Returns the persisted journal entries so a future "Ledger" page can render
+// the chronicle. No model call.
+
+router.get('/steward-ai/ledger', (req, res) => {
+  try {
+    const entries = stewardAiLedger.readLedger();
+    res.json({ ok: true, entries });
+  } catch (err) {
+    console.error('[api] steward-ai/ledger', err);
+    res.status(500).json({ ok: false, error: 'ledger_read_failed' });
+  }
 });
 
 // ── GET /health ───────────────────────────────────────────────────────────────

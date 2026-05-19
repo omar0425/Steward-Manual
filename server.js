@@ -30,6 +30,30 @@ const PORT = (() => {
   return Number.isFinite(n) && n > 0 ? n : 3000;
 })();
 
+// ── Trust the platform reverse proxy ─────────────────────────────────────────
+// Railway / Render / Heroku terminate TLS at the edge and forward via HTTP
+// with X-Forwarded-* headers. Without this, req.protocol stays 'http',
+// req.secure is false, and req.ip is the proxy's IP. Setting to 1 trusts
+// exactly one hop — sufficient for Railway's setup and safer than `true`
+// (which would let any upstream spoof these headers).
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+// ── Production sanity check: persistent DB path ──────────────────────────────
+// On Railway / Render / Fly, the container filesystem is ephemeral. Without
+// STEWARD_DB_PATH pointing at a mounted volume, every redeploy wipes the
+// SQLite file — i.e. all users + snapshots vanish. Warn loudly at boot so a
+// well-meaning deploy doesn't silently destroy data.
+if (process.env.NODE_ENV === 'production' && !process.env.STEWARD_DB_PATH) {
+  console.warn(
+    '\n[Steward] WARNING: STEWARD_DB_PATH is not set in production.\n' +
+    '  The SQLite database lives in the container\'s ephemeral filesystem and\n' +
+    '  will be wiped on every redeploy. Mount a persistent volume (e.g. Railway\n' +
+    '  → New → Volume) and set STEWARD_DB_PATH=/data/steward.db.\n',
+  );
+}
+
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(express.json());
 
