@@ -165,6 +165,17 @@ function deleteUserSessions(userId) {
   db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(userId);
 }
 
+/**
+ * Permanently delete a user account. Removes the user row, which CASCADEs to
+ * sessions and password_reset_tokens via the schema foreign keys. Caller is
+ * responsible for clearing game-data tables (snapshots / debt_account_* /
+ * config) BEFORE invoking this, since those tables key on user_id but do not
+ * declare CASCADE on the FK.
+ */
+function deleteUserAccount(userId) {
+  db.prepare(`DELETE FROM users WHERE id = ?`).run(userId);
+}
+
 // Prune expired sessions (call periodically)
 function pruneExpiredSessions() {
   db.prepare(`DELETE FROM sessions WHERE expires_at < ?`).run(new Date().toISOString());
@@ -237,6 +248,7 @@ module.exports = {
   validateSession,
   deleteSession,
   deleteUserSessions,
+  deleteUserAccount,
   pruneExpiredSessions,
   verifyPassword,
   createPasswordResetToken,

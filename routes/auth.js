@@ -13,6 +13,7 @@ const {
   createSession,
   deleteSession,
   deleteUserSessions,
+  deleteUserAccount,
   verifyPassword,
   createPasswordResetToken,
   findValidPasswordResetToken,
@@ -20,6 +21,7 @@ const {
   PASSWORD_RESET_TTL_MS,
   SESSION_TTL_MS,
 } = require('../db-auth');
+const { withUser, resetAllGameState } = require('../db');
 const {
   sendEmail,
   buildPasswordResetEmail,
@@ -218,6 +220,43 @@ router.post('/logout', (req, res) => {
   }
   res.clearCookie(COOKIE_NAME, { path: '/' });
   return res.json({ ok: true });
+});
+
+// ── POST /api/auth/delete-account ─────────────────────────────────────────────
+//
+// Permanently delete the authenticated user. Removes game data first (snapshots,
+// debt accounts, config keys scoped to the user), then deletes the user row —
+// which CASCADEs to sessions and password_reset_tokens via the schema FKs.
+// Clears the session cookie before responding. Caller is expected to redirect
+// to /login after a successful response.
+//
+// Requires `confirm: true` in the body so a stray fetch can't nuke an account.
+
+router.post('/delete-account', (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ ok: false, error: 'Not authenticated.' });
+    }
+    if (!(req.body && req.body.confirm === true)) {
+      return res.status(400).json({ ok: false, error: 'confirm: true required to delete account' });
+    }
+    const userId = req.user.userId;
+    /* Run inside withUser scope so resetAllGameState() targets this user. */
+    withUser(userId, () => {
+      resetAllGameState();
+    });
+    deleteUserAccount(userId);
+    /* Clear the session cookie — the session row itself is already gone via
+       the CASCADE on the users FK, but the browser still has the cookie. */
+    res.clearCookie(COOKIE_NAME, { path: '/' });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth/delete-account]', err);
+    return res.status(500).json({
+      ok: false,
+      error: err && err.message ? err.message : 'Account deletion failed.',
+    });
+  }
 });
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────

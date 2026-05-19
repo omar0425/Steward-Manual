@@ -1777,21 +1777,80 @@ body[data-theme-transitioning] .data-chip {
   color: var(--text-3);
   opacity: 0.75;
 }
-.play-danger-zone .play-meta-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  padding: 4px 0 0;
+/* ── Danger zone actions: each action is its own labeled block, so the user
+   can tell "wipe my data" from "delete my account" at a glance. ── */
+.play-danger-action {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
-.play-danger-zone .play-meta-actions .refresh-btn {
-  opacity: 0.7;
+.play-danger-action--critical {
+  border-color: rgba(217,79,110,0.32);
+  background: linear-gradient(180deg, rgba(217,79,110,0.04), rgba(217,79,110,0.10));
 }
-.play-danger-zone .play-meta-actions .refresh-btn:hover {
-  opacity: 1;
-  border-color: var(--rose);
+.play-danger-action-title {
+  margin: 0 0 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.play-danger-action--critical .play-danger-action-title {
   color: var(--rose);
 }
+.play-danger-action-desc {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+.play-danger-action-desc strong { color: var(--text-2); }
+.play-danger-action--critical .play-danger-action-desc strong { color: var(--rose); }
+.play-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--border-2);
+  color: var(--text-2);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.play-danger-btn:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+.play-danger-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.play-danger-btn--warn:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.play-danger-btn--danger {
+  border-color: rgba(217,79,110,0.45);
+  color: var(--rose);
+}
+.play-danger-btn--danger:hover {
+  background: var(--rose-soft);
+  border-color: var(--rose);
+  color: var(--text);
+}
+/* ── Login banner shown after account deletion ── */
+.login-deleted-banner {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border: 1px solid rgba(217,79,110,0.32);
+  background: var(--rose-soft);
+  color: var(--rose);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.login-deleted-banner strong { color: var(--text); }
 body[data-setup-mode="first"] #manual-entry-panel {
   width: 100%;
   margin: 0 auto;

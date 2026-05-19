@@ -436,19 +436,30 @@ export function mountPlayShell(root) {
   dashboard.appendChild(buildCumulativePaydownTrophy());
   dashboard.appendChild(buildDataStrip());
   /* Danger zone \u2014 destructive actions tucked behind a disclosure so they can't be
-     hit accidentally from the bottom of the dashboard. Confirmation prompts remain
-     in commitment.js as a second line of defence. */
+     hit accidentally from the bottom of the dashboard. Each action has its own
+     description block so the user understands the difference between "wipe my
+     game data" and "delete my account entirely". Confirmation prompts in
+     commitment.js are the second line of defence. */
   const dangerZone = el('details', { class: 'play-danger-zone' });
   dangerZone.innerHTML = `
     <summary class="play-danger-summary">Danger zone</summary>
-    <p class="play-danger-hint">These wipe state. Read the confirmation before clicking.</p>
+    <div class="play-danger-action">
+      <p class="play-danger-action-title">Clear game data</p>
+      <p class="play-danger-action-desc">
+        Wipes snapshots, debt accounts, history, and your climb baseline.
+        <strong>Your account, password, and email are preserved</strong> \u2014 you stay logged in and can start a fresh climb.
+      </p>
+      <button type="button" class="play-danger-btn play-danger-btn--warn" id="play-reset-btn">\u21BA Clear game data</button>
+    </div>
+    <div class="play-danger-action play-danger-action--critical">
+      <p class="play-danger-action-title">Delete account</p>
+      <p class="play-danger-action-desc">
+        Permanently deletes your username, password, email, sessions, AND all game data.
+        <strong>This cannot be undone.</strong> You'll be logged out and redirected to the sign-in page.
+      </p>
+      <button type="button" class="play-danger-btn play-danger-btn--danger" id="play-delete-account-btn">Delete account</button>
+    </div>
   `;
-  dangerZone.appendChild(
-    el('div', { class: 'play-meta-actions' },
-      el('button', { type: 'button', class: 'refresh-btn', id: 'play-clear-local-btn' }, 'Clear local session'),
-      el('button', { type: 'button', class: 'refresh-btn', id: 'play-reset-btn' }, '\u21BA Reset game'),
-    ),
-  );
   dashboard.appendChild(dangerZone);
 
   root.appendChild(dashboard);

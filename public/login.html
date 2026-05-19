@@ -378,6 +378,15 @@
 
         <!-- ── Sign in panel ── -->
         <div class="login-panel is-active" id="panel-login">
+          <!-- Shown when the user just deleted their account from the dashboard
+               (URL contains ?accountDeleted=1). Sets context so they don't try
+               to sign back in with the same credentials. -->
+          <div class="login-deleted-banner" id="login-deleted-banner" hidden>
+            <strong>Your account has been deleted.</strong>
+            All data was permanently removed. Sign in with a different account, or
+            <button type="button" class="login-toggle-link" id="goto-register-from-deleted">create a new one</button>.
+          </div>
+
           <div class="login-headline">Welcome back.</div>
           <div class="login-sub">Sign in to your account to continue.</div>
           <div class="login-divider"></div>
@@ -584,6 +593,29 @@
       activate(panelLogin);
       document.getElementById('login-username').focus();
     });
+    /* Account-deleted banner: shown when the user comes here from the dashboard
+       Danger zone after deleting their account. Banner provides context + a
+       shortcut to the register panel. */
+    (() => {
+      const banner = document.getElementById('login-deleted-banner');
+      const goRegister = document.getElementById('goto-register-from-deleted');
+      if (!banner) return;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('accountDeleted') === '1') {
+        banner.hidden = false;
+        /* Strip the param from the URL so a refresh doesn't keep showing the
+           banner forever — the user has already seen it. */
+        const cleanUrl = window.location.pathname + window.location.hash;
+        try { window.history.replaceState({}, '', cleanUrl); } catch (_) {}
+      }
+      if (goRegister) {
+        goRegister.addEventListener('click', () => {
+          activate(panelRegister);
+          const u = document.getElementById('reg-username');
+          if (u) u.focus();
+        });
+      }
+    })();
 
     // Decide initial panel based on URL pathname. /forgot-password and
     // /reset-password are served by the same shell as /login.
