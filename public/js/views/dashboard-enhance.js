@@ -13,25 +13,6 @@ const TIER_IDS = [
   'stable', 'building', 'thriving', 'winning', 'wealthy',
 ];
 
-function fmtMoney(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '\u2014';
-  const sign = n < 0 ? '-' : '';
-  return sign + '$' + Math.round(Math.abs(n)).toLocaleString();
-}
-
-function fmtShortDateTime(value) {
-  if (!value) return '\u2014';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '\u2014';
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
 window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTier, meta, stability: stab, snapshots, streak }) {
   const quoteLabel = document.getElementById('tier-quote-label');
   const quoteText = document.getElementById('tier-quote-text');

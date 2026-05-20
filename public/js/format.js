@@ -99,19 +99,6 @@ export function formatNextTierGapHeadline(nextTier, currentTier) {
   return `${money} to escape ${tierLabel}`;
 }
 
-/**
- * Supporting board/progress line: same gap dollars as the hero headline, without repeating the full sentence.
- */
-export function formatNextTierGapBoardAmount(nextTier) {
-  if (!nextTier) return '—';
-  const g = Number(nextTier.gapDollars);
-  if (!Number.isFinite(g) || g < 0) return '—';
-  if (g === 0) {
-    const money = formatNextTierGapMoneyPrefix(g);
-    return money === '$0' ? '—' : money;
-  }
-  return formatNextTierGapMoneyPrefix(g);
-}
 
 /** Coach line under the in-stage progress bar (no new server math). */
 export function nextMoveGuidance(nextTier) {

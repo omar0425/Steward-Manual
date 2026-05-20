@@ -165,13 +165,6 @@ function buildAprForm(panel) {
   (firstEmpty || firstInput)?.focus();
 }
 
-export function renderBrokerageFootnote() {
-  const sub = document.getElementById('stat-brok-sub');
-  if (!sub) return;
-  sub.hidden = true;
-  sub.textContent = '';
-}
-
 function buildSparklineSvg(points) {
   if (!points || points.length < 2) return null;
   const W = 60, H = 14;

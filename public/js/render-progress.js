@@ -274,8 +274,6 @@ export function fillProgressNarrative({
     projDebtFreeEl.textContent = '';
     if (stale) {
       projEl.textContent = 'Data is outdated — refresh to see a payoff estimate.';
-    } else if (restructureFlag) {
-      projEl.textContent = 'Recent account changes make the payoff estimate unreliable.';
     } else if (shortHistory) {
       projEl.textContent = 'Need more history to estimate payoff timing.';
     } else if (avgMonthly == null || avgMonthly <= 0) {

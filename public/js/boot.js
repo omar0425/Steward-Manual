@@ -1,7 +1,7 @@
 'use strict';
 
 import { stewardApiUrl, stewardPublicOriginHint, readJsonRes } from './api.js';
-import { readSessionMeta, writeSessionMeta, startPlaytimeTracking, SESSION_APP_READY_KEY } from './session.js';
+import { readSessionMeta, writeSessionMeta, startPlaytimeTracking } from './session.js';
 import { render, setDebtSortMode, refreshDebtPanelData } from './render.js';
 import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';

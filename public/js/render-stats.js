@@ -3,12 +3,10 @@
 import { isPlayDashboardDoc } from './shell.js';
 import {
   fmtDollar, fmtSignedDollar, fmtDate,
-  formatNetWorthValue, formatNextTierGapBoardAmount, nextMoveGuidance,
+  formatNetWorthValue, nextMoveGuidance,
   formatBoardRunwayHelperLine, liquidityGuardExplanation, buildLiquidityPillTooltip,
   formatLastPullAccountRow, formatNetThisTurnLine, lastPullAccountRowsFromStats,
 } from './format.js';
-import { renderBrokerageFootnote } from './render-debts.js';
-
 const VNEXT_HERO_TURN_ACCOUNTS_TOP = 3;
 
 /** Top account deltas under "Your climb" — vNext only. */
@@ -229,7 +227,6 @@ export function renderStatsBlock({
     invEl.textContent = '—';
     invEl.classList.add('is-muted');
   }
-  renderBrokerageFootnote();
   const statMonthsAhead = document.getElementById('stat-months-ahead');
   if (statMonthsAhead) {
     statMonthsAhead.textContent = runwayText;

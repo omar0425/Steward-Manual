@@ -4,7 +4,7 @@ import { tierBehaviorLine } from './tiers.js';
 import { isClassicLayoutDashboardDoc, isPlayDashboardDoc } from './shell.js';
 import {
   fmtDollar,
-  formatNextTierGapHeadline, formatNextTierGapBoardAmount,
+  formatNextTierGapHeadline,
   formatNextTierGapMoneyPrefix,
   TOOLTIP_LIQUID_CUSHION_RUNWAY,
   WEALTHY_EXPOSED_HERO_PRIMARY,
@@ -217,13 +217,9 @@ export function renderHeroBlock({
   const cardFooterDebtEl = document.getElementById('card-footer-debt');
   if (cardFooterDebtEl) cardFooterDebtEl.textContent = `${fmtDollar(stats.debtRemaining)} debt remaining`;
 
-  // ── Locked next-tier card + secondary board gap label/headline ──
-  const boardGapAmount = formatNextTierGapBoardAmount(nextTier);
+  // ── Locked next-tier card + secondary board gap label ──
   const boardGapLabelEl = document.getElementById('board-tier-gap-label');
   if (boardGapLabelEl) boardGapLabelEl.textContent = 'Stage gap';
-  // TODO: dead code candidate after sentinel-div removal
-  const boardGapHeadlineEl = document.getElementById('board-tier-gap-headline');
-  if (boardGapHeadlineEl) boardGapHeadlineEl.textContent = boardGapAmount;
 
   const tierCurrent = document.getElementById('next-tier-current');
   const tierTarget = document.getElementById('next-tier-target');

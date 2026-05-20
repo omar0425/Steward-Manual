@@ -22,11 +22,6 @@ export function getDashboardRoot() {
   );
 }
 
-/** @deprecated — classic shell retired. Always returns false. */
-export function isClassicDashboardDoc() {
-  return false;
-}
-
 /** Returns true for the main Steward shell. */
 export function isPlayDashboardDoc() {
   return currentShell() === 'play';

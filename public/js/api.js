@@ -54,13 +54,3 @@ export async function readJsonRes(res, label) {
     );
   }
 }
-
-export async function readBrokerageRes(res) {
-  const text = await res.text();
-  if (!res.ok) return { fetchFailed: true };
-  try {
-    return text ? JSON.parse(text) : { fetchFailed: true };
-  } catch {
-    return { fetchFailed: true };
-  }
-}
