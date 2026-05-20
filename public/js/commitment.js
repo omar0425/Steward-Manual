@@ -79,13 +79,6 @@ export function resetPlayGame() {
   }
   try { sessionStorage.removeItem(SESSION_APP_READY_KEY); } catch (_) {}
 }
-if (typeof window !== 'undefined') window.resetPlayGame = resetPlayGame;
-
-/* "Clear local session" (id=play-clear-local-btn) is intentionally retired —
-   the UI no longer exposes it. The function is kept as a no-op exporter for
-   any older bootstrap code that still imports it. Real reset paths go through
-   initClearGameDataBtn / initDeleteAccountBtn below. */
-export function initPlayClearLocalBtn() { /* no-op — button removed from UI */ }
 
 /* "Clear game data" — wipes snapshots, debt accounts, history, and climb
    baseline. Account, password, and email are preserved. Renamed from the old

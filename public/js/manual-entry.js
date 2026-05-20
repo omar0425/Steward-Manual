@@ -462,10 +462,6 @@ function showPaydownConfirmation(summary, onConfirm) {
 
 /* ── Save snapshot ────────────────────────────────────────────────────────── */
 
-function readFinancialFields() {
-  return { monthlyIncome: 0, monthlyExpenses: 0, totalAssets: 0, investmentValue: 0 };
-}
-
 async function saveSnapshot(debtAccounts, msgEl, btnEl) {
   if (btnEl) btnEl.disabled = true;
   if (msgEl) msgEl.textContent = 'Saving\u2026';
@@ -480,18 +476,16 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
   const activeAccounts = debtAccounts.filter(a => a.balance > 0);
   const totalDebt = debtAccounts.reduce((sum, a) => sum + a.balance, 0);
 
-  const fin = readFinancialFields();
-
   try {
     const res = await fetch(stewardApiUrl('/api/snapshot'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        totalAssets:      fin.totalAssets,
+        totalAssets:      0,
         totalDebt,
-        monthlyIncome:    fin.monthlyIncome,
-        monthlyExpenses:  fin.monthlyExpenses,
-        investmentValue:  fin.investmentValue,
+        monthlyIncome:    0,
+        monthlyExpenses:  0,
+        investmentValue:  0,
         debtAccounts,
       }),
     });
@@ -555,22 +549,6 @@ export function initManualEntryForm() {
   addBtn.addEventListener('click', () => {
     addDebtAccountRow(container);
   });
-
-  // Wire up the loading screen button
-  const loadingBtn = document.getElementById('loading-sync-btn');
-  if (loadingBtn) {
-    const newBtn = loadingBtn.cloneNode(true);
-    loadingBtn.parentNode.replaceChild(newBtn, loadingBtn);
-    newBtn.addEventListener('click', () => {
-      const loadingScreen = document.getElementById('loading-screen');
-      const dashboard = document.getElementById('dashboard');
-      if (loadingScreen) loadingScreen.style.display = 'none';
-      if (dashboard) dashboard.style.display = '';
-      document.body.dataset.appMode = 'ready';
-      const panel = document.getElementById('manual-entry-panel');
-      if (panel) panel.scrollIntoView({ behavior: 'smooth' });
-    });
-  }
 
   // "Save Debts" — adds new debts (from the add form)
   /* Validation toast: snappy 3s auto-dismiss, a clear × button so users can
@@ -690,30 +668,12 @@ function showFirstTimeHint() {
   container.parentNode.insertBefore(hint, container);
 }
 
-function prefillFinancialFields(stats) {
-  const pairs = [
-    ['update-total-assets',     stats.totalAssets],
-    ['update-investment-value', stats.investmentValue],
-    ['input-total-assets',      stats.totalAssets],
-    ['input-investment-value',  stats.investmentValue],
-  ];
-  for (const [id, val] of pairs) {
-    const el = document.getElementById(id);
-    if (el && el.value === '' && val != null && Number(val) > 0) {
-      el.value = String(Math.round(Number(val)));
-    }
-  }
-}
-
 function prefillFromLastSnapshot() {
   fetch(stewardApiUrl('/api/status'))
     .then(r => r.json())
     .then(status => {
       if (!status || !status.stats || (!status.ready && status.setupIncomplete !== true)) return;
       const s = status.stats;
-
-      // Pre-fill financial snapshot fields from last saved values
-      prefillFinancialFields(s);
 
       // Render saved debts list if we have debt account data
       if (s.debtAccountLines && s.debtAccountLines.length > 0) {

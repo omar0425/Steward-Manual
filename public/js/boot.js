@@ -5,7 +5,7 @@ import { readSessionMeta, writeSessionMeta, startPlaytimeTracking, SESSION_APP_R
 import { render, setDebtSortMode, refreshDebtPanelData } from './render.js';
 import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';
-import { readPromiseMadeFlag, openCommitmentGate, initPlayResetBtn, initPlayClearLocalBtn, initDeleteAccountBtn, initCommitmentReasonEditor } from './commitment.js';
+import { readPromiseMadeFlag, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor } from './commitment.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
 import { maybeShowStewardAiComment } from './steward-ai.js';
 
@@ -365,7 +365,6 @@ function initStickyUpdateFab() {
 
 export function initDashboardBoot() {
   initPlayResetBtn();
-  initPlayClearLocalBtn();
   initDeleteAccountBtn();
   initCommitmentReasonEditor();
   initStickyUpdateFab();

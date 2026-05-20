@@ -623,5 +623,3 @@ export function installDashboardHowItWorksButton() {
 
 /* Button install is deferred — called from boot.js after mountPlayShell builds the DOM. */
 
-window.startDashboardOnboarding = startDashboardOnboarding;
-

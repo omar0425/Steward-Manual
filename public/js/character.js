@@ -477,7 +477,7 @@ const OPTICAL_OFFSETS = {
 const DEFAULT_VARS = {"--character-scale":"1","--character-bottom":"18px","--scene-scale":"1.15","--scene-shift-x":"0px","--scene-shift-y":"-10px","--capsule-top":"10px","--capsule-side":"8px","--capsule-bottom":"-2px","--capsule-radius":"46px","--capsule-fill-top":"rgba(255,255,255,0.16)","--capsule-fill-bottom":"rgba(255,255,255,0.04)","--capsule-border":"rgba(255,255,255,0.12)","--upper-drop":"0px","--chest-tilt":"0deg","--head-tilt":"0deg","--thigh-l":"0deg","--thigh-r":"0deg","--calf-l":"0deg","--calf-r":"0deg","--foot-l":"0deg","--foot-r":"0deg","--forearm-l":"0deg","--forearm-r":"0deg","--cane-y-nudge":"0px","--torso-shift-x":"0px","--money-tilt":"-4deg","--car-shift-x":"56px","--car-shift-y":"20px","--car-scale":"0.66","--ring-opacity":"0","--coin-shower-opacity":"0","--dog-opacity":"0","--dog-scale":"1","--dog-shift-x":"0px","--dog-shift-y":"0px","--ground-scale-x":"1.1","--ground-scale-y":"1.05","--ground-lift":"0px","--ornament-opacity":"0","--car-body":"#113829","--car-body-deep":"#0b251b","--car-accent":"#d4a643","--car-window":"rgba(208,231,238,0.92)","--car-wheel":"#23282d"};
 
 /* ── Apply variables to a wrap element ────────────────────────────── */
-export function applyStewardTheme(wrap, stateId) {
+function applyStewardTheme(wrap, stateId) {
   const entry = STEWARD_STATE[stateId];
   const vars  = { ...DEFAULT_VARS, ...(entry?.vars || {}) };
   for (const [k, v] of Object.entries(vars)) wrap.style.setProperty(k, String(v));
@@ -506,7 +506,7 @@ let heroWrap = null;
 const HERO_SCENE_SCALE_MULTIPLIER = 1.12;
 const STEWARD_WRAP_HEIGHT = 268;
 
-function heroCenteredSceneShiftY(baseSceneScale, heroSceneScale, baseSceneShift) {
+function heroCenteredSceneShiftY(baseSceneScale, heroSceneScale) {
   const addedVisualHeight = (heroSceneScale - baseSceneScale) * STEWARD_WRAP_HEIGHT;
   return Math.round(addedVisualHeight / 2 + (baseSceneScale - 1) * 73 + 5);
 }
@@ -522,13 +522,12 @@ export function mountHeroCharacter(stateId) {
 
   // Hero gets a stronger whole-scene scale so props and capsule stay proportional.
   const baseSceneScale = parseFloat(heroWrap.style.getPropertyValue('--scene-scale') || '1');
-  const baseSceneShift = parseFloat(heroWrap.style.getPropertyValue('--scene-shift-y') || '0');
   const baseGroundX = parseFloat(heroWrap.style.getPropertyValue('--ground-scale-x') || '1');
   const baseGroundY = parseFloat(heroWrap.style.getPropertyValue('--ground-scale-y') || '1');
 
   const heroSceneScale = baseSceneScale * HERO_SCENE_SCALE_MULTIPLIER;
   heroWrap.style.setProperty('--scene-scale', String(heroSceneScale.toFixed(3)));
-  heroWrap.style.setProperty('--scene-shift-y', `${heroCenteredSceneShiftY(baseSceneScale, heroSceneScale, baseSceneShift)}px`);
+  heroWrap.style.setProperty('--scene-shift-y', `${heroCenteredSceneShiftY(baseSceneScale, heroSceneScale)}px`);
   heroWrap.style.setProperty('--ground-scale-x', String((baseGroundX * 1.08).toFixed(3)));
   heroWrap.style.setProperty('--ground-scale-y', String((baseGroundY * 1.08).toFixed(3)));
 
