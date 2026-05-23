@@ -228,6 +228,25 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     const svg = document.getElementById('networth-chart-svg');
     if (svg) svg.hidden = false;
   } else if (chartWrap) {
+    /* The chart can't plot a trend from a single point. But the panel header
+       still owes the user their current debt + a "tracking from" reference,
+       otherwise this looks like a broken empty card. */
+    const debtDisplay = document.getElementById('stat-net-worth-chart');
+    if (debtDisplay && stats && Number.isFinite(Number(stats.debtRemaining))) {
+      debtDisplay.textContent =
+        '$' + Math.max(0, Math.round(Number(stats.debtRemaining))).toLocaleString();
+      debtDisplay.className = 'chart-current neg';
+    }
+    const deltaEl = document.getElementById('chart-trend-delta');
+    if (deltaEl) {
+      if (chartSnaps.length === 1) {
+        deltaEl.textContent = 'tracking from today';
+        deltaEl.className = 'chart-trend';
+      } else {
+        deltaEl.textContent = '';
+        deltaEl.className = 'chart-trend';
+      }
+    }
     let ph = document.getElementById('nw-empty-state');
     if (!ph) {
       ph = document.createElement('p');
@@ -236,14 +255,11 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       chartWrap.appendChild(ph);
     }
     ph.textContent = chartSnaps.length === 1
-      ? 'Update your balances at least once to see your trend.'
+      ? 'Update your balances to start the trend line.'
       : 'No data yet — add your debts to begin.';
     ph.hidden = false;
     const svg = document.getElementById('networth-chart-svg');
     if (svg) svg.hidden = true;
-    // Clear any stale trend delta so the panel header doesn't show a stale number.
-    const deltaEl = document.getElementById('chart-trend-delta');
-    if (deltaEl) { deltaEl.textContent = ''; deltaEl.className = 'chart-trend'; }
   }
 
   /* ── Debt accounts empty state ── */

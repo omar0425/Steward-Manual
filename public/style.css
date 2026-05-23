@@ -1397,6 +1397,19 @@ h1, h2, h3 {
   text-align: center;
 }
 
+/* When the chart panel falls back to empty state, the message sits inside
+   chart-wrap (which is a fixed-height 110px box). Center it absolutely so
+   it doesn't overflow into the x-labels / caption sitting below. */
+.chart-wrap > .panel-empty-state {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ── "How this works" floating button ───────────────────────────────────── */
 #dashboard-how-it-works-btn {
   position: fixed;
