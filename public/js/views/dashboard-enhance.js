@@ -210,10 +210,19 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   /* ── Net worth chart (new SVG-based chart) ──
    * Needs at least 2 snapshots to plot a trend. With 0 or 1 we hide the SVG
    * and show inline empty-state copy in the same panel; the panel's title and
-   * frame stay visible so the layout doesn't jump when data arrives. */
+   * frame stay visible so the layout doesn't jump when data arrives.
+   *
+   * Filter to post-climb snapshots. Every "Save" during setup writes a
+   * snapshot, so iterative inventory entry produces a ramp-up line that isn't
+   * real debt growth. The climb's baseline is the snapshot stamped at
+   * start-game, so anything strictly earlier is pre-climb noise. */
+  const gameStartAt = stats && stats.gameStartAt;
+  const chartSnaps = (snapshots || []).filter(
+    (s) => !gameStartAt || (s.pulled_at || s.date) >= gameStartAt,
+  );
   const chartWrap = document.querySelector('.chart-wrap');
-  if (snapshots && snapshots.length >= 2) {
-    renderNetWorthChart(snapshots);
+  if (chartSnaps.length >= 2) {
+    renderNetWorthChart(chartSnaps);
     const ph = document.getElementById('nw-empty-state');
     if (ph) ph.hidden = true;
     const svg = document.getElementById('networth-chart-svg');
@@ -226,7 +235,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       ph.className = 'panel-empty-state';
       chartWrap.appendChild(ph);
     }
-    ph.textContent = (snapshots && snapshots.length === 1)
+    ph.textContent = chartSnaps.length === 1
       ? 'Update your balances at least once to see your trend.'
       : 'No data yet — add your debts to begin.';
     ph.hidden = false;
