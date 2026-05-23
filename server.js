@@ -47,15 +47,23 @@ if (process.env.NODE_ENV === 'production') {
 // ── Production sanity check: persistent DB path ──────────────────────────────
 // On Railway / Render / Fly, the container filesystem is ephemeral. Without
 // STEWARD_DB_PATH pointing at a mounted volume, every redeploy wipes the
-// SQLite file — i.e. all users + snapshots vanish. Warn loudly at boot so a
-// well-meaning deploy doesn't silently destroy data.
-if (process.env.NODE_ENV === 'production' && !process.env.STEWARD_DB_PATH) {
-  console.warn(
-    '\n[Steward] WARNING: STEWARD_DB_PATH is not set in production.\n' +
-    '  The SQLite database lives in the container\'s ephemeral filesystem and\n' +
-    '  will be wiped on every redeploy. Mount a persistent volume (e.g. Railway\n' +
-    '  → New → Volume) and set STEWARD_DB_PATH=/data/steward.db.\n',
+// SQLite file — i.e. all users + snapshots vanish. A console.warn here was
+// previously ignored and silently destroyed a live user base; refuse to boot
+// instead so a misconfigured deploy fails its healthcheck loudly.
+// Opt-out: set STEWARD_ALLOW_EPHEMERAL_DB=1 (only for throwaway envs).
+if (
+  process.env.NODE_ENV === 'production' &&
+  !process.env.STEWARD_DB_PATH &&
+  process.env.STEWARD_ALLOW_EPHEMERAL_DB !== '1'
+) {
+  console.error(
+    '\n[Steward] FATAL: STEWARD_DB_PATH is not set in production.\n' +
+    '  The SQLite database would live on the container\'s ephemeral filesystem\n' +
+    '  and be wiped on every redeploy. Mount a persistent volume (e.g. Railway\n' +
+    '  → New → Volume) and set STEWARD_DB_PATH=/data/steward.db.\n' +
+    '  To override for a throwaway env, set STEWARD_ALLOW_EPHEMERAL_DB=1.\n',
   );
+  process.exit(1);
 }
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
