@@ -96,6 +96,12 @@ router.post('/register', (req, res) => {
     const session = createSession(user.id);
     setSessionCookie(res, session);
 
+    // Structured signup log → visible in Railway's log stream without shelling
+    // into the DB. No password/secret material is logged.
+    console.log(
+      `[auth] register username=${user.username} id=${user.id} email=${user.email || '-'} provider=${user.provider} at=${new Date().toISOString()}`,
+    );
+
     return res.json({ ok: true, user: { id: user.id, username: user.username, email: user.email } });
   } catch (err) {
     console.error('[auth/register]', err);
@@ -197,6 +203,11 @@ router.post('/login', (req, res) => {
     _clearLoginAttempts(attemptKey);
     const session = createSession(user.id);
     setSessionCookie(res, session);
+
+    // Structured login log → live signup/login feed in Railway logs.
+    console.log(
+      `[auth] login username=${user.username} id=${user.id} at=${new Date().toISOString()}`,
+    );
 
     return res.json({
       ok: true,
@@ -515,6 +526,11 @@ router.get('/google/callback', async (req, res) => {
     const user = findOrCreateGoogleUser(profile.email, profile.name);
     const session = createSession(user.id);
     setSessionCookie(res, session);
+
+    // Structured login log (Google path) → same feed as local register/login.
+    console.log(
+      `[auth] login-google username=${user.username} id=${user.id} email=${user.email || '-'} at=${new Date().toISOString()}`,
+    );
 
     return res.redirect('/');
   } catch (err) {
