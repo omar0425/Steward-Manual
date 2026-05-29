@@ -196,7 +196,7 @@ const INSERT_SNAPSHOT = db.prepare(`
 const PRUNE_SNAPSHOTS = db.prepare(`
   DELETE FROM snapshots
   WHERE user_id = ? AND source = ? AND id NOT IN (
-    SELECT id FROM snapshots WHERE user_id = ? AND source = ? ORDER BY pulled_at DESC LIMIT 60
+    SELECT id FROM snapshots WHERE user_id = ? AND source = ? ORDER BY pulled_at DESC, id DESC LIMIT 60
   )
 `);
 
@@ -211,11 +211,11 @@ function latestSnapshot(source) {
   const userId = currentUserId();
   if (source) {
     return db.prepare(
-      `SELECT * FROM snapshots WHERE user_id = ? AND source = ? ORDER BY pulled_at DESC LIMIT 1`
+      `SELECT * FROM snapshots WHERE user_id = ? AND source = ? ORDER BY pulled_at DESC, id DESC LIMIT 1`
     ).get(userId, source) || null;
   }
   return db.prepare(
-    `SELECT * FROM snapshots WHERE user_id = ? ORDER BY pulled_at DESC LIMIT 1`
+    `SELECT * FROM snapshots WHERE user_id = ? ORDER BY pulled_at DESC, id DESC LIMIT 1`
   ).get(userId) || null;
 }
 
@@ -227,7 +227,7 @@ function latestCombined() {
 
 function recentSnapshots(limit = 60) {
   return db.prepare(
-    `SELECT * FROM snapshots WHERE user_id = ? ORDER BY pulled_at DESC LIMIT ?`
+    `SELECT * FROM snapshots WHERE user_id = ? ORDER BY pulled_at DESC, id DESC LIMIT ?`
   ).all(currentUserId(), limit);
 }
 
@@ -478,7 +478,7 @@ function lastNonZeroFinancials() {
     SELECT monthly_income, monthly_expenses, total_assets, investment_value
     FROM snapshots
     WHERE user_id = ? AND (monthly_income > 0 OR monthly_expenses > 0 OR total_assets > 0)
-    ORDER BY pulled_at DESC LIMIT 1
+    ORDER BY pulled_at DESC, id DESC LIMIT 1
   `).get(userId);
   return row || null;
 }

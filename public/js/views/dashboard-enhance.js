@@ -170,6 +170,10 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   if (cupEl && stats && stats.cumulativePaidDown != null) {
     const paid     = Number(stats.cumulativePaidDown);
     const baseline = Number(stats.climbBaselineDebt) || 0;
+    // A "Total Cleared: $0" trophy on a brand-new climb celebrates nothing and
+    // just confuses. Hide the whole panel until the user has cleared something.
+    const trophySection = document.getElementById('cumulative-trophy-section');
+    if (trophySection) trophySection.hidden = paid <= 0.005;
     cupEl.textContent = '$' + Math.round(paid).toLocaleString();
     if (pctEl && baseline > 0) {
       pctEl.innerHTML = ((paid / baseline) * 100).toFixed(1) + '% paid down<br><span style="color:var(--text-3)">\$' + Math.round(baseline).toLocaleString() + ' baseline</span>';

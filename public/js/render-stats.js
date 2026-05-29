@@ -121,7 +121,21 @@ export function fillThisTurnPanel(stats) {
     const netThisTurn = accountLines.length > 0
       ? accountLines.reduce((s, r) => s + Number(r.delta), 0)
       : ndVal - pdVal;
-    netEl.textContent = formatNetThisTurnLine(netThisTurn);
+
+    // The big number is just the number — clean and scannable. The caption
+    // below it carries the meaning, so we don't repeat "Net this turn" twice.
+    netEl.textContent = fmtSignedDollar(netThisTurn);
+    netEl.classList.toggle('neg', netThisTurn < 0);
+    netEl.classList.toggle('pos', netThisTurn > 0);
+
+    const labelEl = document.getElementById('this-turn-net-label');
+    if (labelEl) {
+      labelEl.textContent = netThisTurn < 0
+        ? 'paid down this turn'
+        : netThisTurn > 0
+          ? 'balances grew this turn'
+          : 'no change this turn';
+    }
 
     const sessionCard = listEl.closest('.section-panel') || document.getElementById('session-card');
     if (sessionCard) {

@@ -1048,6 +1048,22 @@ h1, h2, h3 {
 .debt-total-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--border-2); }
 .debt-total-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
 .debt-total-val   { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: var(--rose); letter-spacing: -0.02em; }
+/* When the debt is fully cleared, $0 should read as a win (emerald), not as a
+   lingering rose-colored balance. Applied by the renderers to any balance
+   readout that has hit zero. */
+.is-debt-clear { color: var(--emerald) !important; }
+
+/* Muted one-liner under a section label — used to disambiguate the read-only
+   Debt Accounts table from the editable Your Debts panel. */
+.tc-section-sublabel {
+  margin: 3px 0 0;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-3);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
 
 .game-start-row { display: flex; align-items: baseline; gap: 8px; padding-top: 7px; }
 .game-start-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-3); flex-shrink: 0; }
@@ -1362,7 +1378,12 @@ h1, h2, h3 {
   .nav-links a.nav-link { display: none; }
   .nav-links .nav-link-btn { font-size: 11px; min-height: 44px; padding: 0 6px; }
   .nav-right { gap: 8px; }
-  .nav-badge { font-size: 10px; padding: 3px 7px; }
+  /* On a phone the bar is tight: the wordmark beside the icon and the stage
+     badge both crowd out the touch targets. Drop the wordmark (icon still
+     identifies the brand) and the badge (the hero card already shows the
+     tier far more prominently). */
+  .nav-brand-text { display: none; }
+  .nav-badge { display: none; }
   .milestone-dismiss { min-width: 44px; min-height: 44px; }
   .nav-theme-btn { min-height: 44px; min-width: 44px; }
   .nav-logout-btn { min-height: 44px; min-width: 44px; }
@@ -1877,6 +1898,12 @@ body[data-setup-mode="first"] #manual-entry-panel {
     var(--surface);
   box-shadow: 0 24px 80px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05);
 }
+/* During first-time setup there is no prior snapshot to diff against, so
+   "Update Balances" (which opens a paydown-confirmation dialog) is meaningless
+   and competes with the one action that matters: Start Climb. Hide it until the
+   climb is running. Inline edits are still captured — Start Climb persists the
+   on-screen balances before locking the baseline. */
+body[data-setup-mode="first"] #update-balances-btn { display: none; }
 
 /* ── Progress bar track contrast ────────────────────────────────────────── */
 .tier-card-bar-track { background: rgba(255,255,255,0.13) !important; height: 10px !important; border-radius: 5px !important; border: 1px solid rgba(255,255,255,0.07) !important; }
@@ -2101,6 +2128,15 @@ body[data-setup-mode="first"] .setup-welcome {
   width: 100%;
   max-width: 320px;
 }
+/* Ghost/secondary treatment — used for the additive "Add account" action so it
+   doesn't compete with the primary gold button (Update Balances / Start Climb)
+   sitting a few rows above it. */
+.commitment-btn--ghost {
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid var(--gold-dim, rgba(212,175,55,0.4));
+}
+.commitment-btn--ghost:hover { background: rgba(212,175,55,0.08); color: var(--gold-2, var(--gold)); }
 /* ── Saved Debts List ─────────────────────────────────────────────────────── */
 .saved-debts-list { display: flex; flex-direction: column; gap: 0; }
 .saved-debt-row {
@@ -2323,6 +2359,46 @@ body[data-setup-mode="first"] .setup-welcome {
 }
 @media (prefers-reduced-motion: reduce) {
   .steward-ai-overlay { animation: none; }
+}
+
+/* ── Steward AI: non-blocking toast variant (routine coaching) ── */
+/* Routine modes dock in the bottom-right corner instead of dimming and
+   trapping the whole screen. The overlay itself ignores pointer events so
+   the user can keep clicking the dashboard underneath; only the card is
+   interactive. */
+.steward-ai-overlay--toast {
+  inset: auto;
+  bottom: 24px;
+  right: 24px;
+  display: block;
+  background: transparent;
+  padding: 0;
+  pointer-events: none;
+  z-index: 9998;
+  animation: steward-ai-toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.steward-ai-overlay--toast .steward-ai-card {
+  pointer-events: auto;
+  max-width: 360px;
+  padding: 18px 20px 16px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+.steward-ai-overlay--toast .steward-ai-title { font-size: 20px; margin-bottom: 10px; }
+.steward-ai-overlay--toast .steward-ai-body { font-size: 14px; margin-bottom: 16px; }
+@keyframes steward-ai-toast-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .steward-ai-overlay--toast { animation: none; }
+}
+@media (max-width: 600px) {
+  .steward-ai-overlay--toast {
+    inset: auto 12px 12px 12px;
+    bottom: 12px;
+    right: 12px;
+  }
+  .steward-ai-overlay--toast .steward-ai-card { max-width: none; width: 100%; }
 }
 
 /* ── Steward AI: Closing Certificate variant ── */

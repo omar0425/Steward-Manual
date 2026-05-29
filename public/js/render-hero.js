@@ -171,7 +171,13 @@ export function renderHeroBlock({
     cardBarInbandPct.setAttribute('aria-hidden', 'true');
   }
   const cardFooterDebtEl = document.getElementById('card-footer-debt');
-  if (cardFooterDebtEl) cardFooterDebtEl.textContent = `${fmtDollar(stats.debtRemaining)} debt remaining`;
+  if (cardFooterDebtEl) {
+    const cleared = Number(stats.debtRemaining) <= 0.005;
+    cardFooterDebtEl.textContent = cleared
+      ? 'Debt free'
+      : `${fmtDollar(stats.debtRemaining)} debt remaining`;
+    cardFooterDebtEl.classList.toggle('is-debt-clear', cleared);
+  }
 
   // ── Locked next-tier card + secondary board gap label ──
   const boardGapLabelEl = document.getElementById('board-tier-gap-label');

@@ -373,8 +373,12 @@ export function fillDebtAccountsList(stats) {
     const sparkWrap = document.createElement('span');
     sparkWrap.className = 'dr-spark';
     const histPoints = (_debtHistory[acct.id] || []).map(p => p.balance);
-    const sparkSvg = buildSparklineSvg(histPoints);
-    sparkWrap.appendChild(sparkSvg || buildDebtBalanceBar(balance, maxBalance));
+    /* Either builder can return null (sparkline needs ≥2 distinct points; the
+       fallback bar needs balance>0 and maxBalance>0). For a paid-off account
+       with sparse/failed history both are null — appendChild(null) would throw
+       and abort the whole list render, so only append a real node. */
+    const sparkViz = buildSparklineSvg(histPoints) || buildDebtBalanceBar(balance, maxBalance);
+    if (sparkViz) sparkWrap.appendChild(sparkViz);
 
     row.appendChild(name);
     row.appendChild(aprEl);
@@ -384,5 +388,9 @@ export function fillDebtAccountsList(stats) {
     listEl.appendChild(row);
   }
 
-  if (totalEl && stats.debtRemaining != null) totalEl.textContent = fmtDollar(stats.debtRemaining);
+  if (totalEl && stats.debtRemaining != null) {
+    totalEl.textContent = fmtDollar(stats.debtRemaining);
+    // $0 remaining is a victory, not a rose-red liability — paint it emerald.
+    totalEl.classList.toggle('is-debt-clear', Number(stats.debtRemaining) <= 0.005);
+  }
 }

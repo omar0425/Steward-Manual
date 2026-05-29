@@ -268,7 +268,7 @@ function buildSessionPanel() {
     </div>
     <div class="session-hero">
       <span class="session-net-val" id="this-turn-net">\u2014</span>
-      <span class="session-net-label">Net this turn</span>
+      <span class="session-net-label" id="this-turn-net-label">Net this turn</span>
     </div>
     <div id="this-turn-list"></div>
   `;
@@ -278,9 +278,12 @@ function buildSessionPanel() {
 function buildDebtAccountsPanel() {
   const section = el('section', { class: 'section-panel dashboard-only-section' });
   section.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <p class="tc-section-label" style="margin:0;">Debt Accounts</p>
-      <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;">
+      <div style="min-width:0;">
+        <p class="tc-section-label" style="margin:0;">Debt Accounts</p>
+        <p class="tc-section-sublabel">Read-only overview · update balances in the Your Debts panel</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         <button class="apr-edit-btn" id="apr-edit-btn" type="button" onclick="window.toggleAprForm()">Edit APRs</button>
         <div class="sort-toggle">
           <button class="sort-toggle-btn active" data-sort="balance" onclick="window.setDebtSortMode('balance')">Balance</button>
@@ -331,7 +334,7 @@ function buildStageProgressDetail() {
 }
 
 function buildCumulativePaydownTrophy() {
-  const section = el('section', { class: 'section-panel dashboard-only-section' });
+  const section = el('section', { class: 'section-panel dashboard-only-section', id: 'cumulative-trophy-section' });
   section.innerHTML = `
     <div class="trophy-row">
       <div class="trophy-icon" aria-hidden="true">\uD83C\uDFC6</div>

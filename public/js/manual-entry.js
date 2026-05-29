@@ -109,6 +109,7 @@ function renderSavedDebtsList(debtLines) {
   const totalEl = document.getElementById('saved-debts-total-val');
   const addSection = document.getElementById('add-debt-section');
   const heading = document.getElementById('add-debt-heading');
+  const addBtn = document.getElementById('save-snapshot-btn');
 
   if (!listEl || !rowsEl || !debtLines || debtLines.length === 0) {
     // No saved debts — show the add form with financials visible (first-time setup)
@@ -119,6 +120,8 @@ function renderSavedDebtsList(debtLines) {
       if (addFin) addFin.style.display = '';
     }
     if (heading) heading.textContent = 'Add your debts';
+    // Nothing saved yet, so saving IS the primary action — keep it gold.
+    if (addBtn) { addBtn.textContent = 'Save Debts'; addBtn.classList.remove('commitment-btn--ghost'); }
     setSetupStartVisible(false);
     return;
   }
@@ -170,9 +173,13 @@ function renderSavedDebtsList(debtLines) {
   if (totalEl) totalEl.textContent = fmtDollar(total);
   listEl.style.display = '';
 
-  // Switch add section to "add more" mode
+  // Switch add section to "add more" mode. The list above already owns the
+  // primary action (Update Balances / Start Climb), so this becomes the
+  // clearly-secondary "Add account" — relabeled and de-emphasized to a ghost
+  // button so users don't confuse it with saving their paydown.
   if (addSection) addSection.style.display = '';
-  if (heading) heading.textContent = 'Add another debt';
+  if (heading) heading.textContent = 'Add another account';
+  if (addBtn) { addBtn.textContent = 'Add account'; addBtn.classList.add('commitment-btn--ghost'); }
 
   // Hide the financial snapshot block in the add form — user updates financials via UPDATE BALANCES
   const addFinancials = addSection && addSection.querySelector('.manual-entry-financials');
@@ -184,10 +191,14 @@ function renderSavedDebtsList(debtLines) {
 }
 
 function setSetupStartVisible(visible) {
-  for (const id of ['start-climb-btn', 'start-climb-empty-btn']) {
-    const btn = document.getElementById(id);
-    if (btn) btn.hidden = !visible;
-  }
+  // Show exactly ONE Start Climb button. Once any debt is saved the saved-debts
+  // list is visible and owns the primary action; the add-form's duplicate would
+  // give the user two identical buttons stacked a few rows apart, which reads as
+  // a bug. Keep the duplicate permanently hidden.
+  const main = document.getElementById('start-climb-btn');
+  if (main) main.hidden = !visible;
+  const dupe = document.getElementById('start-climb-empty-btn');
+  if (dupe) dupe.hidden = true;
 }
 
 function updateSavedTotal() {
@@ -201,6 +212,7 @@ function updateSavedTotal() {
     if (Number.isFinite(val) && val >= 0) total += val;
   }
   totalEl.textContent = fmtDollar(total);
+  totalEl.classList.toggle('is-debt-clear', total <= 0.005);
   /* Live state changed — mirror into the read-only debt table, hero card,
      and panel total so the rest of the dashboard isn't lying about totals. */
   mirrorLiveDebtState(rows, total);
@@ -265,13 +277,23 @@ function mirrorLiveDebtState(rows, liveTotal) {
     }
   }
 
+  const liveCleared = liveTotal <= 0.005;
+
   /* Panel total in the read-only Debt Accounts header. */
   const debtTotal = document.getElementById('debt-total-val');
-  if (debtTotal) debtTotal.textContent = fmtDollar(Math.round(liveTotal));
+  if (debtTotal) {
+    debtTotal.textContent = fmtDollar(Math.round(liveTotal));
+    debtTotal.classList.toggle('is-debt-clear', liveCleared);
+  }
 
   /* Hero stage card: live debt remaining. */
   const cardFooterDebt = document.getElementById('card-footer-debt');
-  if (cardFooterDebt) cardFooterDebt.textContent = `${fmtDollar(Math.round(liveTotal))} debt remaining`;
+  if (cardFooterDebt) {
+    cardFooterDebt.textContent = liveCleared
+      ? 'Debt free'
+      : `${fmtDollar(Math.round(liveTotal))} debt remaining`;
+    cardFooterDebt.classList.toggle('is-debt-clear', liveCleared);
+  }
 
   /* Session-level diff: replace the per-bullet rendering that came from the
      last snapshot with one driven by the LIVE list. Net = sum(live - prev)
@@ -462,6 +484,28 @@ function showPaydownConfirmation(summary, onConfirm) {
 
 /* ── Save snapshot ────────────────────────────────────────────────────────── */
 
+/* After the server confirms a save, rebuild the editable "saved debts" list
+   from authoritative state. manualRefresh() re-renders the read-only dashboard
+   (hero, totals, debt table, chart) but NOT these editable rows — so without
+   this the rows keep their old prevBalance baselines, the "Unsaved" badge
+   lingers after a successful save, and a newly-added account doesn't show up in
+   the editable list until a full page reload. */
+function resyncSavedDebtsFromServer() {
+  return fetch(stewardApiUrl('/api/status'))
+    .then(r => r.json())
+    .then(status => {
+      const lines = status && status.stats && Array.isArray(status.stats.debtAccountLines)
+        ? status.stats.debtAccountLines
+        : [];
+      renderSavedDebtsList(lines);
+      ensureUnsavedBadge(false);
+      // "Start Climb" is a setup-only action; once the climb is running the
+      // server reports setupIncomplete=false, so keep the buttons hidden.
+      setSetupStartVisible(status && status.setupIncomplete === true);
+    })
+    .catch(() => { /* non-fatal — the read-only dashboard already refreshed */ });
+}
+
 async function saveSnapshot(debtAccounts, msgEl, btnEl) {
   if (btnEl) btnEl.disabled = true;
   if (msgEl) msgEl.textContent = 'Saving\u2026';
@@ -511,7 +555,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
             // Delay the soft refresh so the user can read the notice. Using
             // manualRefresh() (not location.reload) means the message stays
             // on-screen while the dashboard underneath updates in place.
-            setTimeout(() => { void manualRefresh(); }, 4500);
+            setTimeout(() => { void manualRefresh(); void resyncSavedDebtsFromServer(); }, 4500);
             return;
           }
         }
@@ -519,6 +563,9 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
         // full-page flash. Also lets the Steward AI dialog fire as soon as
         // the new "Live" snapshot lands, rather than after a fresh page boot.
         await manualRefresh();
+        // Rebuild the editable saved-debts rows so new accounts appear, the
+        // prevBalance baselines reset, and the "Unsaved" badge clears.
+        await resyncSavedDebtsFromServer();
       }
     } else {
       if (msgEl) msgEl.textContent = data.error || 'Failed to save.';
@@ -634,10 +681,22 @@ export function initManualEntryForm() {
       startBtn.disabled = true;
       if (formMsg) formMsg.textContent = 'Locking starting debt...';
       try {
+        // Capture whatever is on screen right now before locking the baseline.
+        // In setup we hide "Update Balances", so an inline edit in the saved
+        // list (or a half-filled add-form row) would otherwise never reach the
+        // server and the starting line would be wrong. Save silently first.
+        const pending = [...collectSavedDebtUpdates(), ...collectDebtAccounts()];
+        if (pending.length > 0) {
+          await saveSnapshot(pending, null, null);
+        }
         const res = await fetch(stewardApiUrl('/api/start-game'), { method: 'POST' });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Could not start climb.');
         if (formMsg) formMsg.textContent = 'Climb started.';
+        // The climb is now running, so the setup-only "Start Climb" buttons must
+        // not linger on the dashboard. This soft-refresh path never reloads the
+        // page, so hide them explicitly (page reload would re-hide via prefill).
+        setSetupStartVisible(false);
         // Soft refresh — /api/status will now return ready:true with the
         // baseline locked, so the dashboard re-renders into play mode
         // without the start-game gate flashing back in mid-transition.

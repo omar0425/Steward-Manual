@@ -71,6 +71,12 @@ const MODE_FRAMING = {
   },
 };
 
+// Ceremonial messages earn a centered, focus-trapping modal — they're rare and
+// momentous (an account closed; a quarter turned). Everything else is routine
+// coaching and shows as a non-blocking corner toast, so the user can keep
+// working and dismiss it on their own time.
+const CEREMONIAL = new Set(['closing_certificate', 'quarterly_letter']);
+
 function readSeen() {
   try { return localStorage.getItem(SEEN_KEY) || ''; } catch { return ''; }
 }
@@ -83,13 +89,20 @@ function showDialog({ mode, title, text }) {
   if (existing) existing.remove();
 
   const framing = MODE_FRAMING[mode] || MODE_FRAMING.observation;
+  const isToast = !CEREMONIAL.has(mode);
   const previouslyFocused = document.activeElement;
 
   const overlay = document.createElement('div');
   overlay.id = 'steward-ai-dialog';
-  overlay.className = 'steward-ai-overlay';
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
+  overlay.className = 'steward-ai-overlay' + (isToast ? ' steward-ai-overlay--toast' : '');
+  if (isToast) {
+    // A toast announces itself politely without stealing focus or trapping it.
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+  } else {
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+  }
   overlay.setAttribute('aria-labelledby', 'steward-ai-title');
   overlay.dataset.mode = mode || 'observation';
 
@@ -111,15 +124,18 @@ function showDialog({ mode, title, text }) {
   overlay.querySelector('.steward-ai-dismiss').textContent = framing.dismiss;
   document.body.appendChild(overlay);
 
+  let autoTimer = null;
   const close = () => {
+    if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
     overlay.remove();
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+    // Only the modal stole focus, so only the modal restores it. Returning
+    // focus after a toast would yank the user away from what they were doing.
+    if (!isToast && previouslyFocused && typeof previouslyFocused.focus === 'function') {
       try { previouslyFocused.focus(); } catch { /* ignore */ }
     }
   };
 
   overlay.querySelector('.steward-ai-dismiss').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', function onKey(e) {
     if (e.key === 'Escape') {
       document.removeEventListener('keydown', onKey);
@@ -127,8 +143,18 @@ function showDialog({ mode, title, text }) {
     }
   });
 
-  const btn = overlay.querySelector('.steward-ai-dismiss');
-  if (btn) { try { btn.focus(); } catch { /* ignore */ } }
+  if (isToast) {
+    // Linger long enough to read, then fade on its own; hovering pauses it.
+    const startTimer = () => { autoTimer = setTimeout(close, 14000); };
+    overlay.addEventListener('mouseenter', () => { if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; } });
+    overlay.addEventListener('mouseleave', () => { if (!autoTimer) startTimer(); });
+    startTimer();
+  } else {
+    // Modal: backdrop click closes it, and focus moves to the dismiss button.
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    const btn = overlay.querySelector('.steward-ai-dismiss');
+    if (btn) { try { btn.focus(); } catch { /* ignore */ } }
+  }
 }
 
 /**
