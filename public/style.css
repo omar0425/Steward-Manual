@@ -747,6 +747,10 @@ h1, h2, h3 {
 .nw-single-dot { fill: var(--gold); opacity: 0.75; }
 .chart-wrap { height: 110px; position: relative; }
 .chart-wrap svg { display: block; }
+/* `display: block` above wins over the UA `[hidden] { display: none }` rule, so
+   setting `svg.hidden = true` in JS would not actually hide the chart. This
+   higher-specificity rule restores that behavior for the empty-chart state. */
+.chart-wrap svg[hidden] { display: none; }
 .chart-x-labels { display: flex; justify-content: space-between; padding-top: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.04em; color: var(--text-3); }
 .chart-memo { margin: 8px 0 0; font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1.45; letter-spacing: 0.08em; text-transform: uppercase; color: var(--label); }
 

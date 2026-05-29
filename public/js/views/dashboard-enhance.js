@@ -226,7 +226,10 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     const ph = document.getElementById('nw-empty-state');
     if (ph) ph.hidden = true;
     const svg = document.getElementById('networth-chart-svg');
-    if (svg) svg.hidden = false;
+    // NB: the `hidden` IDL property does not reflect to an attribute on
+    // SVGElement (it's defined on HTMLElement), so toggle the attribute
+    // explicitly — the `.chart-wrap svg[hidden]` CSS rule keys off it.
+    if (svg) svg.removeAttribute('hidden');
   } else if (chartWrap) {
     /* The chart can't plot a trend from a single point. But the panel header
        still owes the user their current debt + a "tracking from" reference,
@@ -259,7 +262,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       : 'No data yet — add your debts to begin.';
     ph.hidden = false;
     const svg = document.getElementById('networth-chart-svg');
-    if (svg) svg.hidden = true;
+    if (svg) svg.setAttribute('hidden', '');
   }
 
   /* ── Debt accounts empty state ── */

@@ -31,9 +31,9 @@ test.describe('Climb lifecycle', () => {
     await expect(page.locator('#chart-trend-delta')).toContainText(/tracking from today/i);
     await expect(page.locator('#nw-empty-state')).toBeVisible();
     await expect(page.locator('#nw-empty-state')).toContainText(/update your balances/i);
-    // A single point can't draw a trend, so the line path stays empty. (The
-    // SVG box itself isn't display:none — .chart-wrap svg is display:block —
-    // so we assert on the empty path, not SVG visibility.)
+    // A single point can't draw a trend: the SVG is hidden (via the
+    // .chart-wrap svg[hidden] rule) and the line path stays empty.
+    await expect(page.locator('#networth-chart-svg')).toBeHidden();
     expect(await page.locator('#nw-line').getAttribute('d')).toBeFalsy();
   });
 
@@ -89,9 +89,10 @@ test.describe('Climb lifecycle', () => {
     await startClimb(page);
 
     // Exactly one post-climb snapshot → empty state, never an "↑ since first
-    // snapshot" trend built from the setup ramp. The line path must be empty
+    // snapshot" trend built from the setup ramp. SVG hidden, line path empty,
     // and the delta must never show the setup-ramp figure ($61,336).
     await expect(page.locator('#nw-empty-state')).toContainText(/update your balances/i);
+    await expect(page.locator('#networth-chart-svg')).toBeHidden();
     expect(await page.locator('#nw-line').getAttribute('d')).toBeFalsy();
     await expect(page.locator('#chart-trend-delta')).not.toContainText(/\$61,336/);
   });
