@@ -7,6 +7,10 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node test/run-all.js",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
     "reset-local-data": "node -e \"require('./db').resetAllGameState(); console.log('All game state cleared.');\""
   },
   "engines": {
@@ -14,5 +18,8 @@
   },
   "dependencies": {
     "express": "^4.22.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }
