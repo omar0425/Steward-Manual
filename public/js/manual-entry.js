@@ -371,11 +371,14 @@ function ensureUnsavedBadge(show) {
   if (!badge) {
     const totalRow = document.querySelector('.saved-debts-total');
     if (!totalRow) return;
-    badge = document.createElement('span');
+    badge = document.createElement('div');
     badge.id = 'saved-debts-unsaved-badge';
     badge.className = 'saved-debts-unsaved-badge';
-    badge.textContent = 'Unsaved — click Update Balances to commit';
-    totalRow.appendChild(badge);
+    badge.textContent = 'Unsaved — Update Balances to save';
+    // Sit on its own line just above the action button. Appending it INSIDE the
+    // total row made it the row's :last-child, where the dollar-amount styling
+    // ballooned it to 16px rose and stranded the total via space-between.
+    totalRow.insertAdjacentElement('afterend', badge);
   }
 }
 

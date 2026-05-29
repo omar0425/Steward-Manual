@@ -1711,8 +1711,8 @@ body[data-theme-transitioning] .data-chip {
 .debt-row.debt-row--live-edit { background: rgba(200,168,76,0.05); }
 .debt-row.debt-row--live-edit .dr-balance { color: var(--gold); }
 .saved-debts-unsaved-badge {
-  display: inline-block;
-  margin-left: 10px;
+  align-self: center;
+  margin: 2px 0 10px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   letter-spacing: 0.06em;
@@ -1720,8 +1720,9 @@ body[data-theme-transitioning] .data-chip {
   background: var(--amber-soft);
   border: 1px solid rgba(212,160,48,0.25);
   border-radius: 999px;
-  padding: 2px 10px;
+  padding: 4px 12px;
   text-transform: uppercase;
+  text-align: center;
 }
 
 /* ── Sticky FAB: scroll to manual entry / focus first balance input ── */
@@ -2486,7 +2487,16 @@ body[data-setup-mode="first"] .setup-welcome {
   .saved-debt-row { gap: 8px; }
   .saved-debt-balance-input { width: 90px; font-size: 14px; padding: 6px 8px; }
   .saved-debt-name { font-size: 14px; }
+  /* Confirm-changes dialog — on a phone the default (small buttons floated to
+     the right of a wide card) leaves a big awkward gap and reads as unfinished.
+     Tighten the spacing and let Cancel/Save share the full width as balanced,
+     comfortably-tappable targets. */
   .paydown-confirm-card { padding: 20px 18px; }
+  .paydown-confirm-title { font-size: 19px; margin-bottom: 12px; }
+  .paydown-confirm-lines { margin-bottom: 14px; }
+  .paydown-confirm-total { margin-bottom: 16px; font-size: 14px; padding-top: 10px; }
+  .paydown-confirm-actions { gap: 10px; }
+  .paydown-confirm-actions button { flex: 1; min-height: 48px; font-size: 15px; padding: 12px; }
   /* Steward AI dialog — squeeze paddings, titles, and the decorative
      certificate flourishes so nothing crowds the edge on a 320–414px screen. */
   .steward-ai-overlay { padding: 12px; }
@@ -2520,7 +2530,9 @@ body[data-setup-mode="first"] .setup-welcome {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.saved-debts-total span:last-child {
+/* Target the value span by id, not :last-child — anything appended to the row
+   (e.g. the Unsaved badge, historically) must not inherit the dollar styling. */
+#saved-debts-total-val {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 16px;
   color: var(--neg, #e55);
