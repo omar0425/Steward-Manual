@@ -26,8 +26,3 @@ export function getDashboardRoot() {
 export function isPlayDashboardDoc() {
   return currentShell() === 'play';
 }
-
-/** @deprecated — consolidated shell uses vNext layout. Always returns false. */
-export function isClassicLayoutDashboardDoc() {
-  return false;
-}

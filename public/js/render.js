@@ -1,7 +1,6 @@
 'use strict';
 
 import { TIER_FLOW, TIER_META } from './tiers.js';
-import { isClassicLayoutDashboardDoc } from './shell.js';
 import {
   formatRunway, formatNextTierGapHeadline,
   formatPaidDownDisplay, cumulativePaidDownFromStats,
@@ -31,7 +30,6 @@ export function render(status, snapshots) {
   const theme = TIER_META[tier.id] || TIER_FLOW[0];
   /* If API omits stability, assume middle liquidity band (id stabilizing, label Steady). */
   const stab = stability || { id: 'stabilizing', label: 'Steady', narrative: {} };
-  const classicDoc = isClassicLayoutDashboardDoc();
   const runwayText = formatRunway(stats.monthsAhead);
   const paidShown = cumulativePaidDownFromStats(stats);
   const paidTooltip = paidDownDetailTooltip(stats);
@@ -45,7 +43,7 @@ export function render(status, snapshots) {
   setupHeroInteraction();
 
   renderHeroBlock({
-    status, tier, theme, stab, nextTier, classicDoc, meta,
+    status, tier, theme, stab, nextTier, meta,
     paidDisplay, runwayText, gapHeadline, inBandBarDisplayPct, stats,
   });
 

@@ -1,14 +1,13 @@
 'use strict';
 
 import { TIER_FLOW, TIER_META } from './tiers.js';
-import { isClassicLayoutDashboardDoc } from './shell.js';
 
 /* ── Dollar / number / date formatters ──────────────────────────── */
 
 export function formatRunway(monthsAhead) {
   if (monthsAhead == null) return '--';
   if (monthsAhead < 1) {
-    return isClassicLayoutDashboardDoc() ? 'Runway: < 1 month' : '< 1 month of expenses';
+    return '< 1 month of expenses';
   }
   return `${monthsAhead.toFixed(1)} months of expenses`;
 }
@@ -145,7 +144,7 @@ export function resolveBreathingRoomGoalState(stab) {
   };
 }
 
-export function formatHeroBreathingRoomLine(stab, classicLayout) {
+export function formatHeroBreathingRoomLine(stab) {
   const br = resolveBreathingRoomGoalState(stab);
   if (br.runwayMonths == null) {
     return `Target: ${br.goalMonths.toFixed(1)} mo Breathing Room.`;
@@ -155,9 +154,6 @@ export function formatHeroBreathingRoomLine(stab, classicLayout) {
   }
   const gapStr =
     br.gapMonths != null && Number.isFinite(br.gapMonths) ? br.gapMonths.toFixed(1) : (br.goalMonths - br.runwayMonths).toFixed(1);
-  if (classicLayout) {
-    return `Runway: ${br.runwayMonths.toFixed(1)} mo · ${gapStr} mo to Breathing Room`;
-  }
   return `${br.runwayMonths.toFixed(1)} mo cushion · ${gapStr} mo to Breathing Room (${br.goalMonths.toFixed(1)} mo).`;
 }
 
