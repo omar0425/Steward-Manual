@@ -7,18 +7,51 @@
 
 import { renderNetWorthChart } from './networth-chart.js';
 import { tierQuote, tierBehaviorLine, TIER_META } from '../tiers.js';
+import { stewardApiUrl } from '../api.js';
 
 const TIER_IDS = [
   'rock_bottom', 'broke', 'struggling', 'surviving', 'stabilizing',
   'stable', 'building', 'thriving', 'winning', 'wealthy',
 ];
 
+/* Steward AI ambient stage quote. Fetched once per (snapshot, tier); on success
+   it overrides the static fallback line. 204 (no key / no climb) leaves the
+   static quote in place, so the card is never empty or broken. */
+let _aiQuoteKey = null;
+function maybeApplyAiTierQuote(meta, tier) {
+  const quoteText = document.getElementById('tier-quote-text');
+  if (!quoteText || !tier || !meta || !meta.lastSnapshotAt) return;
+  const key = meta.lastSnapshotAt + ':' + (tier.id || '');
+  if (_aiQuoteKey === key) return; // already fetched for this snapshot+tier
+  _aiQuoteKey = key;
+  fetch(stewardApiUrl('/api/steward-ai/tier-quote'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: '{}',
+  })
+    .then((r) => (r.status === 200 ? r.json() : null))
+    .then((d) => {
+      if (!d || !d.ok || !d.text) return;
+      // Only the line still belonging to this snapshot+tier may be overwritten,
+      // so a slow response can't stomp a newer render.
+      if (_aiQuoteKey !== key) return;
+      quoteText.textContent = d.text;
+      const mount = document.getElementById('hero-steward-mount');
+      if (mount) mount.dataset.aiQuote = d.text;
+    })
+    .catch(() => { /* keep the static fallback */ });
+}
+
 window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTier, meta, stability: stab, snapshots, streak }) {
   const quoteLabel = document.getElementById('tier-quote-label');
   const quoteText = document.getElementById('tier-quote-text');
   if (tier && quoteLabel && quoteText) {
     quoteLabel.textContent = tier.label || 'Stage';
+    // Show the static line immediately (no flash), then let the AI line override
+    // it once it arrives — falling back to this if the AI is unavailable.
     quoteText.textContent = tierQuote(tier.id) || 'Keep the number moving in the right direction.';
+    maybeApplyAiTierQuote(meta, tier);
   }
 
   /* ── Mascot click interaction: cycle quote ↔ behavior ↔ cue, gentle pulse ──
@@ -38,6 +71,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       /* Dedupe so back-to-back identical lines (the data sometimes overlaps)
          don't make a click feel like nothing happened. */
       const lines = Array.from(new Set([
+        mount.dataset.aiQuote || '',   // AI line first when present
         tierQuote(id),
         tierBehaviorLine(id),
         meta && meta.cue ? meta.cue : '',
@@ -117,6 +151,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
 
   /* ── Daily target ── */
   const dailyTarget = document.getElementById('stat-daily-target');
+  const dailyTargetSub = document.getElementById('hero-cta-sub');
   if (dailyTarget) {
     if (nextTier && nextTier.gapDollars > 0) {
       const gap = Math.round(Number(nextTier.gapDollars));
@@ -125,9 +160,15 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       // Make the basis explainable \u2014 otherwise "$223" can't be derived from
       // anything else on screen. (= escape gap \u00f7 30 days.)
       dailyTarget.title = `About $${per.toLocaleString()}/day clears the $${gap.toLocaleString()} gap to the next stage in roughly a month.`;
+      // And surface that basis visibly (the tooltip is hover-only / invisible on touch).
+      if (dailyTargetSub) {
+        dailyTargetSub.textContent = `clears the $${gap.toLocaleString()} gap to the next stage in ~30 days`;
+        dailyTargetSub.hidden = false;
+      }
     } else {
       dailyTarget.textContent = '\u2014';
       dailyTarget.removeAttribute('title');
+      if (dailyTargetSub) { dailyTargetSub.textContent = ''; dailyTargetSub.hidden = true; }
     }
   }
 

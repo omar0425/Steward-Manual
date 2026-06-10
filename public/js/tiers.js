@@ -33,7 +33,7 @@ const TIER_BEHAVIOR_LINE = {
 };
 
 const TIER_QUOTE = {
-  rock_bottom: 'Do not make this beautiful. Make it smaller.',
+  rock_bottom: 'Don’t dress it up. Just make the balance smaller.',
   broke: 'The first dent matters. Protect it.',
   struggling: 'The climb is ugly before it is convincing.',
   surviving: 'Stay alive, stay current, keep cutting.',

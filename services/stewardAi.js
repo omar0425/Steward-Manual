@@ -243,10 +243,41 @@ async function generateQuarterlyLetter({ payload }) {
   };
 }
 
+// ── Tier-card quote (Layer 0, ambient) ────────────────────────────────────────
+/**
+ * One short engraved maxim for the stage card, fitted to where the player
+ * stands now. Returns { ok, text } on success. Kept deliberately terse and
+ * plain — it sits under the stage name, not in a dialog.
+ */
+async function generateTierQuote({ payload }) {
+  const system =
+    PENNYBAGS_VOICE +
+    '\n\nTASK: write ONE short maxim for the Steward\'s stage card — a single ' +
+    'line engraved beneath the stage name, fitted to where the player stands ' +
+    'this turn. It is not a remark or a paragraph; it is one sharp line.\n\n' +
+    'HARD RULES:\n' +
+    '- Exactly ONE sentence, 13 words maximum. Never two sentences.\n' +
+    '- Plain and immediately clear — a stranger must understand it at a glance. ' +
+    'No riddles, no metaphors that need decoding.\n' +
+    '- No dollar figures, no account names, no tier/stage label — the card ' +
+    'already shows those.\n' +
+    '- Output strict JSON, no fences: { "quote": "..." }';
+
+  const userContent = 'SNAPSHOT DATA:\n' + JSON.stringify(payload, null, 0);
+
+  const res = await callAnthropic({ system, userContent, maxTokens: 80 });
+  if (!res.ok) return res;
+  const parsed = tryParseJson(res.text);
+  const quote = parsed ? asString(parsed.quote, 140) : '';
+  if (!quote) return { ok: false, error: 'malformed_json', raw: res.text };
+  return { ok: true, text: quote };
+}
+
 module.exports = {
   isConfigured,
   generateModeDialog,
   generateClosingCertificate,
   generateQuarterlyLetter,
+  generateTierQuote,
   MODEL,
 };

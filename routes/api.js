@@ -851,6 +851,39 @@ router.post('/steward-ai/comment', (req, res) => {
   })();
 });
 
+// ── POST /api/steward-ai/tier-quote ───────────────────────────────────────────
+// Ambient stage-card maxim, AI-generated in the Steward's voice. Cached per
+// (snapshot, tier) so reloads cost zero tokens and the line only refreshes when
+// the snapshot or stage changes. 204 when there is no API key or no active climb
+// — the client then keeps the static fallback quote, so the card is never empty.
+
+const STEWARD_AI_QUOTE_CACHE_PREFIX = 'steward_ai_quote_at:';
+
+router.post('/steward-ai/tier-quote', (req, res) => {
+  (async () => {
+    try {
+      if (!stewardAi.isConfigured()) return res.status(204).end();
+
+      const ctx = stewardAiContext.buildContext();
+      if (ctx.skip || !ctx.payload || !ctx.payload.tier) return res.status(204).end();
+
+      const tierId = ctx.payload.tier.id || '';
+      const cacheKey = STEWARD_AI_QUOTE_CACHE_PREFIX + ctx.snapshot.pulledAt + ':' + tierId;
+      const cached = getConfig(cacheKey);
+      if (cached) return res.json({ ok: true, text: cached, cached: true });
+
+      const result = await stewardAi.generateTierQuote({ payload: ctx.payload });
+      if (!result || !result.ok || !result.text) return res.status(204).end();
+
+      setConfig(cacheKey, result.text);
+      return res.json({ ok: true, text: result.text, cached: false });
+    } catch (err) {
+      console.error('[api] steward-ai/tier-quote', err);
+      return res.status(204).end();
+    }
+  })();
+});
+
 // ── GET /api/steward-ai/ledger ────────────────────────────────────────────────
 // Returns the persisted journal entries so a future "Ledger" page can render
 // the chronicle. No model call.

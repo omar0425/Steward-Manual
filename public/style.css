@@ -518,6 +518,17 @@ h1, h2, h3 {
   padding-left: 12px;
 }
 .hero-cta-line .val { color: var(--text); }
+/* Visible basis for the daily kill number (the tooltip is hover-only / invisible
+   on touch). Sits tight under the CTA, aligned with its text. */
+.hero-cta-sub {
+  margin: -10px 0 16px;
+  padding-left: 15px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.03em;
+  line-height: 1.4;
+  color: var(--text-3);
+}
 
 .hero-divider { height: 1px; background: var(--border-2); margin-bottom: 18px; }
 

@@ -198,6 +198,7 @@ function buildHeroSection() {
 
       <p class="hero-escape-primary" id="hero-escape-primary" aria-live="polite" title="Escape gap \u2014 dollars left to unlock the next payoff stage. Not your total debt; the next threshold.">\u2014</p>
       <p class="hero-cta-line" id="hero-primary-cta">Kill <span class="val" id="stat-daily-target">\u2014</span> today</p>
+      <p class="hero-cta-sub" id="hero-cta-sub" hidden></p>
 
       <span class="stat-sentinel" id="stat-debt-remaining" hidden></span>
       <span class="stat-sentinel" id="stat-net-worth" hidden></span>
