@@ -194,6 +194,10 @@ router.get('/status', (req, res) => {
   let lastPullPaydownSum = 0;
   let lastPullNewDebtSum = 0;
   for (const line of lastPullAccountLines) {
+    // Removing an account is not a payment — it must not inflate the "This Turn"
+    // paydown the way it would a real balance decrease. Cumulative paid-down
+    // already excludes removals; keep this consistent so the two never disagree.
+    if (line && line.kind === 'removed') continue;
     const d = Number(line && line.delta);
     if (Number.isFinite(d)) {
       if (d < 0) lastPullPaydownSum += Math.abs(d);
@@ -447,7 +451,9 @@ router.post('/snapshot', (req, res) => {
     };
 
     const assets   = resolveFinancial(totalAssets,    'total_assets',     'totalAssets');
-    const debt     = roundMoney(totalDebt);
+    // Debt is tracked in whole dollars so displayed line items always sum to the
+    // displayed total (no hidden cents → no "$20,000 ×3 = $60,001").
+    const debt     = Math.round(roundMoney(totalDebt));
     const income   = resolveFinancial(monthlyIncome,  'monthly_income',   'monthlyIncome');
     const expenses = resolveFinancial(monthlyExpenses,'monthly_expenses', 'monthlyExpenses');
     const invest   = resolveFinancial(investmentValue,'investment_value', 'investmentValue');
@@ -488,7 +494,7 @@ router.post('/snapshot', (req, res) => {
             error: `Debt account ${id} balance must be a number (got ${JSON.stringify(acct.balance)})`,
           });
         }
-        const bal = roundMoney(acct.balance);
+        const bal = Math.round(roundMoney(acct.balance));
         const rawName = typeof acct.name === 'string' && acct.name.trim() ? acct.name.trim() : 'Account';
         const name = rawName.slice(0, 100);
         // Keep zero balances in the map so explicit payoff (prev=X → curr=0)

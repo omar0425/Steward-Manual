@@ -515,7 +515,11 @@ export function lastPullAccountRowsFromStats(stats) {
   const rawLines = stats.lastPullAccountChanges ?? stats.lastPullAccountLines;
   const accountLines = Array.isArray(rawLines)
     ? rawLines.filter(
-        (r) => r && typeof r.name === 'string' && r.name.length > 0 && Number.isFinite(Number(r.delta)),
+        (r) => r && typeof r.name === 'string' && r.name.length > 0 && Number.isFinite(Number(r.delta))
+          // A removed account is not a payment — exclude it from "This Turn" so it
+          // isn't shown (and summed) as green progress. Matches cumulative
+          // paid-down, which also ignores removals.
+          && r.kind !== 'removed',
       )
     : [];
   return { accountLines, ndVal, pdVal };

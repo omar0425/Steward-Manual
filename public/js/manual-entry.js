@@ -27,7 +27,8 @@ function fmtDollar(n) {
 function formatBalanceForInput(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return '';
-  return (Math.round(v * 100) / 100).toFixed(2);
+  // Whole dollars only — keeps every displayed figure summing cleanly.
+  return String(Math.round(v));
 }
 
 function nextDebtAccountId() {
@@ -52,7 +53,7 @@ function addDebtAccountRow(container, name, balance, id) {
   row.dataset.accountId = rowId;
   row.innerHTML = `
     <input type="text" class="debt-acct-name" placeholder="Account name" maxlength="100" aria-label="Debt account name" />
-    <input type="number" class="debt-acct-balance" step="0.01" min="0" placeholder="Balance" aria-label="Debt account balance" />
+    <input type="number" class="debt-acct-balance" step="any" min="0" inputmode="numeric" placeholder="Balance" aria-label="Debt account balance" />
     <button type="button" class="debt-acct-remove" aria-label="Remove account">&times;</button>
   `;
   const nameInput = row.querySelector('.debt-acct-name');
@@ -77,7 +78,7 @@ function collectDebtAccounts() {
   const accounts = [];
   for (const row of rows) {
     const name = row.querySelector('.debt-acct-name').value.trim();
-    const balance = parseFloat(row.querySelector('.debt-acct-balance').value);
+    const balance = Math.round(parseFloat(row.querySelector('.debt-acct-balance').value));
     const id = row.dataset.accountId;
     if (name && Number.isFinite(balance) && balance > 0) {
       accounts.push({ id, name, balance });
@@ -93,7 +94,7 @@ function collectSavedDebtUpdates() {
     const name = row.dataset.name;
     const id = row.dataset.accountId;
     const input = row.querySelector('.saved-debt-balance-input');
-    const balance = parseFloat(input.value);
+    const balance = Math.round(parseFloat(input.value));
     if (name && Number.isFinite(balance) && balance >= 0) {
       accounts.push({ id, name, balance });
     }
@@ -144,7 +145,7 @@ function renderSavedDebtsList(debtLines) {
       <div class="saved-debt-name"></div>
       <div class="saved-debt-balance">
         <span class="saved-debt-dollar">$</span>
-        <input type="number" class="saved-debt-balance-input" step="0.01" min="0" value="${formatBalanceForInput(acct.balance)}" />
+        <input type="number" class="saved-debt-balance-input" step="any" min="0" inputmode="numeric" value="${formatBalanceForInput(acct.balance)}" />
       </div>
       <button type="button" class="saved-debt-remove" title="Remove">&times;</button>
     `;
@@ -208,7 +209,7 @@ function updateSavedTotal() {
   let total = 0;
   for (const row of rows) {
     const input = row.querySelector('.saved-debt-balance-input');
-    const val = parseFloat(input.value);
+    const val = Math.round(parseFloat(input.value));
     if (Number.isFinite(val) && val >= 0) total += val;
   }
   totalEl.textContent = fmtDollar(total);
@@ -391,23 +392,24 @@ function buildPaydownSummary(accounts) {
 
   for (const row of rows) {
     const name = row.dataset.name;
-    const prev = parseFloat(row.dataset.prevBalance);
+    const prev = Math.round(parseFloat(row.dataset.prevBalance));
     const input = row.querySelector('.saved-debt-balance-input');
-    const curr = parseFloat(input.value);
+    const curr = Math.round(parseFloat(input.value));
     if (!Number.isFinite(prev) || !Number.isFinite(curr)) continue;
     const delta = prev - curr;
-    if (Math.abs(delta) >= 0.01) {
+    if (Math.abs(delta) >= 1) {
       changes.push({ name, prev, curr, delta });
       if (delta > 0) totalPaid += delta;
     }
   }
 
-  // Check for removed debts using snapshot captured at render time
+  // Check for removed debts using snapshot captured at render time. A removed
+  // account is listed for confirmation but is NOT counted as paid down — the
+  // user didn't pay it, they stopped tracking it (matches cumulative metrics).
   const currentIds = new Set(accounts.map(a => a.id));
   for (const orig of _originalDebtAccounts) {
     if (!currentIds.has(orig.id)) {
-      changes.push({ name: orig.name, prev: orig.balance, curr: 0, delta: orig.balance, removed: true });
-      totalPaid += orig.balance;
+      changes.push({ name: orig.name, prev: Math.round(orig.balance), curr: 0, delta: Math.round(orig.balance), removed: true });
     }
   }
 

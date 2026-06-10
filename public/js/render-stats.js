@@ -73,7 +73,17 @@ export function fillThisTurnPanel(stats) {
 
   listEl.textContent = '';
   const { accountLines, ndVal, pdVal } = lastPullAccountRowsFromStats(stats);
-  if (accountLines.length === 0 && ndVal === 0 && pdVal === 0) return;
+  if (accountLines.length === 0 && ndVal === 0 && pdVal === 0) {
+    // Nothing countable this turn (e.g. the only change was removing an account,
+    // which is not a paydown). Reset to neutral rather than leaving a stale
+    // number from a previous turn.
+    if (netEl) { netEl.textContent = '—'; netEl.classList.remove('neg', 'pos'); }
+    const labelEl = document.getElementById('this-turn-net-label');
+    if (labelEl) labelEl.textContent = 'Net this turn';
+    const sessionCard = listEl.closest('.section-panel') || document.getElementById('session-card');
+    if (sessionCard) sessionCard.classList.remove('session-card--good', 'session-card--bad');
+    return;
+  }
 
   if (accountLines.length > 0) {
     for (const r of accountLines) {

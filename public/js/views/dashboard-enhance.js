@@ -119,9 +119,15 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   const dailyTarget = document.getElementById('stat-daily-target');
   if (dailyTarget) {
     if (nextTier && nextTier.gapDollars > 0) {
-      dailyTarget.textContent = '$' + Math.ceil(Number(nextTier.gapDollars) / 30).toLocaleString();
+      const gap = Math.round(Number(nextTier.gapDollars));
+      const per = Math.ceil(Number(nextTier.gapDollars) / 30);
+      dailyTarget.textContent = '$' + per.toLocaleString();
+      // Make the basis explainable \u2014 otherwise "$223" can't be derived from
+      // anything else on screen. (= escape gap \u00f7 30 days.)
+      dailyTarget.title = `About $${per.toLocaleString()}/day clears the $${gap.toLocaleString()} gap to the next stage in roughly a month.`;
     } else {
       dailyTarget.textContent = '\u2014';
+      dailyTarget.removeAttribute('title');
     }
   }
 
@@ -176,7 +182,11 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     if (trophySection) trophySection.hidden = paid <= 0.005;
     cupEl.textContent = '$' + Math.round(paid).toLocaleString();
     if (pctEl && baseline > 0) {
-      pctEl.innerHTML = ((paid / baseline) * 100).toFixed(1) + '% paid down<br><span style="color:var(--text-3)">\$' + Math.round(baseline).toLocaleString() + ' baseline</span>';
+      // Show only the baseline reference. We deliberately omit a "% paid down"
+      // here: Total Cleared is cumulative (never decreases), so its percentage
+      // would contradict the stage badge and journey bar — which track current
+      // net position — the moment any new debt is added. One % on screen, not two.
+      pctEl.textContent = 'of $' + Math.round(baseline).toLocaleString() + ' starting balance';
     }
   }
 
@@ -194,6 +204,9 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       lockedCard.hidden = false;
     } else {
       lockedCard.hidden = true;
+      // Clear the stale gap so a hidden card can never resurface an old value.
+      const lockedGap = document.getElementById('locked-gap-amount');
+      if (lockedGap) lockedGap.textContent = '';
     }
   }
 
