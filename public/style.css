@@ -2191,6 +2191,21 @@ body[data-setup-mode="first"] .setup-welcome {
   outline: none;
   border-color: var(--gold, #d4af37);
 }
+/* Hide the native number-input spin buttons on the balance fields. They eat
+   ~16px on the right (which clipped long values like "1234567.8…") and add
+   nothing — entry is whole-dollar and rounded on save. */
+.saved-debt-balance-input,
+.debt-account-entry-row .debt-acct-balance {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.saved-debt-balance-input::-webkit-outer-spin-button,
+.saved-debt-balance-input::-webkit-inner-spin-button,
+.debt-account-entry-row .debt-acct-balance::-webkit-outer-spin-button,
+.debt-account-entry-row .debt-acct-balance::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 .saved-debt-remove {
   background: none;
   border: none;
@@ -2496,7 +2511,7 @@ body[data-setup-mode="first"] .setup-welcome {
 /* ── Mobile polish ── */
 @media (max-width: 480px) {
   .saved-debt-row { gap: 8px; }
-  .saved-debt-balance-input { width: 90px; font-size: 14px; padding: 6px 8px; }
+  .saved-debt-balance-input { width: 108px; font-size: 14px; padding: 6px 8px; }
   .saved-debt-name { font-size: 14px; }
   /* Confirm-changes dialog — on a phone the default (small buttons floated to
      the right of a wide card) leaves a big awkward gap and reads as unfinished.
