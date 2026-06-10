@@ -2388,6 +2388,23 @@ body[data-setup-mode="first"] .setup-welcome {
   .steward-ai-overlay { animation: none; }
 }
 
+/* ── Reduced motion (global) ─────────────────────────────────────────────────
+   Honor the OS "reduce motion" setting across the whole app. The Steward mascot
+   alone runs ~60 perpetual decorative loops (idle sway, blink, coins, sparkles,
+   auras, the car, the dog); none of it is essential. Collapse every keyframe
+   animation to a single instant pass so each lands on its resting frame and
+   then holds still. The !important is needed to beat the mascot's injected
+   per-element animation shorthands. Transitions are intentionally left intact so
+   functional state changes (progress fills, theme swap, hovers) still read —
+   just without looping motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+  }
+}
+
 /* ── Steward AI: non-blocking toast variant (routine coaching) ── */
 /* Routine modes dock in the bottom-right corner instead of dimming and
    trapping the whole screen. The overlay itself ignores pointer events so

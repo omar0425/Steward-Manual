@@ -517,6 +517,12 @@ export function mountHeroCharacter(stateId) {
   if (card) card.dataset.state = stateId;
 
   const mount = document.getElementById('hero-steward-mount');
+  if (!mount) return;
+  // Re-mounting rebuilds a heavy SVG and restarts all ~60 mascot animations
+  // from frame 0 — a visible reset on every dashboard refresh. Skip it when the
+  // stage hasn't actually changed; the existing character keeps animating.
+  if (mount.dataset.mountedState === stateId && mount.firstElementChild) return;
+  mount.dataset.mountedState = stateId;
   mount.innerHTML = '';
   heroWrap = buildSteward(stateId);
 
