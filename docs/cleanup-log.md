@@ -405,14 +405,67 @@ standard `ok: false` field.
 - **Dead DOM marker removed** (`main.js`) — `data-steward-build`
   was written but never read by CSS, JS, or tests.
 
-### Known no-op (left in place, flagged for product decision)
+### Known no-op (resolved)
 
-- `render-stats.js` toggles `is-negative` on the net-worth stat, but
+- `render-stats.js` toggled `is-negative` on the net-worth stat, but
   its only CSS rule required the retired `.ps-value` class — the
-  toggle has had no visual effect for some time. If the rose-colored
-  negative net worth is still wanted, it needs a fresh rule.
+  toggle had no visual effect for some time. Resolved by removing the
+  toggle: `#stat-net-worth` only exists as a hidden `.stat-sentinel`
+  span (play.js), so no styling could ever render on it.
 
 Suite: 69/69 passing before and after.
+
+---
+
+## Batch 6 — UX polish from a 100-user exploratory sweep, June 2026
+
+Nine changes surfaced by driving 100 simulated users (all 10 tiers, debt
+$47–$1.25M, 1–20 accounts, unicode/100-char/XSS names, 6 viewport/theme
+combos) through the API + Chromium. No backend behavior change except one
+new config endpoint. Verified by a 19-assertion targeted Playwright pass
+plus the existing 70 unit / 30 e2e suites.
+
+1. **Guided tour now fires after Start Climb** (`manual-entry.js`) — the
+   soft-refresh path into the dashboard never offered the first-visit
+   tour (boot.js only offers it on a full page load), so new users met
+   it on their *second* visit. Now offered once the post-climb dashboard
+   renders.
+2. **Long account names ellipsize** (`style.css`, `render-debts.js`,
+   `render-stats.js`, `manual-entry.js`) — a 100-char name caused
+   horizontal page overflow and stretched every row it touched. Added
+   `min-width:0` + `text-overflow:ellipsis` to the three row-name
+   classes, with the full name in a `title` tooltip.
+3. **Long lists collapse** (`render-stats.js`, `render-debts.js`,
+   `style.css`) — This Turn now leads with the top 5 movers behind a
+   "Show all N" expander; Debt Accounts collapses past 8 rows. Both
+   expand for the session.
+4. **Commitment promise persists server-side** (`routes/api.js`, `db.js`,
+   `commitment.js`, `boot.js`) — the "I'm in" flag was localStorage-only,
+   so a returning user on a new device was re-asked mid-climb. New
+   `GET/POST /api/config/promise` mirrors it per-user; boot checks the
+   server before showing the gate. Cleared by reset-game.
+5. **Fonts self-hosted** (`public/fonts/`, `fonts.css`, all HTML) —
+   dropped the `fonts.googleapis.com` dependency (128 KB of latin woff2,
+   OFL). App now renders identically offline with no third-party
+   requests.
+6. **Dead `is-negative` toggle removed** — see Batch 5 note; finished
+   here.
+7. **Payoff projection on the debt chart** (`networth-chart.js`,
+   `play.js`, `style.css`) — a dashed gold line extends from the latest
+   point toward debt-zero at the recent daily pace, with a "debt-free
+   around <Month Year>" caption and a payoff x-axis tick. Only when the
+   trend is genuinely downward and the payoff lands within 30 years.
+8. **Two-column dashboard above 1500px** (`style.css`) — ultrawide was a
+   single centered column; now a 7/5 grid places the entry form beside
+   the chart and This Turn. Setup view stays single-column.
+9. **Paid-off celebration** (`render-debts.js`, `render-progress.js`,
+   `style.css`) — a one-shot gold flash + badge pop when an account hits
+   $0, hooked to the `account-paid-off` milestone, honoring
+   `prefers-reduced-motion`. The renderer owns the animation via a short
+   time-window so the async debt-history rebuild can't wipe it mid-play.
+
+New test: `promise config: roundtrip, trimming, and reset-game clears it`
+in `test/api-snapshot.test.js`. Suite: 70/70 unit, 30/30 e2e.
 
 ---
 

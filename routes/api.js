@@ -704,6 +704,40 @@ router.get('/debt-history', (req, res) => {
   res.json({ byAccount });
 });
 
+// ── Commitment promise (cross-device) ─────────────────────────────────────────
+//
+// The "I'm in" commitment was localStorage-only, so a returning user on a new
+// device/browser was re-asked to commit mid-climb. Persist it per-user so the
+// gate only ever shows once. Cleared by reset-game via GAME_STATE_KEYS.
+
+const PROMISE_AT_KEY = 'promise_made_at';
+const PROMISE_TEXT_KEY = 'promise_text';
+const PROMISE_TEXT_MAX = 280;
+
+router.get('/config/promise', (req, res) => {
+  const madeAt = getConfig(PROMISE_AT_KEY) || null;
+  res.json({ ok: true, made: !!madeAt, madeAt, text: getConfig(PROMISE_TEXT_KEY) || '' });
+});
+
+router.post('/config/promise', express.json(), (req, res) => {
+  const { text } = req.body || {};
+  if (text != null && typeof text !== 'string') {
+    return res.status(400).json({ ok: false, error: 'text must be a string' });
+  }
+  if (!getConfig(PROMISE_AT_KEY)) {
+    setConfig(PROMISE_AT_KEY, new Date().toISOString());
+  }
+  if (text != null) {
+    setConfig(PROMISE_TEXT_KEY, text.trim().slice(0, PROMISE_TEXT_MAX));
+  }
+  res.json({
+    ok: true,
+    made: true,
+    madeAt: getConfig(PROMISE_AT_KEY),
+    text: getConfig(PROMISE_TEXT_KEY) || '',
+  });
+});
+
 // ── GET /api/config/notifications-sent ────────────────────────────────────────
 
 const NOTIFICATIONS_SENT_KEY = 'notifications_sent';

@@ -5,7 +5,7 @@ import { readSessionMeta, writeSessionMeta, startPlaytimeTracking } from './sess
 import { render, setDebtSortMode, refreshDebtPanelData } from './render.js';
 import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';
-import { readPromiseMadeFlag, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor } from './commitment.js';
+import { readPromiseMadeFlag, hydratePromiseFromServer, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor } from './commitment.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
 import { maybeShowStewardAiComment } from './steward-ai.js';
 
@@ -377,9 +377,23 @@ export function initDashboardBoot() {
     initStartGameGate();
     return;
   }
-  // Brand-new user: after they confirm commitment, skip the start-session
-  // screen and go straight to LOADING + load().
-  openCommitmentGate(() => startSessionAndLoad('first-run: skip start gate'));
+  // No local flag — either a brand-new user, or a returning user on a new
+  // device/browser (the promise used to live only in localStorage). Check the
+  // server copy before re-asking someone mid-climb to commit again.
+  void (async () => {
+    try {
+      const res = await fetch(stewardApiUrl('/api/config/promise'));
+      const data = await res.json();
+      if (data && data.made) {
+        hydratePromiseFromServer(data);
+        initStartGameGate();
+        return;
+      }
+    } catch (_) { /* offline / error — fall through to the gate */ }
+    // Brand-new user: after they confirm commitment, skip the start-session
+    // screen and go straight to LOADING + load().
+    openCommitmentGate(() => startSessionAndLoad('first-run: skip start gate'));
+  })();
 }
 
 async function load(options = {}) {

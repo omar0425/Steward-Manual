@@ -28,6 +28,34 @@ function persistPromiseAck(customText) {
   } catch (err) {
     console.warn('[commitment] could not persist', err);
   }
+  syncPromiseToServer(customText);
+}
+
+/* Mirror the promise server-side so a new device/browser doesn't re-ask a
+   mid-climb user to commit. Fire-and-forget — localStorage stays the fast path. */
+function syncPromiseToServer(text) {
+  try {
+    void fetch(stewardApiUrl('/api/config/promise'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(text != null ? { text: String(text) } : {}),
+    });
+  } catch (_) { /* offline — local copy still works */ }
+}
+
+/* Server says the promise was already made (e.g. on another device) — copy it
+   into localStorage so every later boot takes the fast local path. */
+export function hydratePromiseFromServer(data) {
+  try {
+    localStorage.setItem(STEWARD_PROMISE_MADE_KEY, 'true');
+    if (data && data.madeAt) localStorage.setItem(STEWARD_PROMISE_AT_KEY, data.madeAt);
+    const t = (data && data.text || '').trim();
+    if (t && !localStorage.getItem(STEWARD_PROMISE_TEXT_KEY)) {
+      localStorage.setItem(STEWARD_PROMISE_TEXT_KEY, t);
+    }
+  } catch (err) {
+    console.warn('[commitment] could not hydrate', err);
+  }
 }
 
 export function openCommitmentGate(done) {
@@ -210,6 +238,7 @@ export function initCommitmentReasonEditor() {
     } catch (err) {
       console.warn('[commitment] could not save reason', err);
     }
+    syncPromiseToServer(text);
   }
   function refreshDisplay() {
     const r = readReason();

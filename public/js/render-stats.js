@@ -9,6 +9,10 @@ import {
 } from './format.js';
 const VNEXT_HERO_TURN_ACCOUNTS_TOP = 3;
 
+/* This Turn panel: rows shown before the "Show all" expander kicks in. */
+const THIS_TURN_TOP_MOVERS = 5;
+let _thisTurnExpanded = false;
+
 /** Top account deltas under "Your climb" — vNext only. */
 export function fillVnextHeroTurnAccounts(stats) {
   const root = document.getElementById('dashboard-vnext') || document.getElementById('dashboard');
@@ -86,13 +90,14 @@ export function fillThisTurnPanel(stats) {
   }
 
   if (accountLines.length > 0) {
-    for (const r of accountLines) {
+    const buildRow = (r) => {
       const row = document.createElement('div');
       row.className = 'turn-row';
 
       const name = document.createElement('span');
       name.className = 'turn-row-name';
       name.textContent = r.name || 'Account';
+      name.title = r.name || 'Account';
 
       const delta = document.createElement('span');
       const d = Number(r.delta) || 0;
@@ -101,7 +106,30 @@ export function fillThisTurnPanel(stats) {
 
       row.appendChild(name);
       row.appendChild(delta);
-      listEl.appendChild(row);
+      return row;
+    };
+
+    // Many accounts → a wall of near-identical rows. Lead with the biggest
+    // movers and tuck the rest behind an expander so the panel stays scannable.
+    const sorted = accountLines
+      .slice()
+      .sort((a, b) => Math.abs(Number(b.delta) || 0) - Math.abs(Number(a.delta) || 0));
+    const visible = _thisTurnExpanded ? sorted : sorted.slice(0, THIS_TURN_TOP_MOVERS);
+    for (const r of visible) listEl.appendChild(buildRow(r));
+
+    const hiddenCount = sorted.length - visible.length;
+    if (hiddenCount > 0 || (_thisTurnExpanded && sorted.length > THIS_TURN_TOP_MOVERS)) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'turn-show-all-btn';
+      toggle.textContent = hiddenCount > 0
+        ? `Show all ${sorted.length} accounts`
+        : 'Show top movers only';
+      toggle.addEventListener('click', () => {
+        _thisTurnExpanded = !_thisTurnExpanded;
+        fillThisTurnPanel(stats);
+      });
+      listEl.appendChild(toggle);
     }
   } else {
     const rollups = [];
@@ -241,7 +269,6 @@ export function renderStatsBlock({
   const netWorthStat = document.getElementById('stat-net-worth');
   if (netWorthStat) {
     netWorthStat.textContent = netWorthText;
-    netWorthStat.classList.toggle('is-negative', stats.netWorth < 0);
   }
 
   const statAssetsEl = document.getElementById('stat-assets');

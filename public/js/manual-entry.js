@@ -2,6 +2,7 @@
 
 import { stewardApiUrl, readJsonRes } from './api.js';
 import { manualRefresh } from './boot.js';
+import { offerFirstVisitDashboardOnboarding } from './onboarding.js';
 
 let _debtAccountCounter = 0;
 let _originalDebtAccounts = [];
@@ -149,7 +150,9 @@ function renderSavedDebtsList(debtLines) {
       </div>
       <button type="button" class="saved-debt-remove" title="Remove">&times;</button>
     `;
-    row.querySelector('.saved-debt-name').textContent = acct.name;
+    const savedNameEl = row.querySelector('.saved-debt-name');
+    savedNameEl.textContent = acct.name;
+    savedNameEl.title = acct.name;
     row.querySelector('.saved-debt-remove').setAttribute('aria-label', `Remove ${acct.name}`);
 
     // Live total update on input
@@ -706,6 +709,11 @@ export function initManualEntryForm() {
         // baseline locked, so the dashboard re-renders into play mode
         // without the start-game gate flashing back in mid-transition.
         await manualRefresh();
+        // First-visit tour. Boot only offers it on a full-page load, and the
+        // setup view has no dashboard root yet — so without this, a brand-new
+        // user's first dashboard session never gets the tour (it would
+        // surprise them on their NEXT visit instead). Same 480ms grace as boot.
+        window.setTimeout(() => offerFirstVisitDashboardOnboarding(), 480);
       } catch (err) {
         if (formMsg) formMsg.textContent = err && err.message ? err.message : 'Could not start climb.';
         startBtn.disabled = false;

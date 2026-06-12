@@ -244,6 +244,41 @@ h1, h2, h3 {
   display: flex; flex-direction: column; gap: 16px;
 }
 
+/* ── Ultrawide: two-column dashboard ──────────────────────────────────────
+   Above 1500px the single column wastes half the screen. Areas are assigned
+   by child order, which is fixed by mountPlayShell() in views/play.js:
+   1 hero · 2 entry · 3 chart · 4 This Turn · 5 debt accounts ·
+   6 stage progress · 7 trophy · 8 data strip · 9 danger zone.
+   Setup view (body[data-setup-mode]) keeps the single column — only the
+   entry panel is visible there and a grid would leave the right half empty. */
+@media (min-width: 1500px) {
+  /* Match the id-specificity of the `#dashboard { display: flex }` rule below
+     so the grid wins. Only once the app is ready and not in setup view. */
+  body[data-app-mode="ready"]:not([data-setup-mode]) #dashboard {
+    max-width: 1480px;
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-areas:
+      "hero   hero"
+      "entry  chart"
+      "entry  session"
+      "debts  stage"
+      "debts  trophy"
+      "danger strip";
+    column-gap: 28px;
+    align-items: start;
+  }
+  body:not([data-setup-mode]) #dashboard > :nth-child(1) { grid-area: hero; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(2) { grid-area: entry; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(3) { grid-area: chart; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(4) { grid-area: session; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(5) { grid-area: debts; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(6) { grid-area: stage; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(7) { grid-area: trophy; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(8) { grid-area: strip; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(9) { grid-area: danger; }
+}
+
 /* ── Section panel — base for all dashboard cards ── */
 .section-panel {
   background: var(--surface);
@@ -982,8 +1017,62 @@ board-liquidity-pill
 
 .turn-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .turn-row:last-child { border-bottom: none; }
-.turn-row-name { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); }
+.turn-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); }
+
+/* Expander shared by This Turn and Debt Accounts long-list collapse */
+.turn-show-all-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 140ms, border-color 140ms;
+}
+.turn-show-all-btn:hover { color: var(--gold); border-color: var(--gold); }
+
+/* Payoff projection caption under the debt chart */
+.chart-projection {
+  margin: 4px 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--gold-2, var(--gold));
+}
+.chart-projection[hidden] { display: none; }
+.chart-x-label--payoff { color: var(--gold-2, var(--gold)); }
+
+/* One-shot celebration on a freshly paid-off Debt Accounts row */
+.debt-row--celebrate {
+  border-radius: 6px;
+  animation: paid-off-flash 1.4s ease-out 2;
+}
+.debt-row--celebrate .dr-paid-badge {
+  animation: paid-off-badge-pop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+}
+@keyframes paid-off-flash {
+  0%   { background: transparent; }
+  30%  { background: rgba(200, 168, 76, 0.16); }
+  100% { background: transparent; }
+}
+@keyframes paid-off-badge-pop {
+  0%   { transform: scale(0.6); }
+  60%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .debt-row--celebrate,
+  .debt-row--celebrate .dr-paid-badge { animation: none; }
+}
 .turn-net-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+.turn-row-delta { flex-shrink: 0; }
 .turn-row-delta.neg { color: var(--emerald); }
 .turn-row-delta.pos { color: var(--rose); }
 
@@ -1867,6 +1956,10 @@ body[data-setup-mode="first"] .setup-welcome {
   font-weight: 500;
   color: var(--text);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .saved-debt-balance {
   display: flex;
@@ -1968,7 +2061,12 @@ body[data-setup-mode="first"] .setup-welcome {
 .paydown-name {
   font-weight: 500;
   color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.paydown-detail { flex-shrink: 0; }
 .paydown-detail {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;

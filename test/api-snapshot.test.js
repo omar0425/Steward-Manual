@@ -461,3 +461,47 @@ test('GET /api/status: monthsEstimate stays null until at least a day of history
     assert.equal(status.nextTier.monthsEstimate, null);
   });
 });
+
+test('promise config: roundtrip, trimming, and reset-game clears it', async () => {
+  await withApp(async (baseUrl) => {
+    // Fresh user: not made.
+    let res = await fetch(`${baseUrl}/api/config/promise`);
+    assert.equal(res.status, 200);
+    let body = await res.json();
+    assert.equal(body.made, false);
+    assert.equal(body.madeAt, null);
+    assert.equal(body.text, '');
+
+    // Make the promise with a reason (padded — server trims).
+    res = await postJson(baseUrl, '/api/config/promise', { text: '  for my kids  ' });
+    assert.equal(res.status, 200);
+    body = await res.json();
+    assert.equal(body.made, true);
+    assert.ok(body.madeAt);
+    assert.equal(body.text, 'for my kids');
+    const firstMadeAt = body.madeAt;
+
+    // Editing the reason later must not move the original madeAt timestamp.
+    res = await postJson(baseUrl, '/api/config/promise', { text: 'new reason' });
+    body = await res.json();
+    assert.equal(body.madeAt, firstMadeAt);
+    assert.equal(body.text, 'new reason');
+
+    // Non-string text rejected.
+    res = await postJson(baseUrl, '/api/config/promise', { text: 42 });
+    assert.equal(res.status, 400);
+
+    // Long text capped at 280 chars.
+    res = await postJson(baseUrl, '/api/config/promise', { text: 'x'.repeat(500) });
+    body = await res.json();
+    assert.equal(body.text.length, 280);
+
+    // Clear game data wipes the promise (matches resetPlayGame clearing localStorage).
+    res = await postJson(baseUrl, '/api/reset-game', { confirm: true });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/config/promise`);
+    body = await res.json();
+    assert.equal(body.made, false);
+    assert.equal(body.text, '');
+  });
+});

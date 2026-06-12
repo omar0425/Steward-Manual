@@ -252,9 +252,12 @@ function buildDebtReductionChart() {
         </defs>
         <path id="nw-area" d="" fill="url(#nw-grad)"/>
         <path id="nw-line" d="" fill="none" stroke="#14a469" stroke-width="2" stroke-linecap="round"/>
+        <path id="nw-projection" d="" fill="none" stroke="#c8a84c" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 5" opacity="0.85"/>
+        <circle id="nw-projection-dot" r="2.5" fill="#c8a84c" hidden/>
       </svg>
     </div>
     <div class="chart-x-labels" id="chart-x-labels"></div>
+    <p class="chart-projection" id="chart-projection-label" hidden></p>
     <p class="chart-memo">Latest 60 snapshots · line down = paydown · line up = balances grew</p>
   `;
   return section;

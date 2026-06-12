@@ -40,11 +40,33 @@ export function renderNetWorthChart(snapshots) {
   // shows the inline empty-state in that case).
 
   const values = pts.map(p => Number(p.debtRemaining));
-  const minV = Math.min(...values);
+
+  // ── Payoff projection ──────────────────────────────────────────────────
+  // Average daily paydown across the window → date the line crosses $0.
+  // Only when the trend is genuinely down, the window spans at least a day,
+  // and the payoff lands within a sane horizon (30y). When projecting, the
+  // y-domain floors at 0 so the dashed line has somewhere to land.
+  const latest = values[values.length - 1];
+  const firstDate = new Date(pts[0].date);
+  const lastDate = new Date(pts[pts.length - 1].date);
+  const historyDays = (lastDate - firstDate) / 86400000;
+  const dailyPace = historyDays > 0 ? (values[0] - latest) / historyDays : 0;
+  const daysToZero = dailyPace > 0 ? latest / dailyPace : Infinity;
+  const projecting =
+    historyDays >= 1 && dailyPace > 0 && latest > 0 && daysToZero <= 365 * 30;
+
+  /* Projection owns the right 30% of the plot, drawn at the same days-per-
+     pixel scale as the history. A payoff further out than that still gets the
+     dated label; the dashed line just exits the right edge mid-descent. */
+  const PROJ_FRAC = 0.3;
+  const historyW = projecting ? plotW * (1 - PROJ_FRAC) : plotW;
+  const projDaysAtEdge = historyDays * (PROJ_FRAC / (1 - PROJ_FRAC));
+
+  const minV = projecting ? 0 : Math.min(...values);
   const maxV = Math.max(...values);
   const range = maxV - minV || 1;
 
-  function xPos(i) { return PX + (i / (pts.length - 1)) * plotW; }
+  function xPos(i) { return PX + (i / (pts.length - 1)) * historyW; }
   function yPos(v) { return PY_TOP + plotH - ((v - minV) / range) * plotH; }
 
   const coords = pts.map((p, i) => ({ x: xPos(i), y: yPos(Number(p.debtRemaining)) }));
@@ -65,9 +87,45 @@ export function renderNetWorthChart(snapshots) {
     ` L${coords[0].x.toFixed(1)},${PY_BOT} Z`;
   areaEl.setAttribute('d', areaD);
 
+  const projEl = document.getElementById('nw-projection');
+  const projDot = document.getElementById('nw-projection-dot');
+  const projLabel = document.getElementById('chart-projection-label');
+  if (projecting && projEl) {
+    let endX, endY, reachesZero;
+    if (daysToZero <= projDaysAtEdge) {
+      // Debt-free inside the drawn window — land the dash on the $0 baseline.
+      endX = last.x + (daysToZero / projDaysAtEdge) * (PX + plotW - last.x);
+      endY = PY_BOT;
+      reachesZero = true;
+    } else {
+      // Payoff is past the right edge — exit mid-descent at the same slope.
+      endX = PX + plotW;
+      endY = yPos(latest * (1 - projDaysAtEdge / daysToZero));
+      reachesZero = false;
+    }
+    projEl.setAttribute('d', `M${last.x.toFixed(1)},${last.y.toFixed(1)} L${endX.toFixed(1)},${endY.toFixed(1)}`);
+    if (projDot) {
+      projDot.hidden = !reachesZero;
+      if (reachesZero) {
+        projDot.setAttribute('cx', endX.toFixed(1));
+        projDot.setAttribute('cy', endY.toFixed(1));
+      }
+    }
+    if (projLabel) {
+      const payoff = new Date(lastDate.getTime() + daysToZero * 86400000);
+      const when = payoff.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      projLabel.textContent = `At this pace, debt-free around ${when}`;
+      projLabel.hidden = false;
+    }
+  } else {
+    if (projEl) projEl.setAttribute('d', '');
+    if (projDot) projDot.hidden = true;
+    if (projLabel) { projLabel.hidden = true; projLabel.textContent = ''; }
+  }
+
   if (xLabels) {
     xLabels.textContent = '';
-    const sampleCount = Math.min(pts.length, 5);
+    const sampleCount = Math.min(pts.length, projecting ? 4 : 5);
     for (let i = 0; i < sampleCount; i++) {
       const idx = sampleCount === 1 ? 0 : Math.round((i / (sampleCount - 1)) * (pts.length - 1));
       const snap = pts[idx];
@@ -75,6 +133,16 @@ export function renderNetWorthChart(snapshots) {
       const span = document.createElement('span');
       span.className = 'chart-x-label';
       span.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+      xLabels.appendChild(span);
+    }
+    if (projecting) {
+      // Date at the right edge of the projection segment (payoff date when it
+      // lands inside the window, otherwise the date the dash exits the chart).
+      const edgeDays = Math.min(daysToZero, projDaysAtEdge);
+      const edge = new Date(lastDate.getTime() + edgeDays * 86400000);
+      const span = document.createElement('span');
+      span.className = 'chart-x-label chart-x-label--payoff';
+      span.textContent = `${edge.getMonth() + 1}/${edge.getFullYear()}`;
       xLabels.appendChild(span);
     }
   }

@@ -414,6 +414,8 @@ function resetAllGameState() {
     'last_aggregate_debt_for_climb',
     'last_debt_sync_debug_snapshot_v1',
     'notifications_sent',
+    'promise_made_at',
+    'promise_text',
     'turn_start_at',
     'turn_start_balances',
   ];

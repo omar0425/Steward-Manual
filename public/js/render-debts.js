@@ -10,6 +10,26 @@ let _debtSortMode = (() => {
   try { return localStorage.getItem('steward-debt-sort') || 'balance'; } catch { return 'balance'; }
 })();
 
+/* Collapse the account list beyond this many rows; expanding lasts the session. */
+const DEBT_LIST_COLLAPSE_AT = 8;
+let _debtListExpanded = false;
+
+/* Paid-off celebration. The list rebuilds several times per view (initial
+   render, then again when the async debt-history fetch resolves), so a class
+   added once gets wiped almost immediately. Instead the renderer re-applies it
+   on every rebuild for a short window after the account is queued — the
+   animation simply replays, which reads as one continuous celebration. The
+   window self-expires so it fires only for the pull that paid the account off. */
+const CELEBRATE_WINDOW_MS = 2800;
+const _celebrateUntil = new Map(); // account name → timestamp the flash ends
+
+export function queuePaidOffCelebration(name) {
+  const wanted = String(name || '').trim();
+  if (!wanted || _celebrateUntil.has(wanted)) return;
+  _celebrateUntil.set(wanted, Date.now() + CELEBRATE_WINDOW_MS);
+  if (_lastDebtStats) fillDebtAccountsList(_lastDebtStats);
+}
+
 async function loadDebtPanelData(options = {}) {
   const rerender = options.rerender !== false;
   try {
@@ -321,6 +341,12 @@ export function fillDebtAccountsList(stats) {
     return Number.isFinite(b) && b > max ? b : max;
   }, 0);
 
+  // Long lists collapse to the largest balances; "Show all" expands for the
+  // session. Sorting already puts the heavy hitters first in either mode.
+  const totalCount = accounts.length;
+  const collapsed = !_debtListExpanded && totalCount > DEBT_LIST_COLLAPSE_AT;
+  if (collapsed) accounts = accounts.slice(0, DEBT_LIST_COLLAPSE_AT);
+
   for (const acct of accounts) {
     const balance = Number(acct.balance);
     if (!Number.isFinite(balance)) continue;
@@ -341,12 +367,24 @@ export function fillDebtAccountsList(stats) {
     const name = document.createElement('span');
     name.className = 'dr-name debt-row-name';
     name.textContent = acct.name || 'Account';
-    if (acct.paidOff === true || balance === 0) {
+    name.title = acct.name || 'Account';
+    const isPaidOff = acct.paidOff === true || balance === 0;
+    if (isPaidOff) {
       const badge = document.createElement('span');
       badge.className = 'dr-paid-badge';
       badge.textContent = 'PAID OFF';
       name.appendChild(document.createTextNode(' '));
       name.appendChild(badge);
+    }
+
+    // Celebration: re-applied at build time for the whole window so the async
+    // debt-history rebuild can't wipe it. Expired entries are pruned so the
+    // flash doesn't replay on later unrelated renders.
+    const acctName = String(acct.name || '').trim();
+    const until = _celebrateUntil.get(acctName);
+    if (isPaidOff && until != null) {
+      if (Date.now() < until) row.classList.add('debt-row--celebrate');
+      else _celebrateUntil.delete(acctName);
     }
 
     const aprEl = document.createElement('span');
@@ -386,6 +424,20 @@ export function fillDebtAccountsList(stats) {
     row.appendChild(deltaEl);
     row.appendChild(sparkWrap);
     listEl.appendChild(row);
+  }
+
+  if (totalCount > DEBT_LIST_COLLAPSE_AT) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'turn-show-all-btn';
+    toggle.textContent = collapsed
+      ? `Show all ${totalCount} accounts`
+      : `Show top ${DEBT_LIST_COLLAPSE_AT} only`;
+    toggle.addEventListener('click', () => {
+      _debtListExpanded = !_debtListExpanded;
+      fillDebtAccountsList(stats);
+    });
+    listEl.appendChild(toggle);
   }
 
   if (totalEl && stats.debtRemaining != null) {

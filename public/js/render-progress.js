@@ -8,12 +8,14 @@ import {
   paceQualitative, formatApproxDurationFromMonths, timeAgo,
 } from './format.js';
 import { TIER_FLOW, TIER_META } from './tiers.js';
+import { queuePaidOffCelebration } from './render-debts.js';
 
 function escapeText(s) {
   const d = document.createElement('span');
   d.textContent = String(s == null ? '' : s);
   return d.innerHTML;
 }
+
 
 function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
   if (debtDirEl) {
@@ -105,6 +107,7 @@ export function fillProgressNarrative({
           }
         } else if (m.type === 'account-paid-off') {
           row.innerHTML = `🎉 <strong>Paid off:</strong> ${escapeText(m.accountName || 'an account')}.`;
+          queuePaidOffCelebration(m.accountName);
         } else {
           rendered = false;
         }
