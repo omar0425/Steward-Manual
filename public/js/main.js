@@ -65,6 +65,21 @@ function initTheme() {
   });
 }
 
+/* ── App version chip ───────────────────────────────────────────── */
+/* /health carries the package.json version plus the deploy commit SHA when
+   hosted (Railway). Fire-and-forget — the chip just stays "—" offline. */
+function fillAppVersion() {
+  const elV = document.getElementById('app-version');
+  if (!elV) return;
+  fetch('/health')
+    .then((r) => r.json())
+    .then((h) => {
+      if (!h || !h.version) return;
+      elV.textContent = `v${h.version}${h.commit ? ` (${h.commit})` : ''}`;
+    })
+    .catch(() => { /* leave the placeholder */ });
+}
+
 /* ── Logout handler ─────────────────────────────────────────────── */
 function initLogout() {
   const btn = document.getElementById('nav-logout-btn');
@@ -232,6 +247,7 @@ async function init() {
     initTheme();
     initLogout();
     initEmailPrompt();
+    fillAppVersion();
     await loadCharacterTemplate();
 
     if (typeof window !== 'undefined') {

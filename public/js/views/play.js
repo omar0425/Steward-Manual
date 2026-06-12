@@ -414,6 +414,10 @@ function buildDataStrip() {
       <span class="data-chip-k">Freshness</span>
       <span class="data-chip-v fresh freshness-dot" id="freshness-badge">\u2014</span>
     </div>
+    <div class="data-chip" title="App version (and deploy commit when hosted) \u2014 confirms which build you are running.">
+      <span class="data-chip-k">Version</span>
+      <span class="data-chip-v" id="app-version">\u2014</span>
+    </div>
     <div class="data-strip-actions">
       <button class="refresh-btn" type="button" id="refresh-update-btn" onclick="document.getElementById('manual-entry-panel').scrollIntoView({behavior:'smooth'})">\u270e Update Numbers</button>
     </div>

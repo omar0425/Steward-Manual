@@ -160,8 +160,21 @@ app.use('/api', (req, res) => {
 });
 
 // ── Health (no auth) ──────────────────────────────────────────────────────────
+// version comes from package.json (bumped per release batch); commit is the
+// short deploy SHA when the platform provides one (Railway sets
+// RAILWAY_GIT_COMMIT_SHA). Together they identify exactly which build is live.
+const APP_VERSION = require('./package.json').version;
+const APP_COMMIT =
+  (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.STEWARD_COMMIT || '').slice(0, 7) || null;
+
 app.get('/health', (req, res) =>
-  res.json({ ok: true, uptime: process.uptime(), app: 'steward-manual' }),
+  res.json({
+    ok: true,
+    uptime: process.uptime(),
+    app: 'steward-manual',
+    version: APP_VERSION,
+    commit: APP_COMMIT,
+  }),
 );
 
 // ── HTML pages ────────────────────────────────────────────────────────────────
@@ -230,7 +243,7 @@ setInterval(() => {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   const base = `http://localhost:${PORT}`;
-  console.log(`\n  Steward (Manual) running at ${base}`);
+  console.log(`\n  Steward (Manual) v${APP_VERSION}${APP_COMMIT ? ` (${APP_COMMIT})` : ''} running at ${base}`);
   console.log(`  Dashboard:       ${base}/`);
   console.log(`  Login:           ${base}/login`);
   console.log(`  Tier gallery:    ${base}/showcase`);

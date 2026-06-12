@@ -531,7 +531,7 @@
 
       </div><!-- /login-card -->
 
-      <div class="login-footer">Private &mdash; home &amp; team use only</div>
+      <div class="login-footer">Private &mdash; home &amp; team use only<span id="login-version"></span></div>
 
     </div>
   </div>
@@ -875,6 +875,18 @@
           document.getElementById('google-register-section').classList.add('is-enabled');
         }
       } catch { /* Google OAuth not available */ }
+    })();
+
+    // ── App version in the footer (from /health) ─────────────────────
+    (async () => {
+      try {
+        const res = await fetch('/health');
+        const h = await res.json();
+        if (h && h.version) {
+          document.getElementById('login-version').textContent =
+            ` · v${h.version}${h.commit ? ` (${h.commit})` : ''}`;
+        }
+      } catch { /* footer stays plain */ }
     })();
 
     document.getElementById('google-login-btn').addEventListener('click', () => {
