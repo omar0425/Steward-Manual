@@ -505,3 +505,32 @@ test('promise config: roundtrip, trimming, and reset-game clears it', async () =
     assert.equal(body.text, '');
   });
 });
+
+test('GET /api/export: full user data with dated attachment filename', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 1000,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 4000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 3500 }],
+    });
+    assert.equal(res.status, 200);
+
+    res = await fetch(`${baseUrl}/api/export`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-disposition'), /^attachment; filename="steward-export-\d{4}-\d{2}-\d{2}\.json"$/);
+    const body = await res.json();
+    assert.equal(body.app, 'steward-manual');
+    assert.ok(body.exportedAt);
+    assert.ok(Array.isArray(body.snapshots) && body.snapshots.length >= 2);
+    assert.ok(Array.isArray(body.debtAccountHistory) && body.debtAccountHistory.length >= 1);
+    assert.equal(body.debtAccountBalances[0].accountId, 'visa');
+    assert.equal(typeof body.settings, 'object');
+    // Raw snapshot columns preserved (faithful record, not a UI projection).
+    assert.ok('debt_remaining' in body.snapshots[0]);
+  });
+});

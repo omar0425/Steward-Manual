@@ -419,6 +419,8 @@ function buildDataStrip() {
       <span class="data-chip-v" id="app-version">\u2014</span>
     </div>
     <div class="data-strip-actions">
+      <a class="refresh-btn" id="export-data-btn" href="/api/export" download
+         title="Download all your snapshots, account history, and settings as a JSON file \u2014 your personal backup.">\u2913 Export</a>
       <button class="refresh-btn" type="button" id="refresh-update-btn" onclick="document.getElementById('manual-entry-panel').scrollIntoView({behavior:'smooth'})">\u270e Update Numbers</button>
     </div>
     <p class="data-strip-msg" id="refresh-msg"></p>

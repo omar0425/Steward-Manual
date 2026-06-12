@@ -6,6 +6,7 @@ const router  = express.Router();
 const {
   latestSnapshot,
   recentSnapshots,
+  exportUserData,
   getConfig,
   withUser,
   setConfig,
@@ -920,6 +921,27 @@ router.get('/steward-ai/ledger', (req, res) => {
     console.error('[api] steward-ai/ledger', err);
     res.status(500).json({ ok: false, error: 'ledger_read_failed' });
   }
+});
+
+// ── GET /api/export ───────────────────────────────────────────────────────────
+//
+// Download everything the authenticated user owns as a dated JSON file —
+// their personal backup, independent of the server's own backup story.
+
+router.get('/export', (req, res) => {
+  const data = exportUserData();
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    app: 'steward-manual',
+    user: req.user
+      ? { username: req.user.username, email: req.user.email || null }
+      : null,
+    ...data,
+  };
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Disposition', `attachment; filename="steward-export-${stamp}.json"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify(payload, null, 2));
 });
 
 // ── GET /health ───────────────────────────────────────────────────────────────

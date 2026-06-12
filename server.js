@@ -66,6 +66,19 @@ if (
   process.exit(1);
 }
 
+// ── Production sanity check: password-reset email ─────────────────────────────
+// Non-fatal — the app works without it — but without RESEND_API_KEY the reset
+// link only prints to the server console, so a user who forgets their password
+// is effectively locked out unless someone reads the Railway logs for them.
+if (process.env.NODE_ENV === 'production' && !process.env.RESEND_API_KEY) {
+  console.warn(
+    '\n[Steward] WARNING: RESEND_API_KEY is not set in production.\n' +
+    '  Password-reset emails will NOT be delivered — reset links only print to\n' +
+    '  this log. Set RESEND_API_KEY (and EMAIL_FROM on a Resend-verified domain)\n' +
+    '  so users can recover their accounts themselves.\n',
+  );
+}
+
 // ── Middleware ─────────────────────────────────────────────────────────────────
 app.use(express.json());
 
@@ -157,6 +170,85 @@ app.use('/api', (req, res, next) => {
 app.use('/api', apiRouter);
 app.use('/api', (req, res) => {
   res.status(404).json({ ok: false, error: 'API route not found' });
+});
+
+// ── Backups ──────────────────────────────────────────────────────────────────
+//
+// Two layers:
+//  1. Daily on-volume rotation (production only): VACUUM INTO a dated copy in
+//     <db-dir>/backups/, keeping the last 7. Protects against corruption and
+//     bad deploys — NOT against losing the volume itself.
+//  2. GET /admin/backup, guarded by STEWARD_BACKUP_TOKEN: streams a consistent
+//     copy of the live DB. Pull it from another machine on a schedule (see
+//     scripts/pull-backup.ps1) for an off-site copy that survives volume loss.
+
+const { db: liveDb } = require('./db');
+const crypto = require('crypto');
+const BACKUP_TOKEN = process.env.STEWARD_BACKUP_TOKEN || '';
+const DB_DIR = path.dirname(
+  process.env.STEWARD_DB_PATH
+    ? path.resolve(process.env.STEWARD_DB_PATH)
+    : path.join(__dirname, 'steward.db'),
+);
+const BACKUP_DIR = path.join(DB_DIR, 'backups');
+const BACKUP_KEEP = 7;
+
+function vacuumInto(destPath) {
+  // VACUUM INTO writes a compact, consistent snapshot even mid-WAL. SQLite
+  // refuses to overwrite, so callers pass a fresh path. Single quotes in the
+  // path would break the literal — none of our generated paths contain them.
+  liveDb.exec(`VACUUM INTO '${destPath.replace(/'/g, "''")}'`);
+}
+
+function runDailyBackupRotation() {
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const today = new Date().toISOString().slice(0, 10);
+    const dest = path.join(BACKUP_DIR, `steward-${today}.db`);
+    if (!fs.existsSync(dest)) {
+      vacuumInto(dest);
+      console.log(`[backup] daily snapshot written: ${dest}`);
+    }
+    const old = fs.readdirSync(BACKUP_DIR)
+      .filter((f) => /^steward-\d{4}-\d{2}-\d{2}\.db$/.test(f))
+      .sort()
+      .slice(0, -BACKUP_KEEP);
+    for (const f of old) fs.unlinkSync(path.join(BACKUP_DIR, f));
+  } catch (err) {
+    console.error('[backup] daily rotation failed:', err && err.message);
+  }
+}
+
+if (process.env.NODE_ENV === 'production') {
+  runDailyBackupRotation();
+  const handle = setInterval(runDailyBackupRotation, 12 * 60 * 60 * 1000);
+  if (typeof handle.unref === 'function') handle.unref();
+}
+
+app.get('/admin/backup', (req, res) => {
+  if (!BACKUP_TOKEN) {
+    return res.status(501).json({ ok: false, error: 'Backups not configured. Set STEWARD_BACKUP_TOKEN.' });
+  }
+  const supplied =
+    (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() ||
+    String(req.query.token || '');
+  // Hash both sides so timingSafeEqual gets equal-length buffers.
+  const a = crypto.createHash('sha256').update(supplied).digest();
+  const b = crypto.createHash('sha256').update(BACKUP_TOKEN).digest();
+  if (!supplied || !crypto.timingSafeEqual(a, b)) {
+    return res.status(403).json({ ok: false, error: 'Invalid backup token.' });
+  }
+  const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+  const tmp = path.join(require('os').tmpdir(), `steward-backup-${stamp}-${process.pid}.db`);
+  try {
+    vacuumInto(tmp);
+  } catch (err) {
+    console.error('[backup] VACUUM INTO failed:', err && err.message);
+    return res.status(500).json({ ok: false, error: 'Backup failed.' });
+  }
+  res.download(tmp, `steward-backup-${stamp}.db`, () => {
+    fs.unlink(tmp, () => {});
+  });
 });
 
 // ── Health (no auth) ──────────────────────────────────────────────────────────

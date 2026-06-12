@@ -320,6 +320,31 @@ function getDebtAccountHistory(daysBack = 30) {
   return byAccount;
 }
 
+/**
+ * Everything the current user owns, for the "Export my data" download.
+ * Full history (no day window), raw column names preserved so the file is a
+ * faithful record rather than a UI projection.
+ */
+function exportUserData() {
+  const userId = currentUserId();
+  const snapshots = db.prepare(
+    `SELECT * FROM snapshots WHERE user_id = ? ORDER BY pulled_at ASC, id ASC`,
+  ).all(userId);
+  const debtAccountBalances = db.prepare(
+    `SELECT ynab_account_id AS accountId, last_balance AS balance, updated_at AS updatedAt
+     FROM debt_account_balances WHERE user_id = ? ORDER BY ynab_account_id`,
+  ).all(userId);
+  const debtAccountHistory = db.prepare(
+    `SELECT ynab_account_id AS accountId, recorded_at AS recordedAt, balance
+     FROM debt_account_history WHERE user_id = ? ORDER BY ynab_account_id, recorded_at ASC`,
+  ).all(userId);
+  const settings = {};
+  for (const row of db.prepare(`SELECT key, value FROM config WHERE user_id = ?`).all(userId)) {
+    settings[row.key] = row.value;
+  }
+  return { snapshots, debtAccountBalances, debtAccountHistory, settings };
+}
+
 // ── Game-start snapshot (write-once, seeded from first snapshot) ──────────────
 
 const GAME_START_DEBT_KEY = 'game_start_debt';
@@ -494,6 +519,7 @@ module.exports = {
   setConfigIfAbsent,
   appendDebtAccountHistory,
   getDebtAccountHistory,
+  exportUserData,
   getGameStart,
   initGameState,
   lastNonZeroFinancials,
