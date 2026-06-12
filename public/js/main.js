@@ -228,8 +228,6 @@ async function init() {
 
     mountPlayShell(root);
     document.title = 'Steward';
-    document.body.dataset.stewardBuild = 'remake';
-    console.info('Steward: consolidated build active');
 
     initTheme();
     initLogout();

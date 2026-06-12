@@ -5,7 +5,7 @@ A team-facing record of the cleanup batches that have shipped to `main`
 and runtime polish — small enough to land safely, big enough to be worth
 calling out for QA.
 
-Tests baseline: **60 / 61** passing. See "Known failure" at the bottom.
+Tests baseline: **69 / 69** passing (as of Batch 5, June 2026).
 
 ---
 
@@ -363,6 +363,56 @@ Run against `npm start` before merging:
    reset. Network response should include `deleted` and `preserved`
    counts. Interest rates should still be present after reset
    confirmation.
+
+---
+
+## Batch 5 — dead-code & duplication sweep, June 2026
+
+Behavior-preserving refactor across backend, services, and CSS. No new
+features, no API changes beyond two error responses gaining the
+standard `ok: false` field.
+
+### Backend / services
+
+- **`latestCombined()` removed** (`db.js`) — pure pass-through to
+  `latestSnapshot()`; callers in `routes/api.js` and
+  `services/stewardAiContext.js` now call `latestSnapshot()` directly.
+- **`debtProgress()` / `debtProgressWithHistory()` removed**
+  (`services/tiers.js`) — legacy merged-paydown math superseded by
+  `services/climbMetrics.js`; zero callers anywhere.
+- **`roundMoney` deduplicated** — `routes/api.js` now imports it from
+  `services/climbMetrics.js` instead of carrying its own copy.
+  (`tiers.js` keeps its local copy deliberately: it is a pure-math
+  module and importing climbMetrics would pull the DB into its
+  dependency tree.)
+- **JSON-config parsing consolidated** (`routes/api.js`) — four
+  hand-rolled `JSON.parse` + fallback blocks replaced with
+  `parseJsonArray()` / `parseJsonObject()` helpers.
+- **Error shape normalized** — `/api/config/interest-rates` and
+  `/api/config/notifications-sent` 400 responses now include
+  `ok: false` like every other endpoint.
+
+### Frontend
+
+- **~21 KB of unreachable CSS removed** (`public/style.css`, 191
+  selectors) — rules for retired components (breathing-room panel,
+  cashflow panel, health grid, narrative grid, old CSS-drawn
+  `.steward-card`/`.steward-mini` mascots, `tier-pill`, showcase
+  `sc-meta`, demo nav, and the retired `is-thin/steady/solid/strong`
+  stability scale). Every removed selector was machine-verified to
+  require a class that appears nowhere in HTML, JS (including
+  dynamically-built class names), JSON, or e2e specs.
+- **Dead DOM marker removed** (`main.js`) — `data-steward-build`
+  was written but never read by CSS, JS, or tests.
+
+### Known no-op (left in place, flagged for product decision)
+
+- `render-stats.js` toggles `is-negative` on the net-worth stat, but
+  its only CSS rule required the retired `.ps-value` class — the
+  toggle has had no visual effect for some time. If the rose-colored
+  negative net worth is still wanted, it needs a fresh rule.
+
+Suite: 69/69 passing before and after.
 
 ---
 

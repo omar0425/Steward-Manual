@@ -4,7 +4,6 @@ const express = require('express');
 const router  = express.Router();
 
 const {
-  latestCombined,
   latestSnapshot,
   recentSnapshots,
   getConfig,
@@ -37,6 +36,7 @@ const {
   setLastDebtSyncDebug,
   persistLastDebtSyncDebugSnapshot,
   perAccountDebtDeltaDisplayRows,
+  roundMoney,
 } = require('../services/climbMetrics');
 const {
   computeStability,
@@ -50,12 +50,29 @@ router.use((req, res, next) => {
   withUser(req.user && req.user.userId, next);
 });
 
+// Config values are stored as JSON strings; tolerate missing/malformed data.
+function parseJsonArray(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function parseJsonObject(raw) {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch { return {}; }
+}
+
 // ── GET /api/status ───────────────────────────────────────────────────────────
 
 router.get('/status', (req, res) => {
   const debugDebtTier =
     req.query.debugDebtTier === '1';
-  const snap = latestCombined();
+  const snap = latestSnapshot();
 
   if (!snap) {
     return res.json({
@@ -243,14 +260,7 @@ router.get('/status', (req, res) => {
   // accounts emit no celebration. Each milestone has a stable `id`; the
   // server filters out IDs already recorded in notifications_sent so the
   // banner shows once per event, not on every refresh.
-  const seenIdsRaw = getConfig('notifications_sent');
-  let seenIds = new Set();
-  if (seenIdsRaw) {
-    try {
-      const parsed = JSON.parse(seenIdsRaw);
-      if (Array.isArray(parsed)) seenIds = new Set(parsed);
-    } catch (_) { /* ignore malformed */ }
-  }
+  const seenIds = new Set(parseJsonArray(getConfig('notifications_sent')));
   const candidateMilestones = [];
   if (snapshots.length >= 2 && snapshots[0].tier && snapshots[1].tier
       && snapshots[0].tier !== snapshots[1].tier) {
@@ -377,11 +387,6 @@ router.get('/status', (req, res) => {
 //     { id: "car-loan", name: "Car Loan", balance: 12000 },
 //   ]
 // }
-
-function roundMoney(n) {
-  const x = Number(n);
-  return Number.isFinite(x) ? Math.round(x * 100) / 100 : 0;
-}
 
 function isNegativeFinite(n) {
   const x = Number(n);
@@ -672,13 +677,7 @@ router.get('/snapshots', (req, res) => {
 const INTEREST_RATES_KEY = 'interest_rates';
 
 router.get('/config/interest-rates', (req, res) => {
-  const raw = getConfig(INTEREST_RATES_KEY);
-  let rates = {};
-  if (raw) {
-    try { rates = JSON.parse(raw); } catch { rates = {}; }
-    if (typeof rates !== 'object' || Array.isArray(rates) || rates === null) rates = {};
-  }
-  res.json({ rates });
+  res.json({ rates: parseJsonObject(getConfig(INTEREST_RATES_KEY)) });
 });
 
 // ── POST /api/config/interest-rates ──────────────────────────────────────────
@@ -686,7 +685,7 @@ router.get('/config/interest-rates', (req, res) => {
 router.post('/config/interest-rates', express.json(), (req, res) => {
   const { rates } = req.body || {};
   if (typeof rates !== 'object' || rates === null || Array.isArray(rates)) {
-    return res.status(400).json({ error: 'rates (object) required' });
+    return res.status(400).json({ ok: false, error: 'rates (object) required' });
   }
   const clean = {};
   for (const [id, val] of Object.entries(rates)) {
@@ -710,12 +709,7 @@ router.get('/debt-history', (req, res) => {
 const NOTIFICATIONS_SENT_KEY = 'notifications_sent';
 
 router.get('/config/notifications-sent', (req, res) => {
-  const raw = getConfig(NOTIFICATIONS_SENT_KEY);
-  let sent = [];
-  if (raw) {
-    try { const parsed = JSON.parse(raw); sent = Array.isArray(parsed) ? parsed : []; } catch { sent = []; }
-  }
-  res.json({ sent });
+  res.json({ sent: parseJsonArray(getConfig(NOTIFICATIONS_SENT_KEY)) });
 });
 
 // ── POST /api/config/notifications-sent ───────────────────────────────────────
@@ -723,13 +717,9 @@ router.get('/config/notifications-sent', (req, res) => {
 router.post('/config/notifications-sent', express.json(), (req, res) => {
   const { milestone } = req.body || {};
   if (!milestone || typeof milestone !== 'string') {
-    return res.status(400).json({ error: 'milestone (string) required' });
+    return res.status(400).json({ ok: false, error: 'milestone (string) required' });
   }
-  const raw = getConfig(NOTIFICATIONS_SENT_KEY);
-  let sent = [];
-  if (raw) {
-    try { const parsed = JSON.parse(raw); sent = Array.isArray(parsed) ? parsed : []; } catch { sent = []; }
-  }
+  const sent = parseJsonArray(getConfig(NOTIFICATIONS_SENT_KEY));
   if (!sent.includes(milestone)) {
     sent.push(milestone);
     if (sent.length > 100) sent.splice(0, sent.length - 100);

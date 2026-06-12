@@ -505,79 +505,6 @@ function explainDebtTierBandProgress(debtRemaining, currentTier, snapshots = [],
   };
 }
 
-/**
- * Calculate debt progress stats.
- */
-function debtProgress(debtRemaining, debtStart) {
-  if (!debtStart || debtStart <= 0) {
-    return { debtStart: 0, debtPaid: 0, pctPaid: 0 };
-  }
-  const debtPaid = Math.max(0, debtStart - debtRemaining);
-  const pctPaid  = Math.min(100, (debtPaid / debtStart) * 100);
-  return { debtStart, debtPaid, pctPaid };
-}
-
-/**
- * Legacy merged paydown (snapshot peak / window). **Not used for primary “Paid down”** — see
- * `services/climbMetrics.js` + GET `/api/status` `cumulativePaidDown`.
- *
- * @param {number} debtRemaining
- * @param {number} debtStart
- * @param {Array<{ debt_remaining: number, pulled_at: string }>} snapshots  newest first
- */
-function debtProgressWithHistory(debtRemaining, debtStart, snapshots = []) {
-  const rem = Number(debtRemaining);
-  const startRaw = Number(debtStart);
-  const remN = Number.isFinite(rem) ? rem : 0;
-  const startN = Number.isFinite(startRaw) && startRaw > 0 ? startRaw : 0;
-
-  const base = debtProgress(remN, startN);
-
-  let maxSeen = remN;
-  if (startN > 0) maxSeen = Math.max(maxSeen, startN);
-  if (snapshots && snapshots.length) {
-    for (const s of snapshots) {
-      const d = Number(s.debt_remaining);
-      if (Number.isFinite(d)) maxSeen = Math.max(maxSeen, d);
-    }
-  }
-
-  const fromPeak = Math.max(0, maxSeen - remN);
-
-  let observedWindow = 0;
-  if (snapshots && snapshots.length >= 2) {
-    const newest = Number(snapshots[0].debt_remaining);
-    const oldest = Number(snapshots[snapshots.length - 1].debt_remaining);
-    if (Number.isFinite(newest) && Number.isFinite(oldest)) {
-      observedWindow = Math.max(0, oldest - newest);
-    }
-  }
-
-  const mergedPaid = Math.max(base.debtPaid, fromPeak, observedWindow);
-
-  if (mergedPaid === base.debtPaid) {
-    return base;
-  }
-
-  const denom =
-    base.debtStart > 0
-      ? base.debtStart
-      : maxSeen > 0
-        ? maxSeen
-        : null;
-
-  const pctPaid =
-    denom && denom > 0
-      ? Math.min(100, (mergedPaid / denom) * 100)
-      : base.pctPaid;
-
-  return {
-    debtStart: base.debtStart > 0 ? base.debtStart : maxSeen || base.debtStart,
-    debtPaid: mergedPaid,
-    pctPaid,
-  };
-}
-
 module.exports = {
   TIERS,
   ROCK_BOTTOM_BAND_BUFFER,
@@ -592,6 +519,4 @@ module.exports = {
   climbTierJourneyProgress,
   explainDebtTierBandProgress,
   roundDebtTierBandPct,
-  debtProgress,
-  debtProgressWithHistory,
 };

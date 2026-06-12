@@ -131,10 +131,13 @@ body {
   transition: background 300ms ease, color 300ms ease;
 }
 
-/* Transitions on key surfaces */
-.top-nav, .demo-nav, .section-panel, .hero-section, .data-strip,
-.stat-card, .health-cell, .commitment-inner, .nav-brand-icon,
-.tier-pill, .refresh-btn { transition: background 300ms ease, border-color 300ms ease, color 300ms ease; }
+.top-nav,
+.section-panel,
+.hero-section,
+.data-strip,
+.commitment-inner,
+.nav-brand-icon,
+.refresh-btn { transition: background 300ms ease, border-color 300ms ease, color 300ms ease; }
 
 /* Grain overlay */
 body::after {
@@ -148,23 +151,6 @@ h1, h2, h3 {
   font-family: 'Cormorant Garamond', Georgia, serif;
   letter-spacing: -0.01em; font-weight: 600;
 }
-
-/* ── DEMO NAV (remove in production) ── */
-.demo-nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-  display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 10px 20px;
-  background: var(--nav-bg); border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px);
-}
-.demo-btn {
-  padding: 6px 16px; border-radius: 999px; border: 1px solid var(--border-2);
-  background: transparent; color: var(--text-2);
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;
-  cursor: pointer; letter-spacing: 0.08em; transition: all 140ms ease;
-}
-.demo-btn:hover { background: var(--surface); color: var(--text); }
-.demo-btn.active { background: var(--gold-soft); border-color: var(--gold); color: var(--gold-2); }
 .screen { display: none; padding-top: 44px; }
 .screen.active { display: block; }
 
@@ -492,9 +478,6 @@ h1, h2, h3 {
   outline-offset: 2px;
 }
 
-/* render.js: hero-tier-label ← tier.label (classic shells); play uses .hero-escape-primary */
-.hero-title { font-family: 'Cormorant Garamond', serif; font-size: 48px; font-weight: 600; line-height: 0.95; letter-spacing: -0.02em; color: var(--text); margin-bottom: 14px; }
-
 /* Primary escape line — the most motivating number; directive-first */
 .hero-escape-primary {
   font-family: 'Cormorant Garamond', serif;
@@ -530,26 +513,11 @@ h1, h2, h3 {
   color: var(--text-3);
 }
 
-.hero-divider { height: 1px; background: var(--border-2); margin-bottom: 18px; }
-
 /* ══════════════════════════════════════════════════════════════════════
    🔴 P2+3 — DEBT REMAINING + NET WORTH
-   Existing IDs: stat-debt-remaining, stat-net-worth
-   ══════════════════════════════════════════════════════════════════════ */
-.hero-primary-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
-.primary-stat { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
-.ps-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
-.ps-value { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; color: var(--text); }
-.ps-value.is-negative, .ps-value.negative { color: var(--rose); }
-.ps-value.is-positive, .ps-value.positive { color: var(--emerald); }
+   Existing IDs: stat-debt-remaining { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
 
-/* ══════════════════════════════════════════════════════════════════════
-   🟢 P2 — JOURNEY PROGRESS BAR  (all 10 tiers)
-   NEW ID: journey-bar
-   render.js:
-     const pct = ((tierIndex + inBandPct/100) / 10) * 100;
-     document.querySelector('.jb-fill').style.width = pct + '%';
-     document.querySelectorAll('.jb-tick').forEach((t,i) => {
+i) => {
        t.classList.toggle('active', i === tierIndex);
        t.classList.toggle('past', i < tierIndex);
      });
@@ -562,12 +530,6 @@ h1, h2, h3 {
 }
 .journey-bar { height: 10px; background: rgba(255,255,255,0.13); border-radius: 5px; position: relative; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.07); }
 .jb-fill { position: absolute; top: 0; left: 0; height: 100%; background: linear-gradient(90deg, var(--state-progress-start), var(--state-progress-end)); border-radius: 5px; transition: width 800ms ease; }
-/* Segmented tier markers — rectangular blocks replace the circular dots */
-.journey-ticks { display: flex; gap: 3px; padding: 0; }
-.jb-tick { flex: 1; height: 8px; border-radius: 3px; background: rgba(255,255,255,0.08); border: none; transition: background 300ms ease, box-shadow 300ms ease; cursor: pointer; position: relative; }
-.jb-tick.past   { background: var(--state-progress-end); opacity: 0.5; }
-.jb-tick.active { background: linear-gradient(90deg, var(--state-progress-start), var(--state-progress-end)); box-shadow: 0 0 10px var(--state-accent); opacity: 1; }
-.jb-tick:hover::after { content: attr(data-label); position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.06em; color: var(--text-2); white-space: nowrap; background: var(--surface-3); padding: 3px 7px; border-radius: 4px; pointer-events: none; border: 1px solid var(--border-2); }
 
 /* ══════════════════════════════════════════════════════════════════════
    🔴 P1 — STAGE GAP + TIER PROGRESS
@@ -576,15 +538,7 @@ h1, h2, h3 {
                  command-progress-bar-fill
    ══════════════════════════════════════════════════════════════════════ */
 .stage-gap-section { margin-bottom: 4px; }
-.tier-lane { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.tier-pill { padding: 5px 14px; border-radius: 999px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; background: var(--surface-2); border: 1px solid var(--border-2); color: var(--text); }
-.tier-pill-current { background: var(--state-accent-soft); border-color: var(--state-accent); color: var(--state-accent-strong); }
-.tier-pill-target  { background: var(--gold-soft); border-color: rgba(200,168,76,0.25); color: var(--gold-2); }
-.tier-arrow { color: var(--text-3); font-size: 14px; }
-
-.tier-gap-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
 .tier-gap-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 400; letter-spacing: 0.06em; color: var(--text-2); }
-.tier-gap-value { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; }
 
 .progress-bar { height: 10px; background: rgba(255,255,255,0.13); border-radius: 5px; position: relative; overflow: hidden; margin-bottom: 8px; opacity: 1; border: 1px solid rgba(255,255,255,0.07); }
 .progress-bar--hero {
@@ -605,126 +559,23 @@ h1, h2, h3 {
 [data-theme="light"] .progress-bar,
 [data-theme="light"] .progress-bar--hero { background: rgba(0,0,0,0.10); border-color: rgba(0,0,0,0.06); }
 [data-theme="light"] .journey-bar { background: rgba(0,0,0,0.10); border-color: rgba(0,0,0,0.06); }
-[data-theme="light"] .jb-tick { background: rgba(0,0,0,0.09); }
 
 /* 🟢 P3+4 — Months to next + daily target
-   NEW IDs: stat-months-to-next, stat-daily-target */
-.micro-targets { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-.micro-target {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 11px;
-  background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.05em;
-  color: var(--text-2); transition: background 300ms ease;
-}
-.micro-target span.val { color: var(--text); font-weight: 500; }
+   NEW IDs: stat-months-to-next { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 
-/* render.js: hero-tier-behavior, hero-tier-copy */
-.hero-behavior { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 6px; }
-.hero-copy { font-size: 14px; color: var(--text-2); line-height: 1.6; border-left: 2px solid var(--border-2); padding-left: 16px; margin-bottom: 16px; }
+/* render.js: hero-tier-behavior { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 6px; }
 
 .hero-links { display: flex; gap: 16px; align-items: center; }
 .hero-link { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text-2); text-decoration: none; letter-spacing: 0.06em; transition: color 140ms; }
 .hero-link:hover { color: var(--gold); }
-.hero-link-dot { color: var(--text-3); }
 
 /* ══════════════════════════════════════════════════════════════════════
    🟡 P2+3 — CASH FLOW + BREATHING ROOM
-   Existing IDs: stat-income, stat-expenses, stat-months-ahead, board-liquidity-pill
-   NEW IDs: stat-cashflow, stat-breathing-room
-   render.js:
-     stat-cashflow ← income - expenses (formatted as ±$X)
-     stat-breathing-room ← stats.effectiveRunwayMonths.toFixed(1) + ' mo'
-   ══════════════════════════════════════════════════════════════════════ */
-.cashflow-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 0; overflow: hidden; }
-.cashflow-panel--solo { grid-template-columns: 1fr; }
-.cf-half { padding: 22px 24px; }
-.cf-half:first-child { border-right: 1px solid var(--border); }
-.cf-half:last-child  { background: var(--bg-2); transition: background 300ms ease; }
-.cashflow-panel--solo .cf-half:first-child { border-right: none; border-bottom: none; }
-.cf-section-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-bottom: 14px; }
-.cf-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
-.cf-row:last-child { border-bottom: none; }
-.cf-row-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
-.cf-val { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; line-height: 1; color: var(--text); }
-.cf-val.pos { color: var(--emerald); }
-.cf-val.neg { color: var(--rose); }
-.cf-val.gold { color: var(--gold-2); }
-
-.breathing-rail--journey {
-  margin: 0 0 16px;
-  padding: 18px 20px 16px;
-  border: 1px solid rgba(217,79,110,0.32);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, rgba(217,79,110,0.06), rgba(255,255,255,0.025));
-}
-.breathing-rail--urgent { box-shadow: inset 0 0 0 1px rgba(217,79,110,0.4), 0 0 24px rgba(217,79,110,0.12); border-radius: var(--radius-lg); }
-[data-theme="light"] .breathing-rail--urgent { box-shadow: inset 0 0 0 1px rgba(200,50,80,0.25), 0 0 20px rgba(200,50,80,0.08); }
-.breathing-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
-.breathing-topline {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;
-}
-.breathing-head .breathing-val {
-  font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: var(--text);
-  margin: 0;
-}
-.breathing-pill-wrap { display: flex; align-items: center; }
-.breathing-head .stability-pill { margin: 0; }
-.breathing-head--urgent {
-  padding: 8px 10px; margin: -2px -4px 4px; border-radius: 8px;
-  box-shadow: 0 0 0 1px rgba(217,79,110,0.32), 0 0 22px rgba(217,79,110,0.12);
-  background: rgba(217, 79, 110, 0.09);
-}
-[data-theme="light"] .breathing-head--urgent {
-  box-shadow: 0 0 0 1px rgba(200,50,80,0.2), 0 0 18px rgba(200,50,80,0.08);
-  background: rgba(200, 50, 80, 0.06);
-}
-.breathing-buffer-warn {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--rose); margin: 0; padding: 3px 8px; border-radius: 4px;
-  background: var(--rose-soft);
-  display: inline-block;
-  line-height: 1.2;
-  box-shadow: 0 0 12px rgba(217,79,110,0.2);
-  align-self: flex-start;
-}
-.breathing-val { font-family: 'Cormorant Garamond', serif; font-size: 40px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: var(--text); margin-bottom: 6px; }
-.breathing-sub { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); letter-spacing: 0.06em; margin-bottom: 10px; }
-.breathing-goal-track {
-  position: relative;
-  height: 10px;
-  margin: 0 0 8px;
-  border-radius: 5px;
-  background: rgba(255,255,255,0.13);
-  border: 1px solid rgba(255,255,255,0.07);
-  overflow: hidden;
-}
-.breathing-goal-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 0%;
-  border-radius: 5px;
-  background: linear-gradient(90deg, var(--state-progress-start), var(--state-progress-end));
-  transition: width 800ms ease;
-}
-.breathing-goal-marker {
-  display: none;
-}
-.breathing-goal-readout {
-  margin: 0 0 10px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  line-height: 1.4;
-  letter-spacing: 0.05em;
-  color: var(--text-2);
-}
-[data-theme="light"] .breathing-goal-track {
-  background: rgba(0,0,0,0.10);
-  border-color: rgba(0,0,0,0.06);
-}
-.breathing-note { font-size: 13px; color: var(--text-2); line-height: 1.55; overflow-wrap: break-word; }
-.breathing-note strong { color: var(--text); font-weight: 600; }
+   Existing IDs: stat-income,
+stat-expenses,
+stat-months-ahead,
+board-liquidity-pill
+   NEW IDs: stat-cashflow { display: grid; grid-template-columns: 1fr 1fr; gap: 0; overflow: hidden; }
 
 /* Stability pill — render.js adds .is-exposed/.is-thin/.is-steady etc. to #board-liquidity-pill */
 .stability-pill {
@@ -734,10 +585,6 @@ h1, h2, h3 {
   width: fit-content; margin-bottom: 12px; transition: all 300ms ease;
 }
 .stability-pill.is-exposed { background: var(--rose-soft); border-color: rgba(217,79,110,0.25); color: var(--rose); }
-.stability-pill.is-thin    { background: var(--amber-soft); border-color: rgba(212,160,48,0.22); color: var(--amber); }
-.stability-pill.is-steady  { background: var(--emerald-soft); border-color: rgba(20,164,105,0.22); color: var(--emerald); }
-.stability-pill.is-solid   { background: var(--emerald-soft); border-color: rgba(20,164,105,0.28); color: var(--emerald); }
-.stability-pill.is-strong  { background: var(--emerald-soft); border-color: rgba(20,164,105,0.35); color: var(--emerald); }
 
 /* ══════════════════════════════════════════════════════════════════════
    🟡 P1 — NET WORTH CHART
@@ -776,13 +623,6 @@ h1, h2, h3 {
        row.innerHTML = `...`;
        debtAccountsList.appendChild(row);
      }
-   render.js (this turn):
-     mirror lastPullAccountRowsFromStats(stats) output into #this-turn-list
-   ══════════════════════════════════════════════════════════════════════ */
-.two-col-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 0; overflow: hidden; }
-.tc-half { padding: 22px 24px; }
-.tc-half:first-child { border-right: 1px solid var(--border); }
-.tc-half:last-child  { background: var(--bg-2); transition: background 300ms ease; }
 .tc-section-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-bottom: 14px; }
 
 /* Session card hero number */
@@ -875,9 +715,6 @@ h1, h2, h3 {
 .debt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto minmax(42px, auto) 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .debt-row:last-child { border-bottom: none; }
 .dr-name  { min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dr-change { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); }
-.dr-change.neg { color: var(--emerald); }
-.dr-change.pos { color: var(--rose); }
 .dr-balance { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
 .dr-delta { min-width: 42px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-align: right; color: var(--text-3); white-space: nowrap; }
 .dr-delta.down { color: var(--emerald); }
@@ -1146,17 +983,7 @@ h1, h2, h3 {
 .turn-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .turn-row:last-child { border-bottom: none; }
 .turn-row-name { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); }
-.tr-name  { color: var(--text-2); }
-.tr-delta { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; }
-.tr-delta.down { color: var(--emerald); }
-.tr-delta.up   { color: var(--rose); }
-.tr-delta.cash { color: var(--gold); }
-
-.turn-net-row { display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--border-2); }
 .turn-net-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
-.turn-net-val   { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-.turn-net-val.good, .turn-net-val.neg { color: var(--emerald); }
-.turn-net-val.bad,  .turn-net-val.pos { color: var(--rose); }
 .turn-row-delta.neg { color: var(--emerald); }
 .turn-row-delta.pos { color: var(--rose); }
 
@@ -1173,25 +1000,14 @@ h1, h2, h3 {
 
 /* ══════════════════════════════════════════════════════════════════════
    HEALTH GRID (existing — 4 cells)
-   Existing IDs: stat-income, stat-expenses, stat-assets, stat-months-ahead
-   ══════════════════════════════════════════════════════════════════════ */
-.health-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.health-cell { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; transition: background 300ms ease; }
-.health-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
-.health-value { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; line-height: 1; }
-.health-in  { color: var(--emerald); }
-.health-out { color: var(--rose); }
+   Existing IDs: stat-income,
+stat-expenses,
+stat-assets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 
 /* ══════════════════════════════════════════════════════════════════════
    🟢 P1 — STABILITY NARRATIVE
-   Existing IDs: hero-stability-lead, hero-mood-copy, progress-milestone-next
-   ══════════════════════════════════════════════════════════════════════ */
-.narrative-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.narrative-block { display: flex; flex-direction: column; gap: 8px; }
-.narrative-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
-.narrative-lead  { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.45; }
-.narrative-mood  { font-size: 14px; color: var(--text-2); line-height: 1.68; }
-.narrative-milestone { font-size: 14px; font-style: italic; color: var(--gold-2); border-left: 2px solid var(--gold-soft); padding-left: 14px; line-height: 1.55; }
+   Existing IDs: hero-stability-lead,
+hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 
 /* ══════════════════════════════════════════════════════════════════════
    🟢 P5 — CUMULATIVE PAYDOWN TROPHY
@@ -1225,44 +1041,7 @@ h1, h2, h3 {
 .refresh-btn:hover { border-color: var(--gold); color: var(--gold-2); }
 .data-strip-msg { width: 100%; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent); margin: 0; min-height: 0; transition: color 300ms ease; }
 .data-strip-msg:empty { display: none; }
-.data-strip-foot { width: 100%; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); letter-spacing: 0.03em; padding-top: 10px; border-top: 1px solid var(--border); }
-
-/* ══════════════════════════════════════════════════════════════════════
-   ⚠️  PLACEHOLDER CHARACTER CSS — DELETE THIS BLOCK IN PRODUCTION
-   character.js injects the real Steward styles and fills the mounts.
-   ══════════════════════════════════════════════════════════════════════ */
-.steward-mini { width: 80px; height: 110px; position: relative; flex-shrink: 0; }
-.steward-mini .hat { width: 52px; height: 14px; background: var(--char-hat); border-radius: 3px 3px 0 0; position: absolute; top: 0; left: 50%; transform: translateX(-50%); }
-.steward-mini .hat::before { content: ''; position: absolute; bottom: -4px; left: -6px; right: -6px; height: 6px; background: var(--char-hatband); border-radius: 2px; }
-.steward-mini .hat::after { content: ''; position: absolute; top: 3px; left: 4px; right: 4px; height: 3px; background: var(--char-hatbrim-accent); border-radius: 2px; }
-.steward-mini .head { width: 44px; height: 40px; background: var(--char-head); border-radius: 50% 50% 48% 48%; position: absolute; top: 18px; left: 50%; transform: translateX(-50%); transition: background 300ms; }
-.steward-mini .eye-l, .steward-mini .eye-r { width: 7px; height: 8px; background: var(--char-eye); border-radius: 50%; position: absolute; top: 14px; }
-.steward-mini .eye-l { left: 10px; } .steward-mini .eye-r { right: 10px; }
-.steward-mini .eye-l::after, .steward-mini .eye-r::after { content: ''; position: absolute; top: 1px; left: 1px; width: 3px; height: 3px; background: rgba(255,255,255,0.85); border-radius: 50%; }
-.steward-mini .mustache { width: 24px; height: 6px; position: absolute; top: 26px; left: 50%; transform: translateX(-50%); }
-.steward-mini .mustache::before, .steward-mini .mustache::after { content: ''; position: absolute; width: 10px; height: 5px; background: var(--char-moustache); border-radius: 50%; }
-.steward-mini .mustache::before { left: 0; } .steward-mini .mustache::after { right: 0; }
-.steward-mini .body { width: 52px; height: 46px; background: var(--char-body); position: absolute; top: 56px; left: 50%; transform: translateX(-50%); border-radius: 8px 8px 4px 4px; transition: background 300ms; }
-.steward-mini .body::before { content: ''; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 18px; height: 28px; background: var(--char-vest); border-radius: 3px; transition: background 300ms; }
-.steward-mini .legs { width: 40px; height: 20px; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
-.steward-mini .leg { flex: 1; background: var(--char-body); border-radius: 0 0 4px 4px; transition: background 300ms; }
-
-.steward-card { width: 100px; height: 140px; position: relative; animation: cardFloat 3s ease-in-out infinite; }
 @keyframes cardFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);} }
-.steward-card .hat { width: 68px; height: 18px; background: var(--char-hat); border-radius: 4px 4px 0 0; position: absolute; top: 0; left: 50%; transform: translateX(-50%); }
-.steward-card .hat::before { content: ''; position: absolute; bottom: -5px; left: -8px; right: -8px; height: 8px; background: var(--char-hatband); border-radius: 3px; }
-.steward-card .hat::after { content: ''; position: absolute; top: 4px; left: 5px; right: 5px; height: 4px; background: var(--char-hatbrim-accent); border-radius: 2px; }
-.steward-card .head { width: 56px; height: 50px; background: var(--char-head); border-radius: 50% 50% 48% 48%; position: absolute; top: 22px; left: 50%; transform: translateX(-50%); transition: background 300ms; }
-.steward-card .eye-l, .steward-card .eye-r { width: 9px; height: 10px; background: var(--char-eye); border-radius: 50%; position: absolute; top: 16px; }
-.steward-card .eye-l { left: 12px; } .steward-card .eye-r { right: 12px; }
-.steward-card .eye-l::after, .steward-card .eye-r::after { content: ''; position: absolute; top: 1px; left: 1px; width: 4px; height: 4px; background: rgba(255,255,255,0.9); border-radius: 50%; }
-.steward-card .mustache { width: 30px; height: 8px; position: absolute; top: 32px; left: 50%; transform: translateX(-50%); }
-.steward-card .mustache::before, .steward-card .mustache::after { content: ''; position: absolute; width: 13px; height: 7px; background: var(--char-moustache); border-radius: 50%; }
-.steward-card .mustache::before { left: 0; } .steward-card .mustache::after { right: 0; }
-.steward-card .body { width: 66px; height: 58px; background: var(--char-body); position: absolute; top: 70px; left: 50%; transform: translateX(-50%); border-radius: 10px 10px 4px 4px; transition: background 300ms; }
-.steward-card .body::before { content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 22px; height: 36px; background: var(--char-vest); border-radius: 4px; transition: background 300ms; }
-.steward-card .legs { width: 52px; height: 26px; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
-.steward-card .leg { flex: 1; background: var(--char-body); border-radius: 0 0 4px 4px; transition: background 300ms; }
 @keyframes startFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-6px);} }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1275,7 +1054,6 @@ h1, h2, h3 {
 .start-brand { font-family: 'Cormorant Garamond', serif; font-size: 13px; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
 .start-character-frame { width: 200px; height: 200px; margin: 0 auto 24px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border-2); display: grid; place-items: center; position: relative; overflow: hidden; transition: background 300ms ease; }
 .start-character-frame::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, rgba(200,168,76,0.12), transparent 70%); }
-.start-character-frame .steward-mini { animation: startFloat 3.5s ease-in-out infinite; position: relative; z-index: 1; }
 [data-theme="light"] .start-character-frame { background: var(--surface-2); }
 .start-title { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 600; line-height: 1; color: var(--text); margin-bottom: 10px; letter-spacing: -0.02em; }
 .start-subtitle { font-size: 14px; color: var(--text-2); margin-bottom: 16px; line-height: 1.5; }
@@ -1314,8 +1092,6 @@ h1, h2, h3 {
 .sc-card.is-active { border-color: rgba(200,168,76,0.4); box-shadow: 0 0 0 1px rgba(200,168,76,0.2), 0 0 20px rgba(200,168,76,0.08); }
 .sc-badge { position: absolute; top: 10px; left: 10px; z-index: 12; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.10); border-radius: 7px; padding: 3px 9px; font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 700; color: rgba(255,255,255,0.95); }
 .sc-active-chip { position: absolute; top: 10px; right: 10px; z-index: 12; background: rgba(200,168,76,0.20); border: 1px solid rgba(200,168,76,0.35); border-radius: 999px; padding: 3px 8px; font-size: 8px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-2); }
-.sc-char-mount { position: absolute; top: 0; left: 0; right: 0; bottom: 100px; display: flex; align-items: center; justify-content: center; padding-top: 36px; }
-.sc-char-mini { transform: scale(0.65); transform-origin: center bottom; }
 .sc-footer { position: absolute; bottom: 0; left: 0; right: 0; padding: 36px 14px 14px; background: linear-gradient(to top,rgba(0,0,0,0.92) 0%,rgba(0,0,0,0.70) 50%,transparent 100%); display: flex; flex-direction: column; gap: 6px; }
 .sc-tier-name { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.97); line-height: 1.1; }
 .sc-bar-track { height: 2px; background: rgba(255,255,255,0.10); border-radius: 1px; overflow: hidden; position: relative; }
@@ -1330,11 +1106,6 @@ h1, h2, h3 {
 .sc-card[data-tier="thriving"]    .sc-bar-fill { background: linear-gradient(90deg,#bea5ff,#8858ef); }
 .sc-card[data-tier="winning"]     .sc-bar-fill { background: linear-gradient(90deg,#ffe38f,#d6ad34); }
 .sc-card[data-tier="wealthy"]     .sc-bar-fill { background: linear-gradient(90deg,#ffe991,#f2c230); }
-.sc-meta { text-align: center; }
-.sc-meta-name  { font-family: 'Cormorant Garamond', serif; font-size: 15px; font-weight: 600; color: var(--text); }
-.sc-meta-phase { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-3); margin-top: 2px; }
-[data-theme="light"] .sc-meta-name  { color: var(--text); }
-[data-theme="light"] .sc-meta-phase { color: var(--text-3); }
 
 /* ══════════════════════════════════════════════════════════════════════
    COMMITMENT SCREEN
@@ -1359,8 +1130,6 @@ h1, h2, h3 {
 .commitment-btn { width: 100%; padding: 15px; background: var(--gold); border: none; border-radius: var(--radius-sm); color: #0a0c14; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; cursor: pointer; margin-top: 4px; transition: all 140ms ease; }
 .commitment-btn:hover { background: var(--gold-2); transform: translateY(-1px); }
 .commitment-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
-.loading-sync-btn { display: inline-block; padding: 12px 28px; background: var(--gold); border: none; border-radius: var(--radius-sm); color: #0a0c14; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; cursor: pointer; margin-top: 16px; transition: all 140ms ease; }
-.loading-sync-btn:hover { background: var(--gold-2); transform: translateY(-1px); }
 
 /* ── Responsive ── */
 /* Loading screen must sit above sticky nav during load */
@@ -1372,15 +1141,10 @@ h1, h2, h3 {
   .tier-cards-stack { align-items: stretch; }
   .tier-cards-group { justify-content: center; }
   .hero-section .tier-card-character-mount { bottom: 128px; }
-  .health-grid { grid-template-columns: repeat(2,1fr); }
   .showcase-grid { grid-template-columns: repeat(2,1fr); }
-  .cashflow-panel,.two-col-panel,.narrative-grid { grid-template-columns: 1fr; }
-  .cf-half:first-child,.tc-half:first-child { border-right: none; border-bottom: 1px solid var(--border); }
 }
 @media (max-width: 600px) {
   .showcase-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
-  .hero-primary-stats { grid-template-columns: 1fr; }
-  .micro-targets { flex-direction: column; }
   .top-nav { padding: 0 12px; }
   /* Hide the static Dashboard anchor (you're already on it) but keep the
      How-it-works button reachable on mobile — the floating fallback button
@@ -1398,7 +1162,7 @@ h1, h2, h3 {
   .milestone-dismiss { min-width: 44px; min-height: 44px; }
   .nav-theme-btn { min-height: 44px; min-width: 44px; }
   .nav-logout-btn { min-height: 44px; min-width: 44px; }
-  .loading-sync-btn, .dashboard-how-btn { min-height: 44px; padding: 10px 16px; }
+  .dashboard-how-btn { min-height: 44px; padding: 10px 16px; }
   #dashboard-onboarding-next, #dashboard-onboarding-back, #dashboard-onboarding-skip { min-height: 44px; }
   #dashboard-how-it-works-btn { display: none; }
 
@@ -1410,9 +1174,6 @@ h1, h2, h3 {
   .trophy-row { flex-direction: column; align-items: flex-start; gap: 12px; }
   .trophy-body { min-width: 0; }
   .trophy-context { max-width: none; }
-
-  /* Health grid: single column so long labels don't squeeze */
-  .health-grid { grid-template-columns: 1fr; }
 
   /* Data strip: tighten gap and let items breathe */
   .data-strip { gap: 14px; padding: 14px 16px; }
@@ -1576,13 +1337,8 @@ h1, h2, h3 {
   outline-offset: 5px;
   border-radius: 4px;
 }
-
 /* ── Cashflow panel: collapse earlier to avoid narrow cell overflow ─────── */
-@media (max-width: 700px) {
-  .cashflow-panel { grid-template-columns: 1fr; }
-  .cf-half:first-child { border-right: none; border-bottom: 1px solid var(--border); }
-  .cashflow-panel--solo .cf-half:first-child { border-bottom: none; }
-}
+
 
 /* ── App state machine: body[data-app-mode] screen visibility ───────────── */
 #start-game-screen,
@@ -1602,7 +1358,6 @@ body[data-setup-mode="first"] #dashboard {
   padding-top: 32px;
 }
 body[data-setup-mode="first"] .dashboard-only-section,
-body[data-setup-mode="first"] .play-meta-actions,
 body[data-setup-mode="first"] .play-danger-zone {
   display: none !important;
 }
@@ -1820,13 +1575,6 @@ body[data-theme-transitioning] .data-chip {
 .play-danger-zone[open] .play-danger-summary::before {
   transform: rotate(90deg);
 }
-.play-danger-hint {
-  margin: 10px 0 8px;
-  font-size: 11px;
-  text-align: center;
-  color: var(--text-3);
-  opacity: 0.75;
-}
 /* ── Danger zone actions: each action is its own labeled block, so the user
    can tell "wipe my data" from "delete my account" at a glance. ── */
 .play-danger-action {
@@ -1924,32 +1672,25 @@ body[data-setup-mode="first"] #update-balances-btn { display: none; }
 .trophy-body { min-width: 0; flex: 1; overflow: hidden; }
 .trophy-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
 
-/* Shared small headings: keep them quiet, but readable enough to scan. */
+/* Shared small headings: keep them quiet,
+but readable enough to scan. */
 .section-label,
 .tier-quote-label,
 .hero-stage-kicker,
 .journey-label,
-.ps-label,
-.cf-section-label,
-.cf-row-label,
 .tc-section-label,
 .debt-total-label,
 .turn-net-label,
-.health-label,
-.narrative-label,
 .trophy-label,
 .data-chip-k,
 .showcase-sub,
-.sc-meta-phase,
 .dashboard-onboarding-step-badge {
   color: var(--label);
   font-weight: 600;
 }
 
 .journey-label,
-.cf-section-label,
 .tc-section-label,
-.narrative-label,
 .trophy-label,
 .data-chip-k,
 .section-label {
@@ -1967,8 +1708,6 @@ body[data-setup-mode="first"] #update-balances-btn { display: none; }
 [data-theme="light"] .sp-grid li {
   background: var(--bg);
 }
-[data-theme="light"] .health-grid { gap: 1px; background: rgba(40,25,5,0.08); border-radius: var(--radius-md); overflow: hidden; }
-[data-theme="light"] .health-cell { background: var(--surface); box-shadow: none; border: none; border-radius: 0; }
 [data-theme="light"] .sort-toggle { background: var(--bg); }
 [data-theme="light"] .sort-toggle-btn.active { background: var(--surface-2); color: var(--text); }
 [data-theme="light"] #apr-form-panel { background: var(--bg); border-color: rgba(40,25,5,0.12); }
@@ -2033,42 +1772,6 @@ body[data-setup-mode="first"] .setup-welcome {
   body[data-setup-mode="first"] #manual-entry-panel { padding: 22px !important; }
 }
 .manual-entry-form { display: flex; flex-direction: column; gap: 20px; }
-.manual-entry-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-@media (max-width: 560px) {
-  .manual-entry-grid { grid-template-columns: 1fr; }
-}
-.manual-entry-field { display: flex; flex-direction: column; gap: 5px; }
-.manual-entry-field label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-2);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-.manual-entry-field .field-hint {
-  font-size: 11px;
-  text-transform: none;
-  opacity: 0.6;
-}
-.manual-entry-field input[type="number"],
-.manual-entry-field input[type="text"] {
-  background: var(--surface);
-  border: 1px solid var(--border, rgba(255,255,255,0.08));
-  border-radius: var(--radius-sm, 6px);
-  color: var(--text);
-  font-size: 15px;
-  padding: 10px 12px;
-  font-family: 'IBM Plex Mono', monospace;
-  transition: border-color 0.15s;
-}
-.manual-entry-field input:focus {
-  outline: none;
-  border-color: var(--gold, #d4af37);
-}
 .manual-entry-accounts {
   border-top: 1px solid var(--border, rgba(255,255,255,0.06));
   padding-top: 16px;
@@ -2585,7 +2288,6 @@ body[data-setup-mode="first"] .setup-welcome {
   padding-top: 16px;
   border-top: 1px solid var(--border, rgba(255,255,255,0.06));
 }
-[data-theme="light"] .manual-entry-field input { background: var(--bg); border-color: rgba(40,25,5,0.14); }
 [data-theme="light"] .debt-account-entry-row .debt-acct-name,
 [data-theme="light"] .debt-account-entry-row .debt-acct-balance { background: var(--bg); border-color: rgba(40,25,5,0.14); }
 [data-theme="light"] .saved-debt-balance-input { background: var(--bg); border-color: rgba(40,25,5,0.14); }

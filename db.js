@@ -219,12 +219,6 @@ function latestSnapshot(source) {
   ).get(userId) || null;
 }
 
-function latestCombined() {
-  const snap = latestSnapshot();
-  if (!snap) return null;
-  return snap;
-}
-
 function recentSnapshots(limit = 60) {
   return db.prepare(
     `SELECT * FROM snapshots WHERE user_id = ? ORDER BY pulled_at DESC, id DESC LIMIT ?`
@@ -489,7 +483,6 @@ module.exports = {
   currentUserId,
   insertSnapshot,
   latestSnapshot,
-  latestCombined,
   recentSnapshots,
   resetAllGameState,
   getAllDebtAccountBalances,

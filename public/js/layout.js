@@ -37,9 +37,7 @@ const DASHBOARD_LAYOUT_VERSION = 'cmd-v3';
 export function upgradeDashboardLayout() {
   // The consolidated shell always uses the vNext layout, so there is no
   // classic-layout DOM surgery to perform — just stamp the version marker
-  // once so callers treat the dashboard as upgraded. (The former classic
-  // branch was ~220 lines of dead code removed alongside
-  // isClassicLayoutDashboardDoc.)
+  // once so callers treat the dashboard as upgraded.
   const dashboard = getDashboardRoot();
   if (!dashboard || dashboard.dataset.layoutVersion === DASHBOARD_LAYOUT_VERSION) return;
   dashboard.dataset.layoutVersion = DASHBOARD_LAYOUT_VERSION;

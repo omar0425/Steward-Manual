@@ -29,7 +29,7 @@ const {
   recentSnapshots,
   getDebtAccountHistory,
   getGameStart,
-  latestCombined,
+  latestSnapshot,
   getAllDebtAccountBalances,
 } = require('../db');
 const { getClimbTier, nextClimbTierInfo } = require('./tiers');
@@ -209,7 +209,7 @@ function markIfDoNothingFired(at) {
  * Returns { skip: true } when there's no data to comment on yet.
  */
 function buildContext() {
-  const snap = latestCombined();
+  const snap = latestSnapshot();
   if (!snap) return { skip: true, reason: 'no_snapshot' };
   const { gameStartDebt, gameStartAt } = getGameStart();
   if (gameStartDebt == null) return { skip: true, reason: 'setup_incomplete' };
