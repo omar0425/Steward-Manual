@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steward — Animation Gallery (all 10 stages, live)</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { margin: 0; padding: 24px 28px 56px; background: #0b0f18; color: #e8e6df;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+  header { max-width: 1200px; margin: 0 auto 20px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; color: #8a8f9c; font-size: 13px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: center;
+    padding: 12px 16px; background: #131826; border: 1px solid #232a3a; border-radius: 10px; }
+  .controls label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  .controls input { width: 16px; height: 16px; accent-color: #d4af37; }
+  .controls .hint { color: #8a8f9c; font-size: 12px; }
+  .ag-grid { max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 240px));
+    gap: 26px; justify-content: center; }
+  .ag-card { display: flex; flex-direction: column; gap: 10px; }
+  .ag-quote { background: #131826; border: 1px solid #232a3a; border-radius: 10px; padding: 10px 12px; }
+  .ag-quote .lab { font-family: ui-monospace, Menlo, monospace; font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: #d4af37; }
+  .ag-quote p { margin: 4px 0 0; font-size: 13px; color: #c7ccd6; line-height: 1.4; }
+
+  /* Replicate the gameplay .hero-section tier-card overrides so each card matches
+     the live dashboard hero exactly. */
+  .hero-tier-card .tier-card-gap { display: none; }
+  .hero-tier-card .tier-card-name { font-size: 22px; }
+  .hero-tier-card .tier-card-badge { font-size: 16px; padding: 3px 8px 2px; top: 10px; left: 10px; }
+  .hero-tier-card .tier-card-character-mount { bottom: 128px; padding-top: 28px; align-items: flex-end; }
+  .hero-tier-card .tier-card-footer { padding: 44px 16px 16px; gap: 7px; }
+  .hero-tier-card .tier-card-debt { font-size: 11px; }
+  .hero-tier-card .tier-card-character-mount > div { transform: scale(1.0); transform-origin: center bottom; }
+
+  body.is-paused .steward-wrap * { animation-play-state: paused !important; }
+  /* The hidden props are switched off two different ways: the racecar via inline
+     CSS vars (which beat normal stylesheet rules → need !important), and the
+     Mercedes + mansion via hard-coded opacity:0 rules. Force both on. */
+  body.reveal-props .steward-wrap {
+    --car-opacity: 1 !important; --ring-opacity: 1 !important;
+    --coin-shower-opacity: 1 !important; --ornament-opacity: 1 !important;
+  }
+  /* These props are display:none in the product now; re-show them for inspection. */
+  body.reveal-props .sw-racecar,
+  body.reveal-props .wealthy-merc,
+  body.reveal-props .wealthy-mansion { display: block !important; opacity: 1 !important; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Steward — Animation Gallery</h1>
+    <p class="sub">All 10 stages rendered live at the exact gameplay hero scale (real template, CSS, and animations). Hover a card; click the character to cycle quotes is dashboard-only.</p>
+    <div class="controls">
+      <label><input type="checkbox" id="reveal"> Reveal hidden props <span class="hint">(forces car / rings / coin-shower / ornaments visible)</span></label>
+      <label><input type="checkbox" id="pause"> Pause animations <span class="hint">(freeze to inspect a frame)</span></label>
+    </div>
+  </header>
+  <div class="ag-grid" id="grid"></div>
+
+  <script type="module">
+    // Dev gallery: bust the module cache on every load so edits always show up
+    // with a plain refresh (no version bumping, no server restart).
+    const bust = '?t=' + Date.now();
+    const { loadCharacterTemplate } = await import('/js/template-loader.js' + bust);
+    const { mountHeroCharacterInto } = await import('/js/character.js' + bust);
+    const { TIER_FLOW, tierQuote } = await import('/js/tiers.js' + bust);
+
+    await loadCharacterTemplate();
+
+    const grid = document.getElementById('grid');
+    TIER_FLOW.forEach((tier, idx) => {
+      const card = document.createElement('div');
+      card.className = 'ag-card';
+      const fill = Math.round(((idx + 0.5) / 10) * 100);
+      card.innerHTML = `
+        <div class="tier-card hero-tier-card" data-state="${tier.id}">
+          <div class="tier-card-badge">${tier.badge}</div>
+          <div class="tier-card-character-mount"><div class="ag-mount"></div></div>
+          <div class="tier-card-footer">
+            <div class="tier-card-name">${tier.label}</div>
+            <div class="tier-card-bar-track"><div class="tier-card-bar-fill" style="width:${fill}%"></div></div>
+            <div class="tier-card-debt">Stage ${tier.badge} of 10 · ${tier.phase}</div>
+          </div>
+        </div>
+        <div class="ag-quote"><span class="lab">${tier.label}</span><p>${tierQuote(tier.id) || ''}</p></div>
+      `;
+      const tc = card.querySelector('.tier-card');
+      tc.style.setProperty('--state-accent', tier.accent);
+      tc.style.setProperty('--state-accent-soft', tier.soft);
+      tc.style.setProperty('--state-accent-strong', tier.strong);
+      tc.style.setProperty('--state-progress-start', tier.start);
+      tc.style.setProperty('--state-progress-end', tier.end);
+      grid.appendChild(card);
+      mountHeroCharacterInto(card.querySelector('.ag-mount'), tier.id);
+    });
+
+    document.getElementById('reveal').addEventListener('change', (e) => {
+      document.body.classList.toggle('reveal-props', e.target.checked);
+    });
+    document.getElementById('pause').addEventListener('change', (e) => {
+      document.body.classList.toggle('is-paused', e.target.checked);
+    });
+  </script>
+</body>
+</html>

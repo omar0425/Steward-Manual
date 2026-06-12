@@ -46,12 +46,22 @@ repo, and minor test updates so the new behaviour stays green.
 
 ## Batch 2 — merged
 
-> ⚠️ I could not find a commit on `main` explicitly labeled "Batch 2"
-> (only Batch 1 above and Batch 3 below). It may have been squashed into
-> Batch 1, or shipped under a different message before the "Batch N"
-> convention started. **Omar — please fill in this section** with the
-> commit hash(es) and the per-task summary so the team has the full
-> history in one place.
+**Merge commit:** `651055b` ("Merge branch 'cleanup-batch-2'"), merged
+May 11 2026. Four task commits authored May 5 2026 — they carried `T1…T4`
+prefixes but no "Batch 2" label, which is why this section sat empty.
+
+1. **T1 `d331fcc`** — fix the `/api/reset-game` test by sending
+   `{ confirm: true }` (the route requires it; the test sent an empty
+   body and got a 400). All 61 tests passed after this — which also
+   means the "Known failure" entry at the bottom of this log was
+   resolved here.
+2. **T2 `406f072`** — rename the 10 stage labels to one consistent
+   climbing metaphor.
+3. **T3 `ecbf127`** — remove a sentinel div; add a null-safety guard
+   for `board-tier-gap-headline`.
+4. **T4 `da84c53`** — split the ~1,400-line `render.js` into four
+   focused helpers (hero, debts, progress, stats) plus a thin
+   orchestrator, keeping the public import surface unchanged.
 
 ---
 
@@ -466,6 +476,41 @@ plus the existing 70 unit / 30 e2e suites.
 
 New test: `promise config: roundtrip, trimming, and reset-game clears it`
 in `test/api-snapshot.test.js`. Suite: 70/70 unit, 30/30 e2e.
+
+---
+
+## Batch 7 — ops hardening + versioning, June 2026
+
+**Commits:** `5b1e0e0` (versioning), `1dd14c0` (ops). Infrastructure, not
+features — protects the data and makes deploys identifiable.
+
+1. **App versioning** — `package.json` version (bump minor per batch;
+   currently 1.6.0) surfaces in `/health` (with the Railway deploy SHA
+   via `RAILWAY_GIT_COMMIT_SHA`), a Version chip in the dashboard data
+   strip, the login footer, and the boot log.
+2. **Backups, two layers** — production writes a daily `VACUUM INTO`
+   snapshot to `<db-dir>/backups/` (keeps 7); `GET /admin/backup`
+   (guarded by `STEWARD_BACKUP_TOKEN`, constant-time compare) streams a
+   consistent copy of the live DB. `scripts/pull-backup.ps1` pulls dated
+   off-site copies to `~\StewardBackups` and prunes after 30 days —
+   schedule it with the schtasks one-liner in its header.
+3. **CI** — `.github/workflows/ci.yml` runs the unit suite and the
+   Playwright e2e suite on every push/PR to `main`; HTML report uploaded
+   as an artifact on failure.
+4. **PWA install** — `manifest.json` + 192/512 maskable icons (rendered
+   from `favicon.svg`) + `theme-color`; the app installs to a phone home
+   screen as a standalone window.
+5. **Data export** — `GET /api/export` downloads the signed-in user's
+   complete history (snapshots, account balances/history, settings) as
+   dated JSON; ⤓ Export button in the data strip. Unit-tested.
+6. **Email config warning** — production boot without `RESEND_API_KEY`
+   logs a loud warning that password-reset links only print to the log.
+
+Operational follow-ups that live outside the repo: set
+`STEWARD_BACKUP_TOKEN` on Railway, schedule `pull-backup.ps1` on a PC,
+and point an uptime monitor (e.g. UptimeRobot) at `/health`.
+
+Suite: 71/71 unit, 30/30 e2e.
 
 ---
 
