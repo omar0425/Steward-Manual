@@ -467,7 +467,11 @@ router.post('/reset-password', (req, res) => {
 
 const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI  = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/auth/google/callback';
+// Default the redirect URI off APP_BASE_URL so a deploy that sets only
+// APP_BASE_URL (already required for password-reset links) gets a working
+// callback instead of silently inheriting localhost. The resulting URL must
+// still be listed under "Authorized redirect URIs" in the Google console.
+const GOOGLE_REDIRECT_URI  = process.env.GOOGLE_REDIRECT_URI || `${APP_BASE_URL}/api/auth/google/callback`;
 
 router.get('/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID) {
