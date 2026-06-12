@@ -80,6 +80,37 @@ if (process.env.NODE_ENV === 'production' && !process.env.RESEND_API_KEY) {
 }
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
+
+// Security headers. CSP is pragmatic, not strict: login.html ships inline
+// <script>/<style> blocks and play.js uses one inline onclick, so
+// 'unsafe-inline' stays — the win here is everything else: no framing
+// (clickjacking), no MIME sniffing, no third-party sources of any kind
+// (fonts/icons are self-hosted as of Batch 7), HSTS once behind TLS.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ');
+
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
 app.use(express.json());
 
 // Simple cookie parser (avoids adding cookie-parser dependency)
@@ -223,6 +254,18 @@ if (process.env.NODE_ENV === 'production') {
   runDailyBackupRotation();
   const handle = setInterval(runDailyBackupRotation, 12 * 60 * 60 * 1000);
   if (typeof handle.unref === 'function') handle.unref();
+}
+
+// ── Inactivity nudge (production only) ────────────────────────────────────────
+// Daily sweep: users whose latest snapshot is older than STEWARD_NUDGE_DAYS
+// (default 10; 0 disables) get one email per lapse via Resend. The sweep is a
+// no-op when RESEND_API_KEY is unset.
+if (process.env.NODE_ENV === 'production') {
+  const { runInactivityNudgeSweep } = require('./services/nudge');
+  const sweep = () => { runInactivityNudgeSweep().catch((err) => console.error('[nudge] sweep failed:', err)); };
+  setTimeout(sweep, 60 * 1000); // let boot settle first
+  const nudgeHandle = setInterval(sweep, 24 * 60 * 60 * 1000);
+  if (typeof nudgeHandle.unref === 'function') nudgeHandle.unref();
 }
 
 app.get('/admin/backup', (req, res) => {

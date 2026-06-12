@@ -301,6 +301,7 @@ function buildDebtAccountsPanel() {
       <span class="debt-total-label">Total</span>
       <span class="debt-total-val" id="debt-total-val">\u2014</span>
     </div>
+    <p class="debt-interest-line" id="debt-interest-line" hidden></p>
     <div class="game-start-row" id="game-start-row" hidden>
       <span class="game-start-label">Game start</span>
       <span class="game-start-meta" id="game-start-meta"></span>

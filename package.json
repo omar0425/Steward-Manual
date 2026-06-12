@@ -1,6 +1,6 @@
 {
   "name": "steward-manual",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Manual debt payoff dashboard — enter your own numbers, same gamified climb system",
   "main": "server.js",
   "scripts": {
@@ -14,7 +14,7 @@
     "reset-local-data": "node -e \"require('./db').resetAllGameState(); console.log('All game state cleared.');\""
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24"
   },
   "dependencies": {
     "express": "^4.22.2"

@@ -25,4 +25,5 @@ require('./climb-metrics.test');
 require('./api-state-machine.test');
 require('./api-snapshot.test');
 require('./auth-password-reset.test');
+require('./inactivity-nudge.test');
 require('./zzz-climb-metrics-apply.test');

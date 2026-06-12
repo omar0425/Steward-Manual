@@ -514,18 +514,41 @@ Suite: 71/71 unit, 30/30 e2e.
 
 ---
 
-## Known failure (pre-existing, **not** caused by these batches)
+## Batch 8 — security, polish, and the first "smart" features, June 2026 (v1.7.0)
 
-`test/api-state-machine.test.js:60` —
-`backend state machine: no data -> setup -> active climb -> reset` —
-fails with `400 !== 200`.
+1. **Security headers** — pragmatic CSP (`'unsafe-inline'` retained for
+   login.html's inline blocks; everything else locked to `'self'`),
+   `frame-ancestors 'none'` + `X-Frame-Options: DENY` (no clickjacking),
+   `nosniff`, `Referrer-Policy`, `Permissions-Policy`, and HSTS in
+   production. e2e suite passes under the CSP.
+2. **Node pinned** — `engines: >=24` + `.nvmrc`; the app depends on
+   `node:sqlite`, which older majors don't ship.
+3. **APR avalanche guidance** (`render-debts.js`) — each rated account
+   shows its ~$/mo interest cost next to the APR; the highest-APR open
+   account gets a gold **PAY FIRST** badge (only when ≥2 accounts are
+   rated); a summary line under the total reads "Interest costs you
+   ~$X/mo right now — extra payments go furthest on <name>." Pure
+   frontend; uses the APRs users already enter.
+4. **Inactivity nudge** (`services/nudge.js`, `services/email.js`) — in
+   production, users whose latest snapshot is older than
+   `STEWARD_NUDGE_DAYS` (default 10, 0 disables) get one Resend email
+   per lapse; the marker re-arms when they snapshot again. No-op without
+   `RESEND_API_KEY`. Selector covered by 4 unit tests.
+5. **Housekeeping** — the long-stale "Known failure" section below is
+   now marked resolved (fixed by Batch 2 T1); no dead remote branches
+   existed.
 
-The test calls `POST /api/reset-game` with an empty body, but the
-endpoint (`routes/api.js:537`) requires `{ confirm: true }`. The
-frontend at `public/js/commitment.js:116` always sends the flag, so the
-endpoint is correct; the test is the one that needs to be updated. A
-follow-up task has been spawned to fix this (see the Cowork chip
-"Fix reset-game test missing confirm flag").
+Suite: 75/75 unit, 30/30 e2e.
+
+---
+
+## Known failure — RESOLVED (kept for history)
+
+`test/api-state-machine.test.js:60` used to fail with `400 !== 200`
+because it called `POST /api/reset-game` with an empty body while the
+endpoint requires `{ confirm: true }`. **Fixed by Batch 2 T1
+(`d331fcc`, May 5 2026)**, which updated the test to send the flag.
+The suite has been fully green since.
 
 ---
 

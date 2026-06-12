@@ -757,6 +757,30 @@ board-liquidity-pill
 .dr-spark { display: flex; align-items: center; justify-content: flex-end; width: 64px; height: 14px; opacity: 0.75; }
 .debt-row--paid-off .dr-balance,
 .debt-row--paid-off .dr-name { color: var(--emerald, #10b981); }
+
+/* Avalanche guidance */
+.dr-payfirst-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-left: 2px;
+  border-radius: 4px;
+  background: rgba(200, 168, 76, 0.14);
+  border: 1px solid rgba(200, 168, 76, 0.35);
+  color: var(--gold-2, var(--gold));
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  vertical-align: 1px;
+}
+.dr-interest { color: var(--text-3); font-size: 10px; }
+.debt-interest-line {
+  margin: 8px 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+}
+.debt-interest-line[hidden] { display: none; }
 .debt-row--paid-off { opacity: 0.88; }
 .dr-paid-badge {
   display: inline-block;

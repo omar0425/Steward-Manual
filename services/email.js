@@ -124,9 +124,41 @@ function looksLikeEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
 }
 
+function buildInactivityNudgeEmail({ username, daysSince, appBaseUrl }) {
+  const safeUser = String(username || 'there');
+  const days = Math.max(1, Math.round(Number(daysSince) || 0));
+  const url = String(appBaseUrl || APP_BASE_URL);
+  const text =
+`Hi ${safeUser},
+
+It's been ${days} days since your last balance update on Steward. Your climb only moves when the numbers do — a quick update keeps your progress (and your streak) honest.
+
+Update your balances: ${url}/
+
+You're getting this because your data went stale; you won't be emailed again unless it happens after your next update.
+
+— Steward`;
+
+  const html =
+`<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;line-height:1.5;max-width:560px;margin:0 auto;padding:24px;">
+  <p>Hi ${escapeHtml(safeUser)},</p>
+  <p>It's been <strong>${days} days</strong> since your last balance update on Steward. Your climb only moves when the numbers do — a quick update keeps your progress (and your streak) honest.</p>
+  <p style="margin:24px 0;">
+    <a href="${escapeHtml(url)}/" style="background:#c8a84c;color:#1a1a1a;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">Update your balances</a>
+  </p>
+  <p style="color:#666;font-size:13px;">You're getting this because your data went stale; you won't be emailed again unless it happens after your next update.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+  <p style="color:#999;font-size:11px;">— Steward</p>
+</body></html>`;
+
+  return { subject: `Your climb misses you — ${days} days without an update`, text, html };
+}
+
 module.exports = {
   sendEmail,
   buildPasswordResetEmail,
+  buildInactivityNudgeEmail,
   looksLikeEmail,
+  isConfigured,
   APP_BASE_URL,
 };

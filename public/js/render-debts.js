@@ -341,6 +341,21 @@ export function fillDebtAccountsList(stats) {
     return Number.isFinite(b) && b > max ? b : max;
   }, 0);
 
+  // Avalanche guidance: the open account with the highest APR is the one
+  // every extra dollar should hit first. Only meaningful when APRs are set.
+  let payFirstId = null;
+  let payFirstApr = -Infinity;
+  let totalMonthlyInterest = 0;
+  let ratedCount = 0;
+  for (const acct of accounts) {
+    const bal = Number(acct.balance);
+    const apr = _aprRates[acct.id];
+    if (!Number.isFinite(bal) || bal <= 0 || apr == null || !Number.isFinite(apr) || apr <= 0) continue;
+    ratedCount += 1;
+    totalMonthlyInterest += (bal * apr) / 100 / 12;
+    if (apr > payFirstApr) { payFirstApr = apr; payFirstId = acct.id; }
+  }
+
   // Long lists collapse to the largest balances; "Show all" expands for the
   // session. Sorting already puts the heavy hitters first in either mode.
   const totalCount = accounts.length;
@@ -375,6 +390,15 @@ export function fillDebtAccountsList(stats) {
       badge.textContent = 'PAID OFF';
       name.appendChild(document.createTextNode(' '));
       name.appendChild(badge);
+    } else if (acct.id != null && acct.id === payFirstId && ratedCount >= 2) {
+      // Avalanche pick — only shown when at least two open accounts have an
+      // APR, otherwise "first" is meaningless.
+      const badge = document.createElement('span');
+      badge.className = 'dr-payfirst-badge';
+      badge.textContent = 'PAY FIRST';
+      badge.title = `Highest interest rate (${payFirstApr}% APR) — extra payments save the most here.`;
+      name.appendChild(document.createTextNode(' '));
+      name.appendChild(badge);
     }
 
     // Celebration: re-applied at build time for the whole window so the async
@@ -390,7 +414,19 @@ export function fillDebtAccountsList(stats) {
     const aprEl = document.createElement('span');
     aprEl.className = 'dr-apr';
     const rateVal = _aprRates[acct.id];
-    aprEl.textContent = (rateVal != null && Number.isFinite(rateVal)) ? `${rateVal}%` : '—';
+    if (rateVal != null && Number.isFinite(rateVal)) {
+      aprEl.textContent = `${rateVal}%`;
+      const monthly = (balance * rateVal) / 100 / 12;
+      if (rateVal > 0 && monthly >= 0.5) {
+        const cost = document.createElement('span');
+        cost.className = 'dr-interest';
+        cost.textContent = ` ~$${Math.round(monthly).toLocaleString()}/mo`;
+        aprEl.appendChild(cost);
+        aprEl.title = `At ${rateVal}% APR this balance accrues roughly $${Math.round(monthly).toLocaleString()} in interest per month.`;
+      }
+    } else {
+      aprEl.textContent = '—';
+    }
 
     const amount = document.createElement('span');
     amount.className = 'dr-balance debt-row-balance';
@@ -444,5 +480,24 @@ export function fillDebtAccountsList(stats) {
     totalEl.textContent = fmtDollar(stats.debtRemaining);
     // $0 remaining is a victory, not a rose-red liability — paint it emerald.
     totalEl.classList.toggle('is-debt-clear', Number(stats.debtRemaining) <= 0.005);
+  }
+
+  // Avalanche summary — what the debt costs per month, and where extra
+  // dollars do the most damage. Hidden until APRs are entered.
+  const interestLine = document.getElementById('debt-interest-line');
+  if (interestLine) {
+    if (totalMonthlyInterest >= 1) {
+      const payFirstName =
+        payFirstId != null
+          ? (stats.debtAccountLines || []).find((a) => a.id === payFirstId)?.name
+          : null;
+      interestLine.textContent =
+        `Interest costs you ~$${Math.round(totalMonthlyInterest).toLocaleString()}/mo right now` +
+        (payFirstName && ratedCount >= 2 ? ` — extra payments go furthest on ${payFirstName}.` : '.');
+      interestLine.hidden = false;
+    } else {
+      interestLine.hidden = true;
+      interestLine.textContent = '';
+    }
   }
 }
