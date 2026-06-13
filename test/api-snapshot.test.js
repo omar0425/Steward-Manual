@@ -534,3 +534,44 @@ test('GET /api/export: full user data with dated attachment filename', async () 
     assert.ok('debt_remaining' in body.snapshots[0]);
   });
 });
+
+test('GET /api/export?format=csv: Excel-ready snapshot series and account history', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalAssets: 1000,
+      debtAccounts: [{ id: 'visa', name: 'Visa, "Gold" Card', balance: 4000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa, "Gold" Card', balance: 3500 }],
+    });
+    assert.equal(res.status, 200);
+
+    // Snapshot series (default CSV)
+    res = await fetch(`${baseUrl}/api/export?format=csv`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /text\/csv/);
+    assert.match(res.headers.get('content-disposition'), /steward-snapshots-\d{4}-\d{2}-\d{2}\.csv/);
+    // fetch().text() strips a leading BOM per spec — check the raw bytes.
+    const buf = Buffer.from(await res.arrayBuffer());
+    assert.deepEqual([...buf.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'BOM present for Excel UTF-8 detection');
+    const csv = buf.toString('utf8').replace(/^﻿/, '');
+    const lines = csv.trim().split('\r\n');
+    assert.equal(lines[0].replace('﻿', ''), 'pulled_at,total_debt,debt_remaining,total_assets,investment_value,monthly_income,monthly_expenses,net_worth,tier');
+    assert.ok(lines.length >= 3, 'header + 2 snapshot rows');
+    // Excel-friendly datetime: no T separator, no trailing Z
+    assert.match(lines[1], /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},/);
+
+    // Per-account history with names quoted correctly (comma + quotes in name)
+    res = await fetch(`${baseUrl}/api/export?format=csv&table=accounts`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-disposition'), /steward-accounts-\d{4}-\d{2}-\d{2}\.csv/);
+    const acsv = await res.text();
+    const alines = acsv.trim().split('\r\n');
+    assert.equal(alines[0].replace('﻿', ''), 'account_id,account_name,recorded_at,balance');
+    assert.ok(alines.length >= 3, 'two history rows for visa');
+    assert.match(alines[1], /^visa,"Visa, ""Gold"" Card",/, 'name with comma+quotes is CSV-escaped');
+  });
+});

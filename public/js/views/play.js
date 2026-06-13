@@ -420,8 +420,10 @@ function buildDataStrip() {
       <span class="data-chip-v" id="app-version">\u2014</span>
     </div>
     <div class="data-strip-actions">
+      <a class="refresh-btn" id="export-csv-btn" href="/api/export?format=csv" download
+         title="Your snapshot history as a CSV \u2014 opens straight into Excel / Google Sheets. Per-account history: /api/export?format=csv&table=accounts">\u2913 CSV</a>
       <a class="refresh-btn" id="export-data-btn" href="/api/export" download
-         title="Download all your snapshots, account history, and settings as a JSON file \u2014 your personal backup.">\u2913 Export</a>
+         title="Everything (snapshots, account history, settings) as a JSON file \u2014 your complete personal backup.">\u2913 JSON</a>
       <button class="refresh-btn" type="button" id="refresh-update-btn" onclick="document.getElementById('manual-entry-panel').scrollIntoView({behavior:'smooth'})">\u270e Update Numbers</button>
     </div>
     <p class="data-strip-msg" id="refresh-msg"></p>
@@ -456,7 +458,21 @@ export function mountPlayShell(root) {
      commitment.js are the second line of defence. */
   const dangerZone = el('details', { class: 'play-danger-zone' });
   dangerZone.innerHTML = `
-    <summary class="play-danger-summary">Danger zone</summary>
+    <summary class="play-danger-summary">Account &amp; danger zone</summary>
+    <div class="play-danger-action" id="account-security-section">
+      <p class="play-danger-action-title">Account security</p>
+      <form class="account-pw-form" id="change-password-form" autocomplete="off" hidden>
+        <input type="password" class="account-pw-input" id="cp-current" placeholder="Current password" autocomplete="current-password" maxlength="200" />
+        <input type="password" class="account-pw-input" id="cp-new" placeholder="New password (10+ chars)" autocomplete="new-password" maxlength="200" />
+        <input type="password" class="account-pw-input" id="cp-confirm" placeholder="Confirm new password" autocomplete="new-password" maxlength="200" />
+        <button type="submit" class="play-danger-btn" id="cp-submit">Change password</button>
+      </form>
+      <p class="account-security-msg" id="account-security-msg" aria-live="polite"></p>
+      <button type="button" class="play-danger-btn" id="logout-others-btn"
+        title="Signs out every other device or browser where you're logged in. This one stays signed in.">
+        Sign out other devices
+      </button>
+    </div>
     <div class="play-danger-action">
       <p class="play-danger-action-title">Clear game data</p>
       <p class="play-danger-action-desc">

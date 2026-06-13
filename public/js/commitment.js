@@ -211,6 +211,83 @@ export function initDeleteAccountBtn() {
   });
 }
 
+/* ── Account security: change password + sign out other devices ──────────── */
+export function initAccountSecurity() {
+  const section = document.getElementById('account-security-section');
+  if (!section || section.dataset.bound === '1') return;
+  section.dataset.bound = '1';
+
+  const form = document.getElementById('change-password-form');
+  const msg = document.getElementById('account-security-msg');
+  const setMsg = (text, isError) => {
+    if (!msg) return;
+    msg.textContent = text || '';
+    msg.classList.toggle('is-error', !!isError);
+  };
+
+  // Password form only applies to local accounts — Google users have none.
+  void (async () => {
+    try {
+      const res = await fetch(stewardApiUrl('/api/auth/me'));
+      const data = await readJsonRes(res, '/api/auth/me');
+      if (form && data && data.user && data.user.provider === 'local') form.hidden = false;
+    } catch (_) { /* leave hidden */ }
+  })();
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const current = document.getElementById('cp-current');
+      const next = document.getElementById('cp-new');
+      const confirm = document.getElementById('cp-confirm');
+      const submit = document.getElementById('cp-submit');
+      setMsg('');
+      if (!next.value || next.value.length < 10) {
+        return setMsg('New password must be at least 10 characters.', true);
+      }
+      if (next.value !== confirm.value) {
+        return setMsg('New passwords do not match.', true);
+      }
+      submit.disabled = true;
+      try {
+        const res = await fetch(stewardApiUrl('/api/auth/change-password'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword: current.value, newPassword: next.value }),
+        });
+        const data = await readJsonRes(res, '/api/auth/change-password');
+        if (!data || !data.ok) throw new Error((data && data.error) || 'Password change failed.');
+        current.value = ''; next.value = ''; confirm.value = '';
+        setMsg('Password updated. Other devices have been signed out.');
+      } catch (err) {
+        setMsg(err && err.message ? err.message : 'Password change failed.', true);
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+
+  const logoutOthersBtn = document.getElementById('logout-others-btn');
+  if (logoutOthersBtn) {
+    logoutOthersBtn.addEventListener('click', async () => {
+      logoutOthersBtn.disabled = true;
+      setMsg('');
+      try {
+        const res = await fetch(stewardApiUrl('/api/auth/logout-others'), { method: 'POST' });
+        const data = await readJsonRes(res, '/api/auth/logout-others');
+        if (!data || !data.ok) throw new Error((data && data.error) || 'Could not sign out other devices.');
+        setMsg(data.removed > 0
+          ? `Signed out ${data.removed} other device${data.removed === 1 ? '' : 's'}.`
+          : 'No other devices were signed in.');
+      } catch (err) {
+        setMsg(err && err.message ? err.message : 'Could not sign out other devices.', true);
+      } finally {
+        logoutOthersBtn.disabled = false;
+      }
+    });
+  }
+}
+
 /* ── Inline commitment-reason editor ─────────────────────────────────────── */
 /* Click pencil → swap display for input, save on Enter/blur, cancel on Escape. */
 export function initCommitmentReasonEditor() {

@@ -5,7 +5,7 @@ import { readSessionMeta, writeSessionMeta, startPlaytimeTracking } from './sess
 import { render, setDebtSortMode, refreshDebtPanelData } from './render.js';
 import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';
-import { readPromiseMadeFlag, hydratePromiseFromServer, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor } from './commitment.js';
+import { readPromiseMadeFlag, hydratePromiseFromServer, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor, initAccountSecurity } from './commitment.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
 import { maybeShowStewardAiComment } from './steward-ai.js';
 
@@ -367,6 +367,7 @@ export function initDashboardBoot() {
   initPlayResetBtn();
   initDeleteAccountBtn();
   initCommitmentReasonEditor();
+  initAccountSecurity();
   initStickyUpdateFab();
   const root = document.getElementById('commitment-screen');
   if (!root) {

@@ -13,6 +13,7 @@ const {
   createSession,
   deleteSession,
   deleteUserSessions,
+  deleteOtherUserSessions,
   deleteUserAccount,
   verifyPassword,
   createPasswordResetToken,
@@ -41,10 +42,63 @@ function setSessionCookie(res, session) {
 }
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
+//
+// Per-IP creation limit: 5 new accounts per IP per hour. Counted only on
+// SUCCESSFUL creation so a legit user fumbling validation isn't locked out,
+// while a bot can't bloat the users table on a public deploy. Same in-memory
+// map + sweep pattern as the login and forgot-password limiters.
+
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+const REGISTER_MAX_PER_WINDOW = 5;
+const _registerCreations = new Map(); // ip → { count, firstAt }
+const _registerSweepHandle = setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _registerCreations) {
+    if (now - v.firstAt >= REGISTER_WINDOW_MS) _registerCreations.delete(k);
+  }
+}, REGISTER_WINDOW_MS);
+if (typeof _registerSweepHandle.unref === 'function') _registerSweepHandle.unref();
+
+function _clientIp(req) {
+  return (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
+    .toString().split(',')[0].trim().slice(0, 64);
+}
+
+/* Test suites (unit + e2e) register many users from 127.0.0.1 and would trip
+   the limiter instantly; they run with NODE_ENV=test. The dedicated limiter
+   test opts back in via STEWARD_FORCE_REGISTER_LIMIT. */
+function _registerLimiterActive() {
+  return process.env.NODE_ENV !== 'test' || process.env.STEWARD_FORCE_REGISTER_LIMIT === '1';
+}
+
+function _registerBlocked(ip) {
+  const entry = _registerCreations.get(ip);
+  if (!entry) return false;
+  if (Date.now() - entry.firstAt >= REGISTER_WINDOW_MS) {
+    _registerCreations.delete(ip);
+    return false;
+  }
+  return entry.count >= REGISTER_MAX_PER_WINDOW;
+}
+
+function _recordRegistration(ip) {
+  const entry = _registerCreations.get(ip);
+  if (!entry || Date.now() - entry.firstAt >= REGISTER_WINDOW_MS) {
+    _registerCreations.set(ip, { count: 1, firstAt: Date.now() });
+  } else {
+    entry.count += 1;
+  }
+}
 
 router.post('/register', (req, res) => {
   try {
     const { username, password, email } = req.body || {};
+
+    const ip = _clientIp(req);
+    if (_registerLimiterActive() && _registerBlocked(ip)) {
+      res.set('Retry-After', String(Math.ceil(REGISTER_WINDOW_MS / 1000)));
+      return res.status(429).json({ ok: false, error: 'Too many new accounts from this connection. Try again later.' });
+    }
 
     if (!username || typeof username !== 'string' || !username.trim()) {
       return res.status(400).json({ ok: false, error: 'Username is required.' });
@@ -93,6 +147,7 @@ router.post('/register', (req, res) => {
     }
 
     const user = createLocalUser(username.trim(), password, normalizedEmail);
+    if (_registerLimiterActive()) _recordRegistration(ip);
     const session = createSession(user.id);
     setSessionCookie(res, session);
 
@@ -320,6 +375,73 @@ router.patch('/me/email', (req, res) => {
     return res.status(500).json({ ok: false, error: 'Could not save email.' });
   }
   return res.json({ ok: true, email: normalized });
+});
+
+// ── POST /api/auth/change-password ────────────────────────────────────────────
+//
+// Logged-in password rotation (the forgot-password email flow was previously
+// the ONLY way to change a password). Verifies the current password, applies
+// the same rules as register, then invalidates every session — including this
+// one — and issues a fresh cookie so the caller stays signed in while any
+// stolen session dies.
+
+router.post('/change-password', (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ ok: false, error: 'Not authenticated.' });
+    }
+    if (req.user.provider !== 'local') {
+      return res.status(400).json({ ok: false, error: 'This account signs in with Google and has no password.' });
+    }
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || typeof currentPassword !== 'string'
+        || !newPassword || typeof newPassword !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Current and new password are required.' });
+    }
+    if (newPassword.length < 10) {
+      return res.status(400).json({ ok: false, error: 'New password must be at least 10 characters.' });
+    }
+    if (newPassword.length > 200) {
+      return res.status(400).json({ ok: false, error: 'New password must be 200 characters or fewer.' });
+    }
+    const user = findUserById(req.user.userId);
+    if (!user || !user.password || !verifyPassword(currentPassword, user.password)) {
+      return res.status(401).json({ ok: false, error: 'Current password is incorrect.' });
+    }
+    if (verifyPassword(newPassword, user.password)) {
+      return res.status(400).json({ ok: false, error: 'New password must be different from your current password.' });
+    }
+    setUserPassword(user.id, newPassword);
+    // Rotate everything: any session a thief might hold dies with the old
+    // password; the caller continues on a brand-new session.
+    deleteUserSessions(user.id);
+    const session = createSession(user.id);
+    setSessionCookie(res, session);
+    console.log(`[auth] change-password username=${user.username} id=${user.id} at=${new Date().toISOString()}`);
+    return res.json({ ok: true, message: 'Password updated. Other devices have been signed out.' });
+  } catch (err) {
+    console.error('[auth/change-password]', err);
+    return res.status(500).json({ ok: false, error: 'Password change failed.' });
+  }
+});
+
+// ── POST /api/auth/logout-others ──────────────────────────────────────────────
+//
+// "Sign out other devices" — kills every session except the calling one.
+// Works for both local and Google accounts.
+
+router.post('/logout-others', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ ok: false, error: 'Not authenticated.' });
+  }
+  try {
+    const removed = deleteOtherUserSessions(req.user.userId, req.user.sessionId);
+    console.log(`[auth] logout-others username=${req.user.username} id=${req.user.userId} removed=${removed}`);
+    return res.json({ ok: true, removed });
+  } catch (err) {
+    console.error('[auth/logout-others]', err);
+    return res.status(500).json({ ok: false, error: 'Could not sign out other devices.' });
+  }
 });
 
 // ── POST /api/auth/forgot-password ────────────────────────────────────────────

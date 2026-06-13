@@ -9,6 +9,8 @@ const test = require('node:test');
 // test file, which can fail with EPERM in locked-down Windows sandboxes.
 const tmpDb = path.join(os.tmpdir(), `steward-test-runner-${process.pid}-${Date.now()}.db`);
 process.env.STEWARD_DB_PATH = tmpDb;
+// Disables the per-IP register limiter (all test requests share 127.0.0.1).
+process.env.NODE_ENV = 'test';
 
 test.after(() => {
   for (const file of [tmpDb, `${tmpDb}-wal`, `${tmpDb}-shm`]) {
@@ -25,5 +27,6 @@ require('./climb-metrics.test');
 require('./api-state-machine.test');
 require('./api-snapshot.test');
 require('./auth-password-reset.test');
+require('./account-security.test');
 require('./inactivity-nudge.test');
 require('./zzz-climb-metrics-apply.test');

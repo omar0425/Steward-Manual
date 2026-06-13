@@ -165,6 +165,13 @@ function deleteUserSessions(userId) {
   db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(userId);
 }
 
+/** Sign out every device except the calling one. Returns sessions removed. */
+function deleteOtherUserSessions(userId, keepSessionId) {
+  const info = db.prepare(`DELETE FROM sessions WHERE user_id = ? AND id != ?`)
+    .run(userId, String(keepSessionId || ''));
+  return Number(info.changes) || 0;
+}
+
 /**
  * Permanently delete a user account. Removes the user row, which CASCADEs to
  * sessions and password_reset_tokens via the schema foreign keys. Caller is
@@ -248,6 +255,7 @@ module.exports = {
   validateSession,
   deleteSession,
   deleteUserSessions,
+  deleteOtherUserSessions,
   deleteUserAccount,
   pruneExpiredSessions,
   verifyPassword,

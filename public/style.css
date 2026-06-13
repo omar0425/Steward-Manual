@@ -1720,6 +1720,34 @@ body[data-theme-transitioning] .data-chip {
 }
 .play-danger-action-desc strong { color: var(--text-2); }
 .play-danger-action--critical .play-danger-action-desc strong { color: var(--rose); }
+/* Account security block (inside the Account & danger zone panel) */
+.account-pw-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.account-pw-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+.account-pw-input:focus { border-color: var(--gold); outline: none; }
+.account-security-msg {
+  margin: 6px 0 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--emerald);
+  min-height: 1em;
+}
+.account-security-msg.is-error { color: var(--rose); }
+
 .play-danger-btn {
   display: inline-flex;
   align-items: center;

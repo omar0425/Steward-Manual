@@ -928,8 +928,56 @@ router.get('/steward-ai/ledger', (req, res) => {
 // Download everything the authenticated user owns as a dated JSON file —
 // their personal backup, independent of the server's own backup story.
 
+function csvCell(v) {
+  const s = v == null ? '' : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function toCsv(headers, rows) {
+  // Leading BOM so Excel detects UTF-8 (account names can carry accents/emoji).
+  return '﻿' + [headers, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+
+function excelDate(iso) {
+  // "2026-06-12T17:30:00.000Z" → "2026-06-12 17:30:00" — Excel parses this
+  // as a real datetime; raw ISO with T/Z often lands as text.
+  return String(iso || '').replace('T', ' ').replace(/\.\d+Z?$/, '').replace('Z', '');
+}
+
 router.get('/export', (req, res) => {
   const data = exportUserData();
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  if (req.query.format === 'csv') {
+    // Account names live in the settings name map, not the history table.
+    let nameById = {};
+    try { nameById = JSON.parse(data.settings.debt_account_name_map || '{}'); } catch { /* ignore */ }
+
+    if (req.query.table === 'accounts') {
+      // Long-format per-account balance history — pivots cleanly in Excel.
+      const csv = toCsv(
+        ['account_id', 'account_name', 'recorded_at', 'balance'],
+        data.debtAccountHistory.map((r) => [r.accountId, nameById[r.accountId] || '', excelDate(r.recordedAt), r.balance]),
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="steward-accounts-${stamp}.csv"`);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      return res.send(csv);
+    }
+
+    // Default CSV: the snapshot time series — the sheet you'd actually chart.
+    const csv = toCsv(
+      ['pulled_at', 'total_debt', 'debt_remaining', 'total_assets', 'investment_value',
+        'monthly_income', 'monthly_expenses', 'net_worth', 'tier'],
+      data.snapshots.map((s) => [
+        excelDate(s.pulled_at), s.total_debt, s.debt_remaining, s.total_assets,
+        s.investment_value, s.monthly_income, s.monthly_expenses, s.net_worth, s.tier,
+      ]),
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="steward-snapshots-${stamp}.csv"`);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    return res.send(csv);
+  }
+
   const payload = {
     exportedAt: new Date().toISOString(),
     app: 'steward-manual',
@@ -938,7 +986,6 @@ router.get('/export', (req, res) => {
       : null,
     ...data,
   };
-  const stamp = new Date().toISOString().slice(0, 10);
   res.setHeader('Content-Disposition', `attachment; filename="steward-export-${stamp}.json"`);
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(payload, null, 2));

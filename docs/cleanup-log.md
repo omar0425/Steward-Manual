@@ -542,6 +542,37 @@ Suite: 75/75 unit, 30/30 e2e.
 
 ---
 
+## Batch 9 — account security, June 2026 (v1.8.0)
+
+1. **Change password while signed in** (`POST /api/auth/change-password`)
+   — previously the forgot-password email flow was the ONLY way to
+   rotate a password. Verifies the current password, applies register's
+   rules, kills every session (a thief's stolen session dies with the
+   old password), and re-issues a fresh cookie so the caller stays
+   signed in. Hidden in the UI for Google-provider accounts.
+2. **"Sign out other devices"** (`POST /api/auth/logout-others`) —
+   removes every session except the calling one; reports the count.
+3. **Register rate limit** — max 5 new accounts per IP per hour,
+   counted only on successful creation so fumbled validation doesn't
+   lock anyone out. Disabled under NODE_ENV=test (suites register
+   dozens of users from 127.0.0.1); the dedicated limiter test opts
+   back in via STEWARD_FORCE_REGISTER_LIMIT.
+4. **UI** — the Danger zone panel is now "Account & danger zone":
+   Account security (password form + sign-out button) on top, then the
+   destructive actions.
+5. **Excel-friendly export** — `GET /api/export?format=csv` downloads
+   the snapshot time series as a UTF-8-BOM CSV with Excel-parseable
+   datetimes; `&table=accounts` gives long-format per-account balance
+   history (names joined from the name map, RFC-4180 quoting). The data
+   strip now has ⤓ CSV and ⤓ JSON buttons — CSV for spreadsheets, JSON
+   as the complete backup.
+
+Suite: 80/80 unit, 30/30 e2e. New file `test/account-security.test.js`
+(4 tests, incl. full session-rotation roundtrip with cookie reissue);
+CSV export covered in `test/api-snapshot.test.js`.
+
+---
+
 ## Known failure — RESOLVED (kept for history)
 
 `test/api-state-machine.test.js:60` used to fail with `400 !== 200`
