@@ -14,6 +14,13 @@ let _debtSortMode = (() => {
 const DEBT_LIST_COLLAPSE_AT = 8;
 let _debtListExpanded = false;
 
+/* Latest APR-derived totals, consumed by the chart's what-if slider to turn
+   "months sooner" into "~$ interest saved" via a blended rate. */
+let _lastInterestSummary = { monthlyInterest: 0, totalDebt: 0 };
+export function getInterestSummary() {
+  return _lastInterestSummary;
+}
+
 /* Paid-off celebration. The list rebuilds several times per view (initial
    render, then again when the async debt-history fetch resolves), so a class
    added once gets wiped almost immediately. Instead the renderer re-applies it
@@ -480,6 +487,27 @@ export function fillDebtAccountsList(stats) {
     totalEl.textContent = fmtDollar(stats.debtRemaining);
     // $0 remaining is a victory, not a rose-red liability — paint it emerald.
     totalEl.classList.toggle('is-debt-clear', Number(stats.debtRemaining) <= 0.005);
+  }
+
+  // Hero interest ticker — the same monthly figure as the panel summary,
+  // expressed per-day, which is the framing that actually stings. Hidden
+  // until APRs are entered.
+  _lastInterestSummary = {
+    monthlyInterest: totalMonthlyInterest,
+    totalDebt: Number(stats.debtRemaining) || 0,
+  };
+  const ticker = document.getElementById('hero-interest-ticker');
+  if (ticker) {
+    const daily = (totalMonthlyInterest * 12) / 365;
+    if (daily >= 0.5) {
+      const amount = daily < 10 ? daily.toFixed(2) : Math.round(daily).toLocaleString();
+      ticker.textContent = `Carrying this debt costs ~$${amount} every day`;
+      ticker.title = 'Estimated from your APRs and current balances. Every payment shrinks this number.';
+      ticker.hidden = false;
+    } else {
+      ticker.hidden = true;
+      ticker.textContent = '';
+    }
   }
 
   // Avalanche summary — what the debt costs per month, and where extra

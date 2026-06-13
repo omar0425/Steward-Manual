@@ -1,9 +1,81 @@
 'use strict';
 
+import { getInterestSummary } from '../render-debts.js';
+
 /**
  * Debt Reduction Chart - renders debt remaining into the #networth-chart-svg element.
  * Uses the pre-built SVG paths #nw-line and #nw-area in play.js.
  */
+
+/* ── What-if slider ──────────────────────────────────────────────────────────
+   "Extra $N/mo → debt-free X months sooner, saving ~$Y interest." Driven by
+   the same pace numbers as the dashed projection; only visible while a
+   projection is active. Slider value persists across sessions. */
+
+const WHATIF_STORAGE_KEY = 'steward-whatif-extra';
+let _projState = null; // { latest, dailyPace, lastDateMs, daysToZero } when projecting
+let _whatifBound = false;
+
+function readWhatifExtra() {
+  try { return Math.max(0, Number(localStorage.getItem(WHATIF_STORAGE_KEY)) || 0); } catch { return 0; }
+}
+
+function updateWhatIfReadout() {
+  const slider = document.getElementById('whatif-slider');
+  const amountEl = document.getElementById('whatif-amount');
+  const readout = document.getElementById('whatif-readout');
+  if (!slider || !readout || !_projState) return;
+
+  const extra = Number(slider.value) || 0;
+  if (amountEl) amountEl.textContent = `$${extra.toLocaleString()}`;
+  if (extra <= 0) {
+    readout.textContent = 'Drag to see how extra payments move your debt-free date.';
+    readout.classList.remove('is-live');
+    return;
+  }
+
+  const { latest, dailyPace, lastDateMs, daysToZero } = _projState;
+  const newPace = dailyPace + (extra * 12) / 365;
+  const newDays = latest / newPace;
+  const payoff = new Date(lastDateMs + newDays * 86400000);
+  const when = payoff.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthsSooner = Math.max(0, Math.round((daysToZero - newDays) / 30.44));
+
+  // Blended APR from the avalanche totals → rough interest saved. The balance
+  // declines ~linearly to zero, so average balance is latest/2 over the window.
+  const { monthlyInterest, totalDebt } = getInterestSummary();
+  let savings = 0;
+  if (monthlyInterest > 0 && totalDebt > 0) {
+    const aprDaily = (monthlyInterest * 12) / totalDebt / 365;
+    savings = aprDaily * (latest / 2) * (daysToZero - newDays);
+  }
+
+  let text = `Debt-free around ${when}`;
+  if (monthsSooner >= 1) text += ` — ${monthsSooner} month${monthsSooner === 1 ? '' : 's'} sooner`;
+  if (savings >= 10) text += `, saving ~$${Math.round(savings).toLocaleString()} in interest`;
+  readout.textContent = text + '.';
+  readout.classList.add('is-live');
+}
+
+function syncWhatIfSection() {
+  const section = document.getElementById('whatif-section');
+  const slider = document.getElementById('whatif-slider');
+  if (!section || !slider) return;
+  if (!_projState) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  if (!_whatifBound) {
+    _whatifBound = true;
+    slider.value = String(readWhatifExtra());
+    slider.addEventListener('input', () => {
+      try { localStorage.setItem(WHATIF_STORAGE_KEY, slider.value); } catch { /* ignore */ }
+      updateWhatIfReadout();
+    });
+  }
+  updateWhatIfReadout();
+}
 
 export function renderNetWorthChart(snapshots) {
   const svg     = document.getElementById('networth-chart-svg');
@@ -29,6 +101,8 @@ export function renderNetWorthChart(snapshots) {
     areaEl.setAttribute('d', '');
     const existingDot = svg.querySelector('.nw-single-dot');
     if (existingDot) existingDot.hidden = true;
+    _projState = null;
+    syncWhatIfSection();
     return;
   }
 
@@ -117,11 +191,14 @@ export function renderNetWorthChart(snapshots) {
       projLabel.textContent = `At this pace, debt-free around ${when}`;
       projLabel.hidden = false;
     }
+    _projState = { latest, dailyPace, lastDateMs: lastDate.getTime(), daysToZero };
   } else {
     if (projEl) projEl.setAttribute('d', '');
     if (projDot) projDot.hidden = true;
     if (projLabel) { projLabel.hidden = true; projLabel.textContent = ''; }
+    _projState = null;
   }
+  syncWhatIfSection();
 
   if (xLabels) {
     xLabels.textContent = '';

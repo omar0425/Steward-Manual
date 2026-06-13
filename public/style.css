@@ -1073,6 +1073,78 @@ board-liquidity-pill
 .chart-projection[hidden] { display: none; }
 .chart-x-label--payoff { color: var(--gold-2, var(--gold)); }
 
+/* Hero interest ticker — daily carrying cost */
+.hero-interest-ticker {
+  margin: 2px 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--rose);
+  opacity: 0.85;
+}
+.hero-interest-ticker[hidden] { display: none; }
+
+/* What-if extra-payment slider (chart panel) */
+.whatif-section {
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.whatif-section[hidden] { display: none; }
+.whatif-label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.whatif-amount { color: var(--gold-2, var(--gold)); font-weight: 600; }
+.whatif-slider {
+  width: 100%;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+.whatif-readout {
+  margin: 8px 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  min-height: 1em;
+}
+.whatif-readout.is-live { color: var(--emerald); }
+
+/* Stage-up confetti (above the grain overlay at z-index 9999) */
+.stageup-confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10000;
+  overflow: hidden;
+}
+.confetti-piece {
+  position: absolute;
+  top: -3vh;
+  border-radius: 1px;
+  opacity: 0;
+  /* background + size set inline in JS (literal palette so the piece does not
+     depend on body-scoped theme vars — it mounts on <html>). */
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.25, 0.4, 0.45, 1);
+  animation-fill-mode: forwards;
+}
+@keyframes confetti-fall {
+  0%   { opacity: 1; transform: translate3d(0, 0, 0) rotate(0deg); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--confetti-drift, 0px), 105vh, 0) rotate(var(--confetti-spin, 540deg)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stageup-confetti { display: none; }
+}
+
 /* One-shot celebration on a freshly paid-off Debt Accounts row */
 .debt-row--celebrate {
   border-radius: 6px;

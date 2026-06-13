@@ -573,6 +573,41 @@ CSV export covered in `test/api-snapshot.test.js`.
 
 ---
 
+## Batch 10 — motivation trio, June 2026 (v1.9.0)
+
+Three features riding on data the app already collects, forming one
+motivational arc: feel the cost → see the escape → celebrate progress.
+
+1. **Interest ticker** (hero, `render-debts.js`) — "Carrying this debt
+   costs ~$X every day", computed from the same APR×balance totals as
+   the avalanche summary. Hidden until APRs are entered.
+2. **What-if slider** (chart panel, `views/networth-chart.js`) — drag an
+   extra $0–1000/mo; readout shows the new debt-free date, months
+   sooner, and ~interest saved (blended APR × average balance over the
+   shortened window). Only visible while the payoff projection is
+   active; value persists in localStorage.
+3. **Stage-up confetti** (`render-progress.js`) — a dependency-free CSS
+   burst (90 pieces, literal brand palette, gold/emerald/cream/rose)
+   when a climbed tier-change milestone renders; skipped under
+   `prefers-reduced-motion`.
+
+   ⚠️ **Boot-timing note for future maintainers:** the stage-up
+   milestone first renders mid-boot, and the boot sequence tears out
+   freshly-attached DOM (the shell/`<body>` is rebuilt during mascot
+   template injection). The confetti therefore **self-heals**: it
+   re-asserts itself onto the current `document.body` each animation
+   frame for ~3.5s, so whatever swaps the DOM, the next frame
+   re-mounts. Colors are inline literals (not `var(--gold)`) because the
+   theme tokens are scoped to `body[data-theme]` and an earlier
+   `<html>`-mounted version rendered transparent. Verified in a real
+   browser (90 gold pieces on the climbed milestone); note the headless
+   Playwright `page.evaluate` rig could not observe the burst — a test
+   harness isolation quirk, not a product bug.
+
+Suite: 80/80 unit, 30/30 e2e.
+
+---
+
 ## Known failure — RESOLVED (kept for history)
 
 `test/api-state-machine.test.js:60` used to fail with `400 !== 200`

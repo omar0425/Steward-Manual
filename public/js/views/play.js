@@ -199,6 +199,7 @@ function buildHeroSection() {
       <p class="hero-escape-primary" id="hero-escape-primary" aria-live="polite" title="Escape gap \u2014 dollars left to unlock the next payoff stage. Not your total debt; the next threshold.">\u2014</p>
       <p class="hero-cta-line" id="hero-primary-cta">Kill <span class="val" id="stat-daily-target">\u2014</span> today</p>
       <p class="hero-cta-sub" id="hero-cta-sub" hidden></p>
+      <p class="hero-interest-ticker" id="hero-interest-ticker" hidden></p>
 
       <span class="stat-sentinel" id="stat-debt-remaining" hidden></span>
       <span class="stat-sentinel" id="stat-net-worth" hidden></span>
@@ -258,6 +259,11 @@ function buildDebtReductionChart() {
     </div>
     <div class="chart-x-labels" id="chart-x-labels"></div>
     <p class="chart-projection" id="chart-projection-label" hidden></p>
+    <div class="whatif-section" id="whatif-section" hidden>
+      <label class="whatif-label" for="whatif-slider">What if I add <span class="whatif-amount" id="whatif-amount">$0</span>/mo extra?</label>
+      <input type="range" class="whatif-slider" id="whatif-slider" min="0" max="1000" step="25" value="0" aria-label="Extra monthly payment, dollars" />
+      <p class="whatif-readout" id="whatif-readout" aria-live="polite"></p>
+    </div>
     <p class="chart-memo">Latest 60 snapshots · line down = paydown · line up = balances grew</p>
   `;
   return section;

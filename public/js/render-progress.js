@@ -10,6 +10,71 @@ import {
 import { TIER_FLOW, TIER_META } from './tiers.js';
 import { queuePaidOffCelebration } from './render-debts.js';
 
+/* Full-viewport confetti burst for a climbed stage. Dependency-free: ~90
+   absolutely-positioned pieces, randomized drift/spin/delay via CSS custom
+   properties, removed after the longest piece lands. Skipped entirely under
+   prefers-reduced-motion. */
+// Fixed brand palette as literals — NOT CSS vars. The theme tokens (--gold
+// etc.) are scoped to body[data-theme]; building the colors inline keeps the
+// burst self-contained no matter where/when it mounts.
+const CONFETTI_COLORS = ['#c8a84c', '#14a469', '#f4efe4', '#d94f6e'];
+
+function buildConfettiWrap() {
+  const wrap = document.createElement('div');
+  wrap.id = 'stageup-confetti';
+  wrap.className = 'stageup-confetti';
+  wrap.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 90; i++) {
+    const piece = document.createElement('span');
+    piece.className = 'confetti-piece';
+    piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    piece.style.left = `${(Math.random() * 100).toFixed(2)}%`;
+    piece.style.animationDelay = `${(Math.random() * 0.7).toFixed(2)}s`;
+    piece.style.animationDuration = `${(1.6 + Math.random() * 1.4).toFixed(2)}s`;
+    const w = 5 + Math.random() * 6;
+    piece.style.width = `${w.toFixed(1)}px`;
+    piece.style.height = `${(w * (0.4 + Math.random() * 0.8)).toFixed(1)}px`;
+    piece.style.setProperty('--confetti-drift', `${((Math.random() - 0.5) * 160).toFixed(0)}px`);
+    piece.style.setProperty('--confetti-spin', `${(360 + Math.random() * 540).toFixed(0)}deg`);
+    wrap.appendChild(piece);
+  }
+  return wrap;
+}
+
+function fireStageUpConfetti() {
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  } catch (_) { /* matchMedia missing → proceed */ }
+  // The milestone renders mid-boot, during which the boot sequence rebuilds the
+  // shell (and tears out anything freshly attached to the document). Rather
+  // than guess exactly what removes it and when, the burst is self-healing:
+  // re-assert it onto the CURRENT document.body each animation frame for a
+  // ~3.5s window, then stop. Whatever swaps out the DOM, the next frame
+  // re-mounts. A single shared wrap id keeps it idempotent.
+  const startedAt = (() => { try { return performance.now(); } catch (_) { return 0; } })();
+  const KEEPALIVE_MS = 3500;
+  let removeTimer = null;
+  function ensureMounted() {
+    try {
+      const now = (() => { try { return performance.now(); } catch (_) { return startedAt + KEEPALIVE_MS + 1; } })();
+      if (now - startedAt > KEEPALIVE_MS) {
+        // Stop re-asserting; let the existing burst finish, then clean up.
+        if (!removeTimer) {
+          const existing = document.getElementById('stageup-confetti');
+          removeTimer = window.setTimeout(() => { const w = document.getElementById('stageup-confetti'); if (w) w.remove(); }, existing ? 3000 : 0);
+        }
+        return;
+      }
+      if (document.body && !document.getElementById('stageup-confetti')) {
+        document.body.appendChild(buildConfettiWrap());
+      }
+      requestAnimationFrame(ensureMounted);
+    } catch (_) { /* celebration must never break anything */ }
+  }
+  // Kick off after the first paint so we're not racing the synchronous render.
+  requestAnimationFrame(ensureMounted);
+}
+
 function escapeText(s) {
   const d = document.createElement('span');
   d.textContent = String(s == null ? '' : s);
@@ -100,6 +165,7 @@ export function fillProgressNarrative({
           const fromLabel = fromMeta.label || m.from;
           if (climbed) {
             row.innerHTML = `🎯 <strong>Stage up</strong> — ${fromLabel} → ${toLabel}.`;
+            fireStageUpConfetti();
           } else if (slipped) {
             row.innerHTML = `⚠️ Stage slipped — ${fromLabel} → ${toLabel}. Tomorrow's a new pull.`;
           } else {
