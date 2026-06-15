@@ -410,6 +410,9 @@ router.post('/snapshot', (req, res) => {
       monthlyExpenses = 0,
       investmentValue = 0,
       debtAccounts = [],
+      // Account ids the user flagged as "I already had this debt, just hadn't
+      // tracked it" — folded into the baseline rather than counted as new debt.
+      preexistingAccountIds = [],
     } = body;
 
     const moneyFields = {
@@ -520,7 +523,43 @@ router.post('/snapshot', (req, res) => {
     // Months ahead (simple: assets / expenses)
     const monthsAhead = expenses > 0 ? roundMoney(assets / expenses) : null;
 
-    // Determine tier (relative to climb baseline, falls back to rock_bottom if not yet set)
+    // ── Forgot-a-debt correction ──────────────────────────────────────────
+    // A debt account added mid-climb is normally counted as NEW debt (it works
+    // against the user and can slip their stage — the "downward spiral" when
+    // someone just forgot to enter an account they always had). When the client
+    // flags such an account as pre-existing, fold its balance into the baseline
+    // instead: the stage position is preserved, "paid down" is unchanged, and it
+    // is excluded from "new debt added". `prevForClimb` carries the seeded map
+    // (pre-existing ids set to their current balance) so the per-account diff
+    // below sees no change for them. Built only when a climb is active.
+    let prevForClimb = null;
+    if (gameActive && debtBalanceMap.size > 0 && Array.isArray(preexistingAccountIds) && preexistingAccountIds.length > 0) {
+      prevForClimb = getAllDebtAccountBalances();
+      let baselineBump = 0;
+      for (const rawId of preexistingAccountIds) {
+        const id = String(rawId);
+        // Only genuinely-new accounts (present now, absent before) qualify.
+        if (debtBalanceMap.has(id) && !prevForClimb.has(id)) {
+          const bal = debtBalanceMap.get(id);
+          baselineBump = roundMoney(baselineBump + bal);
+          prevForClimb.set(id, bal); // seed → diff sees no change → not new debt
+        }
+      }
+      if (baselineBump > 0) {
+        const climbNow = getClimbStatsFromConfig();
+        const newBaseline = roundMoney((Number(climbNow.climbBaselineDebt) || 0) + baselineBump);
+        setConfig('climb_baseline_debt', String(newBaseline));
+        const gs = getGameStart();
+        if (gs.gameStartDebt != null) {
+          setConfig('game_start_debt', String(roundMoney(Number(gs.gameStartDebt) + baselineBump)));
+        }
+        console.log(`[api] forgot-a-debt: +$${baselineBump} folded into baseline (now $${newBaseline})`);
+      }
+    }
+
+    // Determine tier (relative to climb baseline, falls back to rock_bottom if not yet set).
+    // Re-read config so any baseline bump above is reflected in the stored tier
+    // (prevents a false "stage slipped" milestone on the corrected pull).
     const climb = getClimbStatsFromConfig();
     const tierObj = getClimbTier(debtRemaining, climb.climbBaselineDebt);
 
@@ -546,7 +585,9 @@ router.post('/snapshot', (req, res) => {
     // Update per-account debt tracking. During setup this is inventory only;
     // climb metrics begin after POST /api/start-game locks the baseline.
     if (debtBalanceMap.size > 0) {
-      const prevBalances = getAllDebtAccountBalances();
+      // Reuse the seeded map from the forgot-a-debt correction when present so
+      // flagged pre-existing accounts don't register as new debt in the diff.
+      const prevBalances = prevForClimb || getAllDebtAccountBalances();
 
       replaceDebtAccountBalances(debtBalanceMap);
       appendDebtAccountHistory(debtBalanceMap);

@@ -2191,6 +2191,37 @@ body[data-setup-mode="first"] .setup-welcome {
   white-space: nowrap;
 }
 .paydown-detail { flex-shrink: 0; }
+
+/* New-account classification (forgot-a-debt correction) */
+.paydown-classify-section {
+  margin: 14px 0 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.paydown-classify-intro {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.paydown-classify-row { margin-bottom: 12px; }
+.paydown-classify-name {
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.paydown-classify-amt { color: var(--text-3); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+.paydown-classify-opts { display: flex; flex-direction: column; gap: 6px; }
+.paydown-classify-opts label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.paydown-classify-opts input[type="radio"] { accent-color: var(--gold); flex-shrink: 0; }
+.paydown-confirm-save:disabled { opacity: 0.45; cursor: not-allowed; }
 .paydown-detail {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;

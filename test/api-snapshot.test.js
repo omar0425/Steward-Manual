@@ -575,3 +575,71 @@ test('GET /api/export?format=csv: Excel-ready snapshot series and account histor
     assert.match(alines[1], /^visa,"Visa, ""Gold"" Card",/, 'name with comma+quotes is CSV-escaped');
   });
 });
+
+test('forgot-a-debt: flagging a new account as pre-existing folds it into baseline, not new debt', async () => {
+  await withApp(async (baseUrl) => {
+    // Baseline: two accounts totaling $20,000.
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 12000 }, { id: 'car', name: 'Car', balance: 8000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Pay down $2,000 on Visa → $18,000 total.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }, { id: 'car', name: 'Car', balance: 8000 }],
+    });
+    assert.equal(res.status, 200);
+
+    let status = await (await fetch(`${baseUrl}/api/status`)).json();
+    const baselineBefore = status.stats.climbBaselineDebt;
+    const paidBefore = status.stats.cumulativePaidDown;
+    const newDebtBefore = status.stats.cumulativeNewDebtAdded;
+    assert.equal(baselineBefore, 20000);
+    assert.equal(paidBefore, 2000);
+    assert.equal(newDebtBefore, 0);
+
+    // Now the user remembers a $5,000 loan they always had and adds it,
+    // flagging it pre-existing. It must NOT count as new debt, and the
+    // baseline must rise so the stage position is preserved.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'visa', name: 'Visa', balance: 10000 },
+        { id: 'car', name: 'Car', balance: 8000 },
+        { id: 'loan', name: 'Forgotten Loan', balance: 5000 },
+      ],
+      preexistingAccountIds: ['loan'],
+    });
+    assert.equal(res.status, 200);
+
+    status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.climbBaselineDebt, 25000, 'baseline rose by the forgotten $5k');
+    assert.equal(status.stats.cumulativeNewDebtAdded, 0, 'forgotten debt is NOT counted as new debt');
+    assert.equal(status.stats.cumulativePaidDown, 2000, 'paid-down unchanged');
+    assert.equal(status.stats.debtRemaining, 23000, 'current debt includes the loan');
+    // The honest invariant: amount paid (baseline - current) is preserved.
+    assert.equal(status.stats.climbBaselineDebt - status.stats.debtRemaining, 2000);
+  });
+});
+
+test('forgot-a-debt: WITHOUT the flag, a new account counts as new debt (the spiral)', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 12000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Add a $5k account with NO flag → default behavior counts it as new debt.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 12000 }, { id: 'loan', name: 'Loan', balance: 5000 }],
+    });
+    assert.equal(res.status, 200);
+
+    const status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.climbBaselineDebt, 12000, 'baseline unchanged without the flag');
+    assert.equal(status.stats.cumulativeNewDebtAdded, 5000, 'unflagged new account = new debt');
+  });
+});

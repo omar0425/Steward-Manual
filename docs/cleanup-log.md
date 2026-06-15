@@ -608,6 +608,42 @@ Suite: 80/80 unit, 30/30 e2e.
 
 ---
 
+## Batch 11 — forgot-a-debt correction, June 2026 (v1.10.0)
+
+Fixes a data-integrity trap: a debt account *added mid-climb* was always
+counted as **new debt** — so a user who simply forgot to enter an account
+they always had would see their progress spiral backward (new-debt
+counter jumps, stage can slip). Now they can say which it is.
+
+- **Server** (`routes/api.js`): `/api/snapshot` accepts
+  `preexistingAccountIds`. For each genuinely-new account so flagged while
+  a climb is active, its balance is **folded into the baseline**
+  (`climb_baseline_debt` + `game_start_debt`) and **excluded from the
+  new-debt diff** (the previous-balances map is seeded with it). Net
+  effect: "paid down" is unchanged and the stage position is preserved —
+  the honest representation that the debt was always there. The tier is
+  computed *after* the bump so no false "stage slipped" milestone fires.
+  Only active mid-climb; during setup every account is just inventory.
+- **Frontend** (`manual-entry.js`): when you add a new account mid-climb,
+  the confirm dialog asks per account — "New debt I just took on" vs "A
+  debt I already had." No default (guessing either way is wrong); **Save
+  stays disabled until every new account is classified.** Existing
+  balance-update behavior is untouched.
+- **Tests**: two new cases in `test/api-snapshot.test.js` — flagged →
+  baseline rises, zero new debt, paid-down preserved; unflagged → still
+  counts as new debt (the spiral, unchanged default). Verified end-to-end
+  through the real UI (dialog gates Save; POST carries the ids; baseline
+  folds $20k→$23k with new-debt 0).
+
+Note: this does NOT add user-settable "as-of" dates — that's a separate,
+riskier change (it would touch chart ordering, payoff pace, and account
+history). Dating was considered and deferred; the spiral was the real
+problem and it's date-independent.
+
+Suite: 82/82 unit, 30/30 e2e.
+
+---
+
 ## Known failure — RESOLVED (kept for history)
 
 `test/api-state-machine.test.js:60` used to fail with `400 !== 200`

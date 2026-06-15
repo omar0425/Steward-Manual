@@ -419,13 +419,19 @@ function buildPaydownSummary(accounts) {
   return { changes, totalPaid };
 }
 
-function showPaydownConfirmation(summary, onConfirm) {
+function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   // Remove any existing dialog
   const existing = document.getElementById('paydown-confirm-dialog');
   if (existing) existing.remove();
 
-  if (summary.changes.length === 0) {
-    onConfirm();
+  // newAccounts: genuinely-new accounts added this pull while a climb is active.
+  // Each must be classified as new debt vs already-had before saving, so a
+  // forgotten-then-added account doesn't silently spiral the user backward.
+  const toClassify = Array.isArray(newAccounts) ? newAccounts : [];
+
+  // Nothing to confirm AND nothing to classify → save straight through.
+  if (summary.changes.length === 0 && toClassify.length === 0) {
+    onConfirm([]);
     return;
   }
 
@@ -450,11 +456,30 @@ function showPaydownConfirmation(summary, onConfirm) {
     return `<div class="paydown-line ${dir}"><span class="paydown-name">${safeName}</span> <span class="paydown-detail">$${c.prev.toLocaleString()} ${arrow} $${c.curr.toLocaleString()} (${label})</span></div>`;
   }).join('');
 
+  // Classification block for newly-added accounts. No default — the user must
+  // pick, because guessing wrong either spirals them (counting a forgotten debt
+  // as new) or flatters them (counting genuinely-new debt as pre-existing).
+  const classifyHtml = toClassify.length === 0 ? '' : `
+    <div class="paydown-classify-section">
+      <p class="paydown-classify-intro">You're adding ${toClassify.length === 1 ? 'a new account' : 'new accounts'}. For each, is this debt you just took on, or one you already had and are only now tracking?</p>
+      ${toClassify.map(a => `
+        <div class="paydown-classify-row" data-account-id="${escHtml(String(a.id))}">
+          <div class="paydown-classify-name">${escHtml(a.name)} <span class="paydown-classify-amt">$${Math.round(a.balance).toLocaleString()}</span></div>
+          <div class="paydown-classify-opts">
+            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="new"> New debt I just took on</label>
+            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="existing"> A debt I already had</label>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
   overlay.innerHTML = `
     <div class="paydown-confirm-card">
       <h3 class="paydown-confirm-title" id="paydown-confirm-title">Confirm changes</h3>
       <div class="paydown-confirm-lines">${linesHtml}</div>
       ${summary.totalPaid > 0 ? `<div class="paydown-confirm-total">Total paid down: <strong>$${summary.totalPaid.toLocaleString()}</strong></div>` : ''}
+      ${classifyHtml}
       <div class="paydown-confirm-actions">
         <button type="button" class="paydown-confirm-cancel">Cancel</button>
         <button type="button" class="paydown-confirm-save">Save</button>
@@ -463,6 +488,26 @@ function showPaydownConfirmation(summary, onConfirm) {
   `;
 
   document.body.appendChild(overlay);
+
+  // Save stays disabled until every new account is classified.
+  const saveBtnEl = overlay.querySelector('.paydown-confirm-save');
+  const radios = Array.from(overlay.querySelectorAll('.paydown-classify-opts input[type="radio"]'));
+  function allClassified() {
+    return toClassify.every(a => overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`));
+  }
+  function refreshSaveEnabled() {
+    if (saveBtnEl) saveBtnEl.disabled = toClassify.length > 0 && !allClassified();
+  }
+  radios.forEach(r => r.addEventListener('change', refreshSaveEnabled));
+  refreshSaveEnabled();
+  function collectPreexistingIds() {
+    return toClassify
+      .filter(a => {
+        const checked = overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`);
+        return checked && checked.value === 'existing';
+      })
+      .map(a => String(a.id));
+  }
 
   const closeDialog = () => {
     overlay.remove();
@@ -475,18 +520,22 @@ function showPaydownConfirmation(summary, onConfirm) {
 
   overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', closeDialog);
   overlay.querySelector('.paydown-confirm-save').addEventListener('click', () => {
+    if (toClassify.length > 0 && !allClassified()) return; // guard double-fire
+    const preexistingIds = collectPreexistingIds();
     closeDialog();
-    onConfirm();
+    onConfirm(preexistingIds);
   });
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeDialog();
   });
 
-  // First focusable element inside the dialog receives focus on open.
-  // Save button is the primary action; Cancel is reachable via Shift+Tab.
-  const saveBtn = overlay.querySelector('.paydown-confirm-save');
-  if (saveBtn) {
-    try { saveBtn.focus(); } catch (_) { /* ignore */ }
+  // Focus the first actionable control. When classification is required the
+  // Save button starts disabled, so focus the first radio instead.
+  const focusTarget = toClassify.length > 0
+    ? overlay.querySelector('.paydown-classify-opts input[type="radio"]')
+    : saveBtnEl;
+  if (focusTarget) {
+    try { focusTarget.focus(); } catch (_) { /* ignore */ }
   }
 }
 
@@ -514,7 +563,7 @@ function resyncSavedDebtsFromServer() {
     .catch(() => { /* non-fatal — the read-only dashboard already refreshed */ });
 }
 
-async function saveSnapshot(debtAccounts, msgEl, btnEl) {
+async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
   if (btnEl) btnEl.disabled = true;
   if (msgEl) msgEl.textContent = 'Saving\u2026';
 
@@ -527,6 +576,9 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
   // Filter out zero-balance (paid off) accounts
   const activeAccounts = debtAccounts.filter(a => a.balance > 0);
   const totalDebt = debtAccounts.reduce((sum, a) => sum + a.balance, 0);
+  // Accounts the user marked "I already had this" \u2014 server folds them into the
+  // baseline instead of counting them as new debt.
+  const preexistingAccountIds = Array.isArray(opts.preexistingAccountIds) ? opts.preexistingAccountIds : [];
 
   try {
     const res = await fetch(stewardApiUrl('/api/snapshot'), {
@@ -539,6 +591,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl) {
         monthlyExpenses:  0,
         investmentValue:  0,
         debtAccounts,
+        preexistingAccountIds,
       }),
     });
     const data = await res.json();
@@ -677,8 +730,12 @@ export function initManualEntryForm() {
       const newAccounts = collectDebtAccounts();
       const allAccounts = [...updatedAccounts, ...newAccounts];
       const summary = buildPaydownSummary(allAccounts);
-      showPaydownConfirmation(summary, async () => {
-        await saveSnapshot(allAccounts, msg, updateBtn);
+      // Only ask the new-debt-vs-already-had question once a climb is running —
+      // during first-run setup every account is just inventory, no baseline yet.
+      const isSetup = document.body && document.body.dataset.setupMode === 'first';
+      const toClassify = isSetup ? [] : newAccounts.filter(a => a.balance > 0);
+      showPaydownConfirmation(summary, toClassify, async (preexistingAccountIds) => {
+        await saveSnapshot(allAccounts, msg, updateBtn, { preexistingAccountIds });
       });
     });
   }
