@@ -652,6 +652,12 @@ From real-use feedback on the live app.
    mascot washed out against a light `.start-character-frame`. Now the
    frame is a deep green disc (`#16241c`) on both themes with a gold ring
    and drop shadow, so the Steward pops. Verified in light theme.
+   **Follow-up (v1.11.1):** the first pass fixed contrast but missed the
+   real complaint — the 268px-tall mascot was being *clipped* (hat + feet)
+   by the 216px disc's `overflow:hidden`. Scaled the figure to `0.72` with
+   a `-26px` upward nudge (the wrap's internal layout is bottom-heavy) so
+   the whole character, hat to shoes, sits centered inside the disc.
+   Verified by measuring the wrap vs frame rects and a screenshot.
 2. **Removed "View all 10 stages" links** — gone from the start screen and
    the hero (`views/play.js`) plus their dead CSS. `/showcase` still
    resolves by URL; it's just no longer linked.

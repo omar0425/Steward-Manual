@@ -1241,6 +1241,13 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .start-character-frame { width: 216px; height: 216px; margin: 0 auto 24px; border-radius: 50%; background: #16241c; border: 1px solid rgba(200,168,76,0.4); box-shadow: 0 10px 36px rgba(0,0,0,0.22), inset 0 0 0 1px rgba(255,255,255,0.04); display: grid; place-items: center; position: relative; overflow: hidden; }
 .start-character-frame::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 28%, rgba(200,168,76,0.22), transparent 68%); }
 [data-theme="light"] .start-character-frame { box-shadow: 0 10px 30px rgba(40,25,5,0.18), inset 0 0 0 1px rgba(255,255,255,0.05); }
+/* The mascot's wrap is 158×268 — taller than the 216px disc, so the round
+   frame's overflow:hidden was clipping his hat and feet. Scale him down to sit
+   fully inside the circle (hat to shoes visible) and center him. */
+#start-game-character { display: grid; place-items: center; width: 100%; height: 100%; }
+/* scale fits the 268px figure inside the 216px disc; the upward nudge corrects
+   the wrap's bottom-heavy internal layout so he's centered hat-to-shoes. */
+#start-game-character .steward-wrap { transform: translateY(-26px) scale(0.72); transform-origin: center center; }
 .start-title { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 600; line-height: 1; color: var(--text); margin-bottom: 10px; letter-spacing: -0.02em; }
 .start-subtitle { font-size: 14px; color: var(--text-2); margin-bottom: 16px; line-height: 1.5; }
 .start-commitment-quote { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-style: italic; color: var(--gold); opacity: 0.90; margin-bottom: 24px; padding: 0 8px; line-height: 1.55; letter-spacing: 0.01em; }
