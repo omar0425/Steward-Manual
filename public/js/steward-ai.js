@@ -165,6 +165,60 @@ function showDialog({ mode, title, text }) {
  *
  * Errors are swallowed: a failing AI fetch must never break the dashboard.
  */
+/* "Ask the Steward" panel — suggested-question chips that query the AI about
+   the user's own numbers. Gated on aiEnabled (no API key → panel stays hidden);
+   the setup-mode CSS handles hiding it before a climb starts. Bound once. */
+export function initAskSteward() {
+  const panel = document.getElementById('ask-steward-panel');
+  const chipsWrap = document.getElementById('ask-steward-chips');
+  const answerEl = document.getElementById('ask-steward-answer');
+  if (!panel || !chipsWrap || !answerEl || panel.dataset.bound === '1') return;
+  panel.dataset.bound = '1';
+
+  // Reveal only when the server reports an API key is configured. Setup-mode
+  // visibility is handled by the dashboard-only-section CSS, so we don't gate
+  // on climb state here — the panel appears automatically once the climb starts.
+  fetch(stewardApiUrl('/api/status'))
+    .then((r) => r.json())
+    .then((status) => { if (status && status.aiEnabled) panel.hidden = false; })
+    .catch(() => { /* leave hidden */ });
+
+  let busy = false;
+  const setChipsDisabled = (v) => chipsWrap.querySelectorAll('.ask-steward-chip').forEach((c) => { c.disabled = v; });
+
+  chipsWrap.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.ask-steward-chip');
+    if (!btn || busy) return;
+    const question = btn.textContent.trim();
+    busy = true;
+    setChipsDisabled(true);
+    answerEl.hidden = false;
+    answerEl.classList.remove('is-error');
+    answerEl.textContent = 'The Steward is considering…';
+    try {
+      const res = await fetch(stewardApiUrl('/api/steward-ai/ask'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      if (res.status === 204) { panel.hidden = true; return; } // AI turned off server-side
+      const data = await res.json().catch(() => null);
+      if (data && data.ok && data.text) {
+        answerEl.textContent = data.text;
+      } else {
+        answerEl.classList.add('is-error');
+        answerEl.textContent = (data && data.error) || 'The Steward could not answer just now.';
+      }
+    } catch (_) {
+      answerEl.classList.add('is-error');
+      answerEl.textContent = 'Could not reach the Steward. Try again.';
+    } finally {
+      busy = false;
+      setChipsDisabled(false);
+    }
+  });
+}
+
 export async function maybeShowStewardAiComment(status) {
   if (!status || !status.ready || !status.meta) return;
   const pulledAt = status.meta.lastSnapshotAt;

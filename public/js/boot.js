@@ -7,7 +7,7 @@ import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';
 import { readPromiseMadeFlag, hydratePromiseFromServer, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor, initAccountSecurity } from './commitment.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
-import { maybeShowStewardAiComment } from './steward-ai.js';
+import { maybeShowStewardAiComment, initAskSteward } from './steward-ai.js';
 
 const STARTUP_UI_DEBUG = false;
 
@@ -368,6 +368,7 @@ export function initDashboardBoot() {
   initDeleteAccountBtn();
   initCommitmentReasonEditor();
   initAccountSecurity();
+  initAskSteward();
   initStickyUpdateFab();
   const root = document.getElementById('commitment-screen');
   if (!root) {

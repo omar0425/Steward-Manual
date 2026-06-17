@@ -108,9 +108,6 @@ function buildStartGameScreen() {
         <p class="start-commitment-quote" id="start-commitment-quote" hidden></p>
         <p class="start-clock" id="start-game-clock"></p>
         <button class="start-btn" type="button" id="start-game-btn">Start Session</button>
-        <p class="start-footer">
-          <a href="/showcase">View all 10 stages</a>
-        </p>
       </div>
     </div>
   `;
@@ -221,10 +218,6 @@ function buildHeroSection() {
         <div class="journey-bar" id="journey-bar">
           <div class="jb-fill" style="width:0%"></div>
         </div>
-      </div>
-
-      <div class="hero-links">
-        <a href="/showcase" class="hero-link">View all 10 stages</a>
       </div>
     </div>
   `;
@@ -430,13 +423,34 @@ function buildDataStrip() {
          title="Your snapshot history as a CSV \u2014 opens straight into Excel / Google Sheets. Per-account history: /api/export?format=csv&table=accounts">\u2913 CSV</a>
       <a class="refresh-btn" id="export-data-btn" href="/api/export" download
          title="Everything (snapshots, account history, settings) as a JSON file \u2014 your complete personal backup.">\u2913 JSON</a>
-      <button class="refresh-btn" type="button" id="refresh-update-btn" onclick="document.getElementById('manual-entry-panel').scrollIntoView({behavior:'smooth'})">\u270e Update Numbers</button>
     </div>
-    <p class="data-strip-msg" id="refresh-msg"></p>
   `;
   return section;
 }
 
+
+/* "Ask the Steward" — suggested-question chips that query the AI about the
+   user's own numbers. Hidden until initAskSteward() confirms AI is configured
+   (and only on an active climb). Built collapsed; wiring lives in steward-ai.js. */
+const ASK_STEWARD_QUESTIONS = [
+  'Which debt should I pay first?',
+  'When could I be debt-free?',
+  'How am I doing?',
+  'What is interest costing me?',
+];
+
+function buildAskStewardPanel() {
+  const section = el('section', { class: 'section-panel dashboard-only-section ask-steward-panel', id: 'ask-steward-panel', hidden: true });
+  section.innerHTML = `
+    <p class="tc-section-label" style="margin:0 0 4px;">Ask the Steward</p>
+    <p class="tc-section-sublabel">Answers drawn from your own numbers.</p>
+    <div class="ask-steward-chips" id="ask-steward-chips">
+      ${ASK_STEWARD_QUESTIONS.map(q => `<button type="button" class="ask-steward-chip">${q}</button>`).join('')}
+    </div>
+    <div class="ask-steward-answer" id="ask-steward-answer" hidden aria-live="polite"></div>
+  `;
+  return section;
+}
 
 export function mountPlayShell(root) {
   root.textContent = '';
@@ -453,6 +467,7 @@ export function mountPlayShell(root) {
   dashboard.appendChild(buildManualEntryForm());
   dashboard.appendChild(buildDebtReductionChart());
   dashboard.appendChild(buildSessionPanel());
+  dashboard.appendChild(buildAskStewardPanel());
   dashboard.appendChild(buildDebtAccountsPanel());
   dashboard.appendChild(buildStageProgressDetail());
   dashboard.appendChild(buildCumulativePaydownTrophy());

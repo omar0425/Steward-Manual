@@ -644,6 +644,36 @@ Suite: 82/82 unit, 30/30 e2e.
 
 ---
 
+## Batch 12 — start-screen polish + Ask the Steward, June 2026 (v1.11.0)
+
+From real-use feedback on the live app.
+
+1. **Character visibility** (`style.css`) — on the cream light theme the
+   mascot washed out against a light `.start-character-frame`. Now the
+   frame is a deep green disc (`#16241c`) on both themes with a gold ring
+   and drop shadow, so the Steward pops. Verified in light theme.
+2. **Removed "View all 10 stages" links** — gone from the start screen and
+   the hero (`views/play.js`) plus their dead CSS. `/showcase` still
+   resolves by URL; it's just no longer linked.
+3. **De-duplicated the update CTA** — dropped the redundant data-strip
+   "✎ Update Numbers" button (and the dead `#refresh-msg`). The canonical
+   action is "Update Balances" in the entry panel; the contextual FAB
+   still appears when it scrolls out of view.
+4. **Ask the Steward** — a dashboard panel of suggested-question chips
+   ("Which debt should I pay first?", "When could I be debt-free?", "How
+   am I doing?", "What is interest costing me?") that query the AI about
+   the user's own numbers. New `POST /api/steward-ai/ask` +
+   `generateAnswer()` reuse the existing context payload, so answers cite
+   real figures in the Pennybags voice. Gated by a new `aiEnabled` flag in
+   `/api/status` (panel hidden when no `ANTHROPIC_API_KEY`); setup-mode CSS
+   hides it pre-climb. Verified end-to-end with a live key — a "pay first"
+   question returned correct avalanche advice citing the $166.60/mo
+   interest and the account nickname.
+
+Suite: 83/83 unit, 30/30 e2e.
+
+---
+
 ## Known failure — RESOLVED (kept for history)
 
 `test/api-state-machine.test.js:60` used to fail with `400 !== 200`

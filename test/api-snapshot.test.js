@@ -643,3 +643,20 @@ test('forgot-a-debt: WITHOUT the flag, a new account counts as new debt (the spi
     assert.equal(status.stats.cumulativeNewDebtAdded, 5000, 'unflagged new account = new debt');
   });
 });
+
+test('steward-ai/ask + aiEnabled flag: gated on API key (none in test env → 204 / false)', async () => {
+  await withApp(async (baseUrl) => {
+    // No ANTHROPIC_API_KEY in the test env → ask endpoint returns 204.
+    let res = await postJson(baseUrl, '/api/steward-ai/ask', { question: 'How am I doing?' });
+    assert.equal(res.status, 204);
+
+    // Set up a climb so /api/status takes the main path, then assert aiEnabled.
+    res = await postJson(baseUrl, '/api/snapshot', { debtAccounts: [{ id: 'a', name: 'A', balance: 5000 }] });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/status`);
+    const status = await res.json();
+    assert.equal(status.aiEnabled, false, 'aiEnabled reflects missing API key');
+  });
+});

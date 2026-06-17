@@ -273,11 +273,35 @@ async function generateTierQuote({ payload }) {
   return { ok: true, text: quote };
 }
 
+// ── Ask the Steward (interactive Q&A) ─────────────────────────────────────────
+/**
+ * Answer a user's question grounded strictly in their climb data. Returns
+ * { ok, text } on success. The payload is the same context object the dialog
+ * modes use, so the Steward can cite real figures (interest, pace, forecasts).
+ */
+async function generateAnswer({ question, payload }) {
+  const system =
+    PENNYBAGS_VOICE +
+    '\n\nTASK: the player asked you a direct question about their debt climb. ' +
+    'Answer it in 2–4 short sentences using ONLY the figures in the DATA ' +
+    'below — never invent numbers or facts. If the data does not contain what ' +
+    'is needed, say so plainly and name what would answer it (e.g. entering ' +
+    'APRs). Plain prose, no markdown, no bullet lists, no headings.';
+
+  const userContent =
+    'QUESTION: ' + String(question) + '\n\nDATA:\n' + JSON.stringify(payload, null, 0);
+
+  const res = await callAnthropic({ system, userContent, maxTokens: 320 });
+  if (!res.ok) return res;
+  return { ok: true, text: asString(res.text, 1200) };
+}
+
 module.exports = {
   isConfigured,
   generateModeDialog,
   generateClosingCertificate,
   generateQuarterlyLetter,
   generateTierQuote,
+  generateAnswer,
   MODEL,
 };

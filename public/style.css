@@ -262,6 +262,7 @@ h1, h2, h3 {
       "hero   hero"
       "entry  chart"
       "entry  session"
+      "entry  ask"
       "debts  stage"
       "debts  trophy"
       "danger strip";
@@ -272,11 +273,12 @@ h1, h2, h3 {
   body:not([data-setup-mode]) #dashboard > :nth-child(2) { grid-area: entry; }
   body:not([data-setup-mode]) #dashboard > :nth-child(3) { grid-area: chart; }
   body:not([data-setup-mode]) #dashboard > :nth-child(4) { grid-area: session; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(5) { grid-area: debts; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(6) { grid-area: stage; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(7) { grid-area: trophy; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(8) { grid-area: strip; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(9) { grid-area: danger; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(5) { grid-area: ask; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(6) { grid-area: debts; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(7) { grid-area: stage; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(8) { grid-area: trophy; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(9) { grid-area: strip; }
+  body:not([data-setup-mode]) #dashboard > :nth-child(10) { grid-area: danger; }
 }
 
 /* ── Section panel — base for all dashboard cards ── */
@@ -600,9 +602,6 @@ i) => {
 
 /* render.js: hero-tier-behavior { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 6px; }
 
-.hero-links { display: flex; gap: 16px; align-items: center; }
-.hero-link { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text-2); text-decoration: none; letter-spacing: 0.06em; transition: color 140ms; }
-.hero-link:hover { color: var(--gold); }
 
 /* ══════════════════════════════════════════════════════════════════════
    🟡 P2+3 — CASH FLOW + BREATHING ROOM
@@ -1237,9 +1236,11 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .start-screen { min-height: 100vh; display: grid; place-items: center; padding: 60px 24px 40px; background: var(--start-bg); }
 .start-inner { text-align: center; width: min(440px,100%); display: flex; flex-direction: column; align-items: center; }
 .start-brand { font-family: 'Cormorant Garamond', serif; font-size: 13px; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
-.start-character-frame { width: 200px; height: 200px; margin: 0 auto 24px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border-2); display: grid; place-items: center; position: relative; overflow: hidden; transition: background 300ms ease; }
-.start-character-frame::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, rgba(200,168,76,0.12), transparent 70%); }
-[data-theme="light"] .start-character-frame { background: var(--surface-2); }
+/* Deep, consistent backdrop on BOTH themes so the green mascot always sits on
+   a contrasting disc — on the cream light theme a light fill let it wash out. */
+.start-character-frame { width: 216px; height: 216px; margin: 0 auto 24px; border-radius: 50%; background: #16241c; border: 1px solid rgba(200,168,76,0.4); box-shadow: 0 10px 36px rgba(0,0,0,0.22), inset 0 0 0 1px rgba(255,255,255,0.04); display: grid; place-items: center; position: relative; overflow: hidden; }
+.start-character-frame::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 28%, rgba(200,168,76,0.22), transparent 68%); }
+[data-theme="light"] .start-character-frame { box-shadow: 0 10px 30px rgba(40,25,5,0.18), inset 0 0 0 1px rgba(255,255,255,0.05); }
 .start-title { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 600; line-height: 1; color: var(--text); margin-bottom: 10px; letter-spacing: -0.02em; }
 .start-subtitle { font-size: 14px; color: var(--text-2); margin-bottom: 16px; line-height: 1.5; }
 .start-commitment-quote { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-style: italic; color: var(--gold); opacity: 0.90; margin-bottom: 24px; padding: 0 8px; line-height: 1.55; letter-spacing: 0.01em; }
@@ -1247,9 +1248,6 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .start-clock { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); letter-spacing: 0.06em; margin-bottom: 20px; }
 .start-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 40px; background: var(--gold); color: #0a0c14; border: none; border-radius: var(--radius-sm); font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: all 140ms ease; text-transform: uppercase; }
 .start-btn:hover { background: var(--gold-2); transform: translateY(-1px); }
-.start-footer { margin-top: 32px; font-size: 12px; color: var(--text-3); }
-.start-footer a { color: var(--text-2); text-decoration: none; }
-.start-footer a:hover { color: var(--gold); }
 
 /* ══════════════════════════════════════════════════════════════════════
    GALLERY SCREEN
@@ -2222,6 +2220,41 @@ body[data-setup-mode="first"] .setup-welcome {
 }
 .paydown-classify-opts input[type="radio"] { accent-color: var(--gold); flex-shrink: 0; }
 .paydown-confirm-save:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Ask the Steward */
+.ask-steward-panel[hidden] { display: none; }
+.ask-steward-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ask-steward-chip {
+  padding: 8px 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 140ms, border-color 140ms, background 140ms;
+}
+.ask-steward-chip:hover { color: var(--gold); border-color: var(--gold); }
+.ask-steward-chip:disabled { opacity: 0.5; cursor: default; }
+.ask-steward-answer {
+  margin-top: 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  background: rgba(200,168,76,0.06);
+  border-left: 2px solid var(--gold);
+  border-radius: 4px;
+}
+.ask-steward-answer.is-error { color: var(--rose); border-left-color: var(--rose); background: rgba(217,79,110,0.06); }
+.ask-steward-answer[hidden] { display: none; }
 .paydown-detail {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;

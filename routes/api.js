@@ -106,6 +106,7 @@ router.get('/status', (req, res) => {
       noData: false,
       message,
       lastError: null,
+      aiEnabled: stewardAi.isConfigured(),
       stats: {
         debtRemaining: snap.debt_remaining,
         totalDebt: snap.total_debt,
@@ -314,6 +315,7 @@ router.get('/status', (req, res) => {
     stability,
     streak,
     recentMilestones,
+    aiEnabled: stewardAi.isConfigured(),
     stats: {
       debtRemaining:    snap.debt_remaining,
       debtDirection,
@@ -913,6 +915,40 @@ router.post('/steward-ai/comment', (req, res) => {
     } catch (err) {
       console.error('[api] steward-ai/comment', err);
       return res.status(204).end();
+    }
+  })();
+});
+
+// ── POST /api/steward-ai/ask ──────────────────────────────────────────────────
+// Interactive Q&A: the client sends a question (from suggested chips or free
+// text); the Steward answers grounded in the same context payload the dialog
+// modes use. 204 when no API key (client hides the Ask panel). Not cached —
+// answers are quick and the user chose to spend the token.
+
+router.post('/steward-ai/ask', express.json(), (req, res) => {
+  (async () => {
+    try {
+      if (!stewardAi.isConfigured()) return res.status(204).end();
+      const { question } = req.body || {};
+      if (!question || typeof question !== 'string' || !question.trim()) {
+        return res.status(400).json({ ok: false, error: 'A question is required.' });
+      }
+      const q = question.trim().slice(0, 300);
+      const ctx = stewardAiContext.buildContext();
+      if (ctx.skip) {
+        return res.json({
+          ok: true,
+          text: 'Add your debts and start the climb first — then I will have real numbers to answer with.',
+        });
+      }
+      const result = await stewardAi.generateAnswer({ question: q, payload: ctx.payload });
+      if (!result || !result.ok || !result.text) {
+        return res.status(200).json({ ok: false, error: 'The Steward could not answer just now. Try again in a moment.' });
+      }
+      return res.json({ ok: true, text: result.text });
+    } catch (err) {
+      console.error('[api] steward-ai/ask', err);
+      return res.status(500).json({ ok: false, error: 'Ask failed.' });
     }
   })();
 });
