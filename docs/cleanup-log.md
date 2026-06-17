@@ -678,6 +678,18 @@ From real-use feedback on the live app.
 
 Suite: 83/83 unit, 30/30 e2e.
 
+**Follow-up (v1.11.2):** the first Ask answers were poor — they leaked
+internal jargon ("the forecasts array is empty", "the system would need")
+and refused to answer instead of reasoning. Rewrote the `generateAnswer`
+prompt: never reference data/fields/"the system" (speak only about the
+player's money); do the arithmetic (monthly ≈ daily × 30); and — critically
+— compare monthly paydown to monthly interest, stating plainly when
+interest is outrunning payments (no honest payoff date) plus the dollar
+lever to reverse it. Verified against the reported scenario ($77,967 debt,
+~$6.45/day paydown, $387.60/mo interest): the answer now says the balance
+is growing, quantifies the ~$550–600/mo needed to turn it around, and
+points to entering the Visa APR — no jargon.
+
 ---
 
 ## Known failure — RESOLVED (kept for history)

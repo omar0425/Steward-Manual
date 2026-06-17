@@ -282,14 +282,29 @@ async function generateTierQuote({ payload }) {
 async function generateAnswer({ question, payload }) {
   const system =
     PENNYBAGS_VOICE +
-    '\n\nTASK: the player asked you a direct question about their debt climb. ' +
-    'Answer it in 2–4 short sentences using ONLY the figures in the DATA ' +
-    'below — never invent numbers or facts. If the data does not contain what ' +
-    'is needed, say so plainly and name what would answer it (e.g. entering ' +
-    'APRs). Plain prose, no markdown, no bullet lists, no headings.';
+    '\n\nThe player asked you a direct question about their debt. Answer it ' +
+    'in 2–4 short sentences using the figures provided. Be decisive and ' +
+    'useful — give a real number or a real next move, never a non-answer.\n\n' +
+    'HARD RULES:\n' +
+    '- NEVER mention data, fields, arrays, "the system", "on file", or what ' +
+    'you were "given". The player has no idea those exist. Speak only about ' +
+    'their money, in plain English.\n' +
+    '- Do the arithmetic yourself from what you have. A monthly figure is ' +
+    'roughly the daily figure × 30. Compute a payoff horizon from the average ' +
+    'monthly paydown against the balance even when no date is precomputed.\n' +
+    '- CRITICAL: compare the monthly paydown to the monthly interest. If ' +
+    'interest is close to or larger than what they are paying down, say so ' +
+    'plainly — the balance is barely moving or growing, and no honest payoff ' +
+    'date exists at this pace. Then state the lever: roughly how much per ' +
+    'month, above interest, would actually turn it around.\n' +
+    '- If a figure truly is not available (e.g. no APRs entered), name the ONE ' +
+    'thing they could enter to get a sharper answer — framed as their next ' +
+    'move, in one short clause, not as an apology or a refusal.\n' +
+    '- Never invent numbers. Plain prose only: no markdown, lists, or headings.';
 
   const userContent =
-    'QUESTION: ' + String(question) + '\n\nDATA:\n' + JSON.stringify(payload, null, 0);
+    'QUESTION: ' + String(question) + '\n\nFIGURES (for your reasoning only — ' +
+    'never refer to this object):\n' + JSON.stringify(payload, null, 0);
 
   const res = await callAnthropic({ system, userContent, maxTokens: 320 });
   if (!res.ok) return res;
