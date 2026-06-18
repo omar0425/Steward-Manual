@@ -188,7 +188,7 @@ function buildHeroSection() {
         </div>
         <p class="sr-only" id="hero-badge" hidden></p>
         <div class="streak-badge" id="streak-badge" hidden>
-          \uD83D\uDD25 <span id="streak-count">0</span> day streak
+          \uD83D\uDD25 <span id="streak-count">0</span> in a row
         </div>
       </div>
       <p class="sr-only" id="hero-tier-label" aria-live="polite">Buried</p>

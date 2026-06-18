@@ -349,11 +349,12 @@ export function renderStatsBlock({
   if (streakEl) {
     const streak = status.streak;
     if (streak && streak.current > 0) {
-      streakEl.textContent = `🔥 ${streak.current}-period streak`;
+      const n = streak.current;
+      streakEl.textContent = `🔥 ${n} paydown${n === 1 ? '' : 's'} in a row`;
       streakEl.hidden = false;
     } else if (streak && streak.current === 0 && (streak.previousStreakLength || streak.lastBroken) > 0) {
       const len = streak.previousStreakLength || streak.lastBroken;
-      streakEl.textContent = `You broke a ${len}-period streak. Start a new one.`;
+      streakEl.textContent = `You broke a streak of ${len} paydown${len === 1 ? '' : 's'} in a row. Pay down again to start fresh.`;
       streakEl.hidden = false;
     } else {
       streakEl.textContent = '';

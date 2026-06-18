@@ -101,9 +101,12 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   if (streakBadge) {
     const cur = streak && Number.isFinite(Number(streak.current)) ? Number(streak.current) : 0;
     if (cur > 0) {
-      streakBadge.innerHTML = `🔥 <span id="streak-count">${cur}</span> day streak`;
+      // NOT a daily streak — debt isn't paid daily. It counts consecutive
+      // balance updates where the debt went down, so the cadence is the
+      // user's own (weekly, payday, monthly — whatever they log).
+      streakBadge.innerHTML = `🔥 <span id="streak-count">${cur}</span> in a row`;
       streakBadge.dataset.zero = '';
-      streakBadge.title = `${cur} consecutive sessions trimming debt.`;
+      streakBadge.title = `${cur} update${cur === 1 ? '' : 's'} in a row where your debt went down. Pay down again to extend it.`;
       streakBadge.removeAttribute('role');
       streakBadge.removeAttribute('tabindex');
       streakBadge.style.cursor = '';
