@@ -378,7 +378,9 @@ function buildContext() {
         daysSinceLastTurn,
         daysIntoClimb,
         recentPaydownSum4Turns: dollars(recentPaydownSum),
-        avgDailyPaydown: avgPerDay,
+        // This is a monthly check-in app, so the model is given pace in
+        // dollars-per-month. (avgPerDay stays internal, for forecast dates.)
+        avgMonthlyPaydown: avgPerDay != null ? dollars(avgPerDay * 30) : null,
       },
       interest: {
         monthlyCost: monthlyInterest,

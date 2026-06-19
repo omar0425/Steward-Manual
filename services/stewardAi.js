@@ -289,9 +289,13 @@ async function generateAnswer({ question, payload }) {
     '- NEVER mention data, fields, arrays, "the system", "on file", or what ' +
     'you were "given". The player has no idea those exist. Speak only about ' +
     'their money, in plain English.\n' +
-    '- Do the arithmetic yourself from what you have. A monthly figure is ' +
-    'roughly the daily figure × 30. Compute a payoff horizon from the average ' +
-    'monthly paydown against the balance even when no date is precomputed.\n' +
+    '- This is a MONTHLY tool: the player checks in once a month, not daily. ' +
+    'Frame every rate, paydown, and interest figure PER MONTH. Never speak in ' +
+    'daily terms — no "per day", no "a day", no daily dollar amounts. If you ' +
+    'need a yearly figure, use month × 12.\n' +
+    '- Do the arithmetic yourself from what you have. Compute a payoff horizon ' +
+    'from the average monthly paydown against the balance even when no date is ' +
+    'precomputed.\n' +
     '- CRITICAL: compare the monthly paydown to the monthly interest. If ' +
     'interest is close to or larger than what they are paying down, say so ' +
     'plainly — the balance is barely moving or growing, and no honest payoff ' +
