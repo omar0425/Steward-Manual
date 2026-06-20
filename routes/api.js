@@ -19,7 +19,9 @@ const {
   appendDebtAccountHistory,
   lastNonZeroFinancials,
   getAllDebtAccountBalances,
+  getDebtAccountFirstBalances,
 } = require('../db');
+const { monthlyPaceFromSnapshots } = require('../services/pace');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -209,6 +211,21 @@ router.get('/status', (req, res) => {
     }
   }
 
+  // Per-account paid-down percentage: how far each card has come from its
+  // original (first-ever recorded) balance. Attached for the panel to render.
+  if (Array.isArray(debtAccountLines) && debtAccountLines.length) {
+    const firstBalances = getDebtAccountFirstBalances();
+    debtAccountLines = debtAccountLines.map((line) => {
+      const start = Number(firstBalances.get(String(line.id)));
+      const bal = Number(line.balance);
+      if (Number.isFinite(start) && start > 0 && Number.isFinite(bal)) {
+        const pct = Math.max(0, Math.min(100, Math.round(((start - bal) / start) * 1000) / 10));
+        return { ...line, startBalance: roundMoney(start), pctPaid: pct };
+      }
+      return line;
+    });
+  }
+
   const lastPullAccountLines = rawLastPullAccountLines || [];
   let lastPullPaydownSum = 0;
   let lastPullNewDebtSum = 0;
@@ -292,20 +309,13 @@ router.get('/status', (req, res) => {
   // (e.g. correcting a typo) where dividing by near-zero elapsed time gives a
   // bogus "1 month away" answer.
   let monthsEstimateClimb = null;
-  const MIN_DAYS_FOR_PACE = 1;
-  if (next.nextTier && next.gapDollars > 0 && snapshots.length >= 2) {
-    const usable = snapshots.slice(0, Math.min(snapshots.length, 4));
-    const newest = usable[0];
-    const oldest = usable[usable.length - 1];
-    const msElapsed = new Date(newest.pulled_at) - new Date(oldest.pulled_at);
-    const daysElapsed = msElapsed / (1000 * 60 * 60 * 24);
-    if (daysElapsed >= MIN_DAYS_FOR_PACE) {
-      const monthsElapsed = daysElapsed / 30.44;
-      const totalPaydown = oldest.debt_remaining - newest.debt_remaining;
-      const avgMonthlyPaydown = totalPaydown / monthsElapsed;
-      if (avgMonthlyPaydown > 0) {
-        monthsEstimateClimb = Math.ceil(next.gapDollars / avgMonthlyPaydown);
-      }
+  if (next.nextTier && next.gapDollars > 0) {
+    // Shared span-gated monthly pace — same helper the Steward forecasts use,
+    // so the dashboard estimate and the AI dates can never disagree, and a
+    // burst of same-week entries can't produce a bogus "1 month away".
+    const monthlyPace = monthlyPaceFromSnapshots(snapshots);
+    if (monthlyPace && monthlyPace > 0) {
+      monthsEstimateClimb = Math.ceil(next.gapDollars / monthlyPace);
     }
   }
 

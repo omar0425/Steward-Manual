@@ -31,6 +31,7 @@ const {
   getGameStart,
   latestSnapshot,
   getAllDebtAccountBalances,
+  getDebtAccountFirstBalances,
 } = require('../db');
 const { getClimbTier, nextClimbTierInfo } = require('./tiers');
 const {
@@ -38,6 +39,7 @@ const {
   getLastDebtSyncDebugForStatus,
 } = require('./climbMetrics');
 const { refreshNicknames } = require('./stewardAiNicknames');
+const { monthlyPaceFromSnapshots, DAYS_PER_MONTH } = require('./pace');
 
 // ── Config keys used by this module ───────────────────────────────────────────
 const LAST_IF_DO_NOTHING_KEY    = 'steward_ai_last_if_do_nothing_at';
@@ -147,12 +149,15 @@ function paydownOverWindow(snapshots, days) {
 }
 
 /**
- * Forecast calendar dates for the next 1–3 climb tiers based on avgDailyPaydown.
- * Returns [] when pace is null or projected horizon exceeds ~2 years.
+ * Forecast calendar dates for the next 1–3 climb tiers from a MONTHLY paydown
+ * pace (dollars/month). Returns [] when pace is null/non-positive or the
+ * projected horizon exceeds ~2 years. Using the span-gated monthly pace (see
+ * services/pace.js) keeps these dates honest even when entries cluster in time.
  */
-function forecastTierDates({ currentDebt, baseline, avgPerDay }) {
-  if (!Number.isFinite(avgPerDay) || avgPerDay <= 0) return [];
+function forecastTierDates({ currentDebt, baseline, monthlyPace }) {
+  if (!Number.isFinite(monthlyPace) || monthlyPace <= 0) return [];
   if (!Number.isFinite(baseline) || baseline <= 0) return [];
+  const perDay = monthlyPace / DAYS_PER_MONTH;
   const nonDebtFreeStages = 9;
   const forecasts = [];
   for (let i = 1; i <= nonDebtFreeStages; i++) {
@@ -160,7 +165,7 @@ function forecastTierDates({ currentDebt, baseline, avgPerDay }) {
     const targetDebt = baseline * (1 - exitPct);
     if (currentDebt <= targetDebt) continue;
     const dollarsAway = currentDebt - targetDebt;
-    const daysAway = dollarsAway / avgPerDay;
+    const daysAway = dollarsAway / perDay;
     if (daysAway > 730) break;
     const date = new Date(Date.now() + daysAway * 86400 * 1000);
     forecasts.push({
@@ -206,7 +211,7 @@ function markQuarterlyLetterFired(at) {
 function buildEligibleModes({
   monthlyInterest,
   hasAnyApr,
-  paceData,        // { avgPerDay, turnsAnalyzed }
+  paceData,        // { monthlyPace, turnsAnalyzed }
   recentPaydownSum,
   lastPullPaydown,
   lastPullAdded,
@@ -215,7 +220,7 @@ function buildEligibleModes({
 
   if (monthlyInterest > 5) modes.push('adversary');
   if (hasAnyApr) modes.push('todays_deal');
-  if (paceData.turnsAnalyzed >= 3 && paceData.avgPerDay > 0) modes.push('climb_forecast');
+  if (paceData.turnsAnalyzed >= 3 && paceData.monthlyPace > 0) modes.push('climb_forecast');
 
   const lastIfNothing = getConfig(LAST_IF_DO_NOTHING_KEY);
   const cooledDown =
@@ -279,13 +284,14 @@ function buildContext() {
     }
   }
 
-  // Pace & forecast. avgPerDay stays internal (forecast-date math only); it is
-  // unreliable as a user-facing rate when entries cluster in time.
-  const avgPerDay = avgDailyPaydown(snapshots);
+  // Pace & forecast. The monthly pace is span-gated (services/pace.js): it
+  // returns null until entries span real calendar time, so clustered logging
+  // can no longer inflate it into a fantasy rate or over-optimistic dates.
+  const monthlyPace = monthlyPaceFromSnapshots(snapshots);
   const forecasts = forecastTierDates({
     currentDebt: snap.debt_remaining,
     baseline: climb.climbBaselineDebt,
-    avgPerDay,
+    monthlyPace,
   });
 
   // True monthly paydown: total balance reduction across ALL cards over the
@@ -336,13 +342,23 @@ function buildContext() {
 
   // Per-account history (last 30d), for nickname detection + pace context
   const historyByAccount = getDebtAccountHistory(30);
+  // Each account's original balance (full history) → percent paid down so far.
+  const firstBalances = getDebtAccountFirstBalances();
 
   const nicknames = refreshNicknames(currentAccounts, aprMap, historyByAccount);
-  const annotatedAccounts = currentAccounts.map((a) => ({
-    ...a,
-    apr: Number.isFinite(Number(aprMap[a.id])) ? Number(aprMap[a.id]) : null,
-    nickname: nicknames[a.id] || null,
-  }));
+  const annotatedAccounts = currentAccounts.map((a) => {
+    const start = Number(firstBalances.get(String(a.id)));
+    const pctPaid =
+      Number.isFinite(start) && start > 0
+        ? Math.max(0, Math.min(100, Math.round(((start - a.balance) / start) * 1000) / 10))
+        : null;
+    return {
+      ...a,
+      apr: Number.isFinite(Number(aprMap[a.id])) ? Number(aprMap[a.id]) : null,
+      nickname: nicknames[a.id] || null,
+      pctPaid, // % this card has been paid down from its starting balance
+    };
+  });
 
   const monthlyInterest = monthlyInterestCost(currentAccounts, aprMap);
   const topInterest = highestInterestAccount(currentAccounts, aprMap);
@@ -362,7 +378,7 @@ function buildContext() {
   const eligibleModes = buildEligibleModes({
     monthlyInterest,
     hasAnyApr,
-    paceData: { avgPerDay, turnsAnalyzed: snapshots.length - 1 },
+    paceData: { monthlyPace, turnsAnalyzed: snapshots.length - 1 },
     recentPaydownSum,
     lastPullPaydown,
     lastPullAdded,
@@ -376,6 +392,7 @@ function buildContext() {
     balance: dollars(a.balance),
     apr: a.apr,
     nickname: a.nickname,
+    pctPaid: a.pctPaid, // percent paid down from this card's starting balance
   }));
   const turnDeltas = lastPullAccountLines
     .filter((l) => l && Number.isFinite(Number(l.delta)) && Math.abs(Number(l.delta)) >= 1)
@@ -423,6 +440,9 @@ function buildContext() {
         // of the window actually covered (positive = paid down, negative = grew).
         paidDownLast30Days: last30 ? dollars(last30.paydown) : null,
         paidDownLast30DaysFromDate: last30 ? last30.fromDate : null,
+        // Typical monthly pace, span-gated (null until entries cover real time).
+        // Safe to extrapolate a payoff horizon from; never a per-day number.
+        avgMonthlyPaydown: monthlyPace != null ? dollars(monthlyPace) : null,
       },
       interest: {
         monthlyCost: monthlyInterest,

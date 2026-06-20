@@ -299,10 +299,13 @@ export function fillDebtAccountsList(stats) {
         ? new Date(ga).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
         : '';
       const paidDown = gd - (stats.debtRemaining || 0);
-      gsMeta.textContent = dateLabel;
+      const pct = gd > 0 ? Math.round((paidDown / gd) * 1000) / 10 : null;
+      gsMeta.textContent = (pct != null && pct > 0)
+        ? `${dateLabel} · ${pct}% paid down`
+        : dateLabel;
       gsVal.textContent  = fmtDollar(gd);
       gsVal.title        = paidDown >= 0
-        ? `${fmtDollar(paidDown)} paid down since game start`
+        ? `${fmtDollar(paidDown)} paid down since game start${pct != null ? ` (${pct}%)` : ''}`
         : '';
       gsRow.hidden = false;
     } else {
@@ -435,9 +438,25 @@ export function fillDebtAccountsList(stats) {
       aprEl.textContent = '—';
     }
 
+    // Balance cell stacks the dollar figure over a small "% paid" line. The
+    // dollar stays its own .dr-balance span (manual-entry's live editor writes
+    // to it directly), so the percentage sibling survives live edits.
+    const amountCell = document.createElement('div');
+    amountCell.className = 'dr-balance-cell';
     const amount = document.createElement('span');
     amount.className = 'dr-balance debt-row-balance';
     amount.textContent = fmtDollar(balance);
+    amountCell.appendChild(amount);
+    const pctPaidVal = Number(acct.pctPaid);
+    if (!isPaidOff && Number.isFinite(pctPaidVal) && pctPaidVal > 0) {
+      const pctEl = document.createElement('span');
+      pctEl.className = 'dr-paid-pct';
+      pctEl.textContent = `${pctPaidVal}% paid`;
+      if (acct.startBalance != null && Number.isFinite(Number(acct.startBalance))) {
+        pctEl.title = `Down from ${fmtDollar(Number(acct.startBalance))} since you started tracking it.`;
+      }
+      amountCell.appendChild(pctEl);
+    }
 
     const deltaEl = document.createElement('span');
     const latestDelta = latestDebtHistoryDelta(acct.id);
@@ -463,7 +482,7 @@ export function fillDebtAccountsList(stats) {
 
     row.appendChild(name);
     row.appendChild(aprEl);
-    row.appendChild(amount);
+    row.appendChild(amountCell);
     row.appendChild(deltaEl);
     row.appendChild(sparkWrap);
     listEl.appendChild(row);
@@ -489,8 +508,8 @@ export function fillDebtAccountsList(stats) {
     totalEl.classList.toggle('is-debt-clear', Number(stats.debtRemaining) <= 0.005);
   }
 
-  // Hero interest ticker — the same monthly figure as the panel summary,
-  // expressed per-day, which is the framing that actually stings. Hidden
+  // Hero interest ticker — the same monthly figure as the panel summary.
+  // A monthly app speaks in months, so this is the per-month cost. Hidden
   // until APRs are entered.
   _lastInterestSummary = {
     monthlyInterest: totalMonthlyInterest,
@@ -498,10 +517,11 @@ export function fillDebtAccountsList(stats) {
   };
   const ticker = document.getElementById('hero-interest-ticker');
   if (ticker) {
-    const daily = (totalMonthlyInterest * 12) / 365;
-    if (daily >= 0.5) {
-      const amount = daily < 10 ? daily.toFixed(2) : Math.round(daily).toLocaleString();
-      ticker.textContent = `Carrying this debt costs ~$${amount} every day`;
+    if (totalMonthlyInterest >= 0.5) {
+      const amount = totalMonthlyInterest < 10
+        ? totalMonthlyInterest.toFixed(2)
+        : Math.round(totalMonthlyInterest).toLocaleString();
+      ticker.textContent = `Carrying this debt costs ~$${amount} every month`;
       ticker.title = 'Estimated from your APRs and current balances. Every payment shrinks this number.';
       ticker.hidden = false;
     } else {
