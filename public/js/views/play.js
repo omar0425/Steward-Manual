@@ -454,6 +454,17 @@ function buildAskStewardPanel() {
   return section;
 }
 
+/* Page-bottom sign-off. The 🧐 (monocle) mirrors the Steward's emblem — the
+   hatted, monocled butler in the favicon — so the character bookends the page. */
+function buildStewardFooter() {
+  const footer = el('footer', { class: 'steward-footer', role: 'contentinfo' });
+  footer.innerHTML = `
+    <span class="steward-footer-emoji" aria-hidden="true">🧐</span>
+    <span class="steward-footer-text">At your service — your Steward, every step of the climb.</span>
+  `;
+  return footer;
+}
+
 export function mountPlayShell(root) {
   root.textContent = '';
 
@@ -514,6 +525,7 @@ export function mountPlayShell(root) {
     </div>
   `;
   dashboard.appendChild(dangerZone);
+  dashboard.appendChild(buildStewardFooter());
 
   root.appendChild(dashboard);
 
