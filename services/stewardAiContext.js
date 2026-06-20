@@ -40,6 +40,7 @@ const {
 } = require('./climbMetrics');
 const { refreshNicknames } = require('./stewardAiNicknames');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, DAYS_PER_MONTH } = require('./pace');
+const { buildPayoffPlan } = require('./payoffPlan');
 
 // ── Config keys used by this module ───────────────────────────────────────────
 const LAST_IF_DO_NOTHING_KEY    = 'steward_ai_last_if_do_nothing_at';
@@ -366,6 +367,11 @@ function buildContext() {
 
   const monthlyInterest = monthlyInterestCost(currentAccounts, aprMap);
   const topInterest = highestInterestAccount(currentAccounts, aprMap);
+  // "Pay this next": avalanche (highest APR) + snowball (smallest balance), from
+  // the same helper the dashboard card uses so the advice can never disagree.
+  const payoffPlan = buildPayoffPlan(
+    currentAccounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance, apr: aprMap[String(a.id)] })),
+  );
   const hasAnyApr = Object.values(aprMap).some(
     (v) => Number.isFinite(Number(v)) && Number(v) > 0,
   );
@@ -471,6 +477,7 @@ function buildContext() {
         },
       },
       accounts: payloadAccounts,
+      payoffPlan,
       turnDeltas,
       forecasts,
       snapshotTrail,

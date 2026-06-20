@@ -322,6 +322,10 @@ async function generateAnswer({ question, payload }) {
     '- If a figure truly is not available (e.g. no APRs entered), name the ONE ' +
     'thing they could enter to get a sharper answer — framed as their next ' +
     'move, in one short clause, not as an apology or a refusal.\n' +
+    '- For "which debt should I pay first / next": name payoffPlan.avalanche.target ' +
+    '(highest APR — saves the most) when APRs are known; otherwise ' +
+    'payoffPlan.snowball.target (smallest balance — a fast win). You may mention ' +
+    'the other approach in one clause, but give ONE clear pick.\n' +
     '- When they ask about "this month", "lately", or "today", lead with ' +
     'stats.paidThisMonth (net debt change so far this calendar month; positive ' +
     'is paid down, negative is added) — that is their CURRENT behavior.\n' +

@@ -14,7 +14,7 @@ import {
 } from './render-stats.js';
 import { fillProgressNarrative, renderNetWorthClimb } from './render-progress.js';
 import {
-  refreshDebtPanelData, setDebtSortMode, toggleAprForm, fillDebtAccountsList,
+  refreshDebtPanelData, setDebtSortMode, toggleAprForm, fillDebtAccountsList, renderPayThisNext,
 } from './render-debts.js';
 
 export { refreshDebtPanelData, setDebtSortMode, toggleAprForm };
@@ -69,6 +69,7 @@ export function render(status, snapshots) {
   renderNetWorthClimb(status.netWorthHistory);
 
   fillDebtAccountsList(stats);
+  renderPayThisNext(stats);
   fillThisTurnPanel(stats);
 
   if (typeof window.stewardVnextEnhance === 'function') {

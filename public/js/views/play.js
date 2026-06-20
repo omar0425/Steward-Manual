@@ -349,6 +349,25 @@ function buildStageProgressDetail() {
   return section;
 }
 
+/* "Pay this next" — the single recommended target (avalanche/snowball), with a
+   toggle. Populated by renderPayThisNext() from stats.payoffPlan; hidden until
+   there's a positive balance to attack. */
+function buildPayThisNextCard() {
+  const section = el('section', { class: 'section-panel dashboard-only-section pay-next-section', id: 'pay-next-section', hidden: true });
+  section.innerHTML = `
+    <div class="pay-next-head">
+      <span class="tc-section-label" style="margin:0;">Pay this next</span>
+      <div class="pay-next-toggle" id="pay-next-toggle" role="group" aria-label="Payoff strategy">
+        <button type="button" class="pay-next-tab" data-method="avalanche" title="Highest interest first — saves the most money">Save most</button>
+        <button type="button" class="pay-next-tab" data-method="snowball" title="Smallest balance first — fastest win">Quick win</button>
+      </div>
+    </div>
+    <div class="pay-next-target" id="pay-next-target">—</div>
+    <div class="pay-next-reason" id="pay-next-reason"></div>
+  `;
+  return section;
+}
+
 function buildCumulativePaydownTrophy() {
   const section = el('section', { class: 'section-panel dashboard-only-section', id: 'cumulative-trophy-section' });
   section.innerHTML = `
@@ -489,6 +508,7 @@ export function mountPlayShell(root) {
   const dashboard = el('main', { class: 'dashboard app-shell', id: 'dashboard' });
   dashboard.appendChild(buildHeroSection());
   dashboard.appendChild(buildManualEntryForm());
+  dashboard.appendChild(buildPayThisNextCard());
   dashboard.appendChild(buildDebtReductionChart());
   dashboard.appendChild(buildSessionPanel());
   dashboard.appendChild(buildAskStewardPanel());
