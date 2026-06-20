@@ -32,4 +32,5 @@ require('./inactivity-nudge.test');
 require('./steward-ai-paydown.test');
 require('./steward-ai-pace.test');
 require('./classify-debt.test');
+require('./pace-projection.test');
 require('./zzz-climb-metrics-apply.test');

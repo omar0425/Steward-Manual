@@ -136,6 +136,8 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
   // Offer "undo last update" only when there's a captured pull to reverse.
   const undoBtn = document.getElementById('undo-last-btn');
   if (undoBtn) undoBtn.hidden = !(stats && stats.canUndo === true);
+
+  fillDebtFreeBanner(stats);
   if (elDir) {
     let d = 'flat'; let dirClass = '';
     if (stats && stats.debtDirection === 'increasing') { d = 'backward'; dirClass = 'sp-val--bad'; }
@@ -143,6 +145,53 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     else if (netThisTurn < 0) { d = 'forward'; dirClass = 'sp-val--good'; }
     elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val ${dirClass}">${d}</span>`;
   }
+}
+
+/* "YYYY-MM-DD" → "March 2027" (parsed as local midnight to avoid TZ slips). */
+function formatMonthYear(iso) {
+  if (typeof iso !== 'string') return '';
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+/* Projected debt-free finish line + this-month progress. Shown only when the
+   pace is solid enough to project an honest date (server decides via onTrack);
+   otherwise we surface "this month" if we have it, or hide entirely. */
+function fillDebtFreeBanner(stats) {
+  const banner = document.getElementById('debt-free-banner');
+  if (!banner) return;
+  const dateEl = document.getElementById('debt-free-date');
+  const subEl = document.getElementById('debt-free-sub');
+  const df = stats && stats.debtFree;
+  const ptm = stats ? Number(stats.paidThisMonth) : NaN;
+
+  const thisMonthBit = Number.isFinite(ptm) && Math.abs(ptm) >= 1
+    ? `This month: ${ptm > 0 ? '+' : '−'}${fmtDollar(Math.abs(Math.round(ptm)))}`
+    : '';
+
+  if (df && df.alreadyFree) {
+    if (dateEl) dateEl.textContent = 'Debt-free 🎉';
+    if (subEl) subEl.textContent = 'You made it. The climb is complete.';
+    banner.hidden = false;
+    return;
+  }
+  if (df && df.onTrack && df.debtFreeDate) {
+    if (dateEl) dateEl.textContent = formatMonthYear(df.debtFreeDate);
+    const pace = Number(df.monthlyPace);
+    const paceBit = Number.isFinite(pace) && pace > 0 ? `at ~${fmtDollar(Math.round(pace))}/mo` : '';
+    if (subEl) subEl.textContent = [paceBit, thisMonthBit].filter(Boolean).join(' · ');
+    banner.hidden = false;
+    return;
+  }
+  // No honest date yet. Still show the month's progress if there is any.
+  if (thisMonthBit) {
+    if (dateEl) dateEl.textContent = 'Building your forecast…';
+    if (subEl) subEl.textContent = `${thisMonthBit} · keep logging to set a finish line.`;
+    banner.hidden = false;
+    return;
+  }
+  banner.hidden = true;
 }
 
 export function fillProgressNarrative({

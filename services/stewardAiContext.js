@@ -39,7 +39,7 @@ const {
   getLastDebtSyncDebugForStatus,
 } = require('./climbMetrics');
 const { refreshNicknames } = require('./stewardAiNicknames');
-const { monthlyPaceFromSnapshots, DAYS_PER_MONTH } = require('./pace');
+const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, DAYS_PER_MONTH } = require('./pace');
 
 // ── Config keys used by this module ───────────────────────────────────────────
 const LAST_IF_DO_NOTHING_KEY    = 'steward_ai_last_if_do_nothing_at';
@@ -293,6 +293,10 @@ function buildContext() {
     baseline: climb.climbBaselineDebt,
     monthlyPace,
   });
+  // Debt-free date + what the user has actually done THIS month — so the Steward
+  // can speak to current behavior and a real finish line, from the same history.
+  const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
+  const netPaidThisMonth = paidThisMonth(snapshots);
 
   // True monthly paydown: total balance reduction across ALL cards over the
   // last ~30 days, from the snapshots table. This is the figure the Steward
@@ -446,6 +450,16 @@ function buildContext() {
         // Typical monthly pace, span-gated (null until entries cover real time).
         // Safe to extrapolate a payoff horizon from; never a per-day number.
         avgMonthlyPaydown: monthlyPace != null ? dollars(monthlyPace) : null,
+        // Net debt reduction so far THIS calendar month (positive = paid down,
+        // negative = grew). The user's current-behavior signal — quote it when
+        // they ask how they're doing "this month" / "lately".
+        paidThisMonth: netPaidThisMonth != null ? dollars(netPaidThisMonth) : null,
+        // Projected debt-free finish line at the current pace. onTrack is false
+        // (with a reason) when there isn't enough progress to project honestly —
+        // do NOT invent a date in that case.
+        debtFreeDate: debtFreeProjection.onTrack ? debtFreeProjection.debtFreeDate : null,
+        monthsToDebtFree: debtFreeProjection.onTrack ? debtFreeProjection.monthsToZero : null,
+        debtFreeOnTrack: debtFreeProjection.onTrack === true,
       },
       interest: {
         monthlyCost: monthlyInterest,
