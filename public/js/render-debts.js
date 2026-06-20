@@ -21,6 +21,71 @@ export function getInterestSummary() {
   return _lastInterestSummary;
 }
 
+/* ── "Pay this next" recommendation card ──────────────────────────────────────
+   Shows one target — avalanche (highest APR, saves most) or snowball (smallest
+   balance, fastest win) — with a toggle. The plan is computed server-side
+   (stats.payoffPlan) so the card and the Steward always agree. */
+let _lastPayoffStats = null;
+
+function payoffMethodPref(plan) {
+  let pref;
+  try { pref = localStorage.getItem('steward-payoff-method'); } catch { pref = null; }
+  if (pref !== 'avalanche' && pref !== 'snowball') pref = plan.recommended;
+  // Avalanche needs APRs; fall back if the user's saved pref can't be honored.
+  if (pref === 'avalanche' && !plan.avalanche) pref = 'snowball';
+  return pref;
+}
+
+export function renderPayThisNext(stats) {
+  _lastPayoffStats = stats;
+  const section = document.getElementById('pay-next-section');
+  if (!section) return;
+  const plan = stats && stats.payoffPlan;
+  if (!plan || (!plan.avalanche && !plan.snowball)) { section.hidden = true; return; }
+
+  const method = payoffMethodPref(plan);
+  const targetEl = document.getElementById('pay-next-target');
+  const reasonEl = document.getElementById('pay-next-reason');
+
+  const t = method === 'avalanche' && plan.avalanche ? plan.avalanche.target : plan.snowball.target;
+  const aprBit = Number.isFinite(Number(t.apr)) && Number(t.apr) > 0 ? ` · ${Number(t.apr)}% APR` : '';
+  if (targetEl) targetEl.innerHTML = `<span class="pay-next-name">${escapeText(t.name)}</span><span class="pay-next-bal">${fmtDollar(Math.round(t.balance))}${aprBit}</span>`;
+
+  if (reasonEl) {
+    if (method === 'avalanche' && plan.avalanche) {
+      const mi = Number(plan.avalanche.monthlyInterest);
+      const miBit = Number.isFinite(mi) && mi > 0 ? ` It's costing you about ${fmtDollar(Math.round(mi))}/mo in interest right now.` : '';
+      reasonEl.textContent = `Highest interest rate — clearing this first saves you the most money.${miBit}`;
+    } else {
+      reasonEl.textContent = `Smallest balance — knock it out fast for a quick win, then roll that payment into the next one.`;
+    }
+  }
+
+  // Toggle state + wiring (rebound each render; cheap and idempotent).
+  const toggle = document.getElementById('pay-next-toggle');
+  if (toggle) {
+    for (const tab of toggle.querySelectorAll('.pay-next-tab')) {
+      const m = tab.dataset.method;
+      const disabled = m === 'avalanche' && !plan.avalanche;
+      tab.disabled = disabled;
+      tab.title = disabled ? 'Add APRs to your accounts to compare interest' : tab.title;
+      tab.classList.toggle('active', m === method && !disabled);
+      tab.setAttribute('aria-pressed', String(m === method && !disabled));
+      tab.onclick = () => {
+        try { localStorage.setItem('steward-payoff-method', m); } catch { /* ignore */ }
+        renderPayThisNext(_lastPayoffStats);
+      };
+    }
+  }
+  section.hidden = false;
+}
+
+function escapeText(s) {
+  const d = document.createElement('span');
+  d.textContent = String(s == null ? '' : s);
+  return d.innerHTML;
+}
+
 /* Paid-off celebration. The list rebuilds several times per view (initial
    render, then again when the async debt-history fetch resolves), so a class
    added once gets wiped almost immediately. Instead the renderer re-applies it

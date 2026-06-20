@@ -33,4 +33,5 @@ require('./steward-ai-paydown.test');
 require('./steward-ai-pace.test');
 require('./classify-debt.test');
 require('./pace-projection.test');
+require('./payoff-plan.test');
 require('./zzz-climb-metrics-apply.test');

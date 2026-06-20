@@ -22,6 +22,7 @@ const {
   getDebtAccountFirstBalances,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth } = require('../services/pace');
+const { buildPayoffPlan } = require('../services/payoffPlan');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -324,6 +325,18 @@ router.get('/status', (req, res) => {
   const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
   const netPaidThisMonth = paidThisMonth(snapshots);
 
+  // "Pay this next" — avalanche (highest APR) + snowball (smallest balance),
+  // from authoritative balances joined with stored APRs and names.
+  const planRates = parseJsonObject(getConfig('interest_rates'));
+  const planNames = parseJsonObject(getConfig('debt_account_name_map'));
+  const planAccounts = [...getAllDebtAccountBalances().entries()].map(([id, balance]) => ({
+    id,
+    name: planNames[id] || 'Account',
+    balance,
+    apr: planRates[id],
+  }));
+  const payoffPlan = buildPayoffPlan(planAccounts);
+
   const payload = {
     ready: true,
     tier: tierObj,
@@ -342,6 +355,7 @@ router.get('/status', (req, res) => {
       monthlyPace:           monthlyPace || 0,
       debtFree:              debtFreeProjection,
       paidThisMonth:         netPaidThisMonth,
+      payoffPlan,
       netImprovement:        climb.netImprovement,
       debtPaid:              climb.cumulativePaidDown,
       debtStart:             climb.climbBaselineDebt,
