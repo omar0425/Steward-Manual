@@ -322,6 +322,11 @@ async function generateAnswer({ question, payload }) {
     '- If a figure truly is not available (e.g. no APRs entered), name the ONE ' +
     'thing they could enter to get a sharper answer — framed as their next ' +
     'move, in one short clause, not as an apology or a refusal.\n' +
+    '- For "what if I pay/add $X more a month": add X to avgMonthlyPaydown to get ' +
+    'the new monthly balance drop, recompute the payoff horizon (current balance ' +
+    '÷ new monthly drop), and give the new debt-free month and roughly how many ' +
+    'months sooner. If avgMonthlyPaydown is null, say you need a few more check-ins ' +
+    'to set a baseline pace first. Never use daily math.\n' +
     '- For "which debt should I pay first / next": name payoffPlan.avalanche.target ' +
     '(highest APR — saves the most) when APRs are known; otherwise ' +
     'payoffPlan.snowball.target (smallest balance — a fast win). You may mention ' +
