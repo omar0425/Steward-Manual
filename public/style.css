@@ -753,6 +753,32 @@ board-liquidity-pill
 /* With an odd number of cells the last one spans both columns so the grid never
    shows a dangling empty cell (e.g. 5 items: the bottom row is full-width). */
 .sp-grid li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* Projected debt-free finish line. */
+.debt-free-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--gold);
+  background: var(--gold-soft);
+}
+.debt-free-main { display: flex; align-items: center; gap: 12px; }
+.debt-free-flag { font-size: 24px; line-height: 1; }
+.debt-free-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-2);
+}
+.debt-free-date {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 600; color: var(--gold-2); line-height: 1.2;
+}
+.debt-free-sub { font-size: 12px; color: var(--text-2); }
 .sp-label {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 9px;

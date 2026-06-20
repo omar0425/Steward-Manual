@@ -60,9 +60,10 @@ const MODE_INSTRUCTIONS = {
     "month, framed as a worthwhile deal. Use the account with the highest " +
     'interest cost (interest.topAccount). Specify dollars saved or earned.',
   climb_forecast:
-    "Climb Forecast mode: cite a forecast DATE from forecasts[0..2] (already " +
-    'projected from their pace). Frame it as a milestone they are pacing toward. ' +
-    'Tie one concrete action to keeping that date.',
+    "Climb Forecast mode: cite a forecast DATE — a stage date from forecasts[0..2], " +
+    'or the debt-free finish line stats.debtFreeDate when present (both projected ' +
+    'from their pace). Frame it as a milestone they are pacing toward. Tie one ' +
+    'concrete action to keeping that date.',
   if_you_do_nothing:
     "Idle Silver mode: a sober projection of what happens if they hold still. " +
     "Use interest.monthlyCost × 6 to show 6-month drift. Quote a Pennybags " +
@@ -321,6 +322,13 @@ async function generateAnswer({ question, payload }) {
     '- If a figure truly is not available (e.g. no APRs entered), name the ONE ' +
     'thing they could enter to get a sharper answer — framed as their next ' +
     'move, in one short clause, not as an apology or a refusal.\n' +
+    '- When they ask about "this month", "lately", or "today", lead with ' +
+    'stats.paidThisMonth (net debt change so far this calendar month; positive ' +
+    'is paid down, negative is added) — that is their CURRENT behavior.\n' +
+    '- For "when will I be debt-free": if stats.debtFreeDate is present, state ' +
+    'that month/year as the finish line. If stats.debtFreeOnTrack is false, do ' +
+    'NOT invent a date — say there is no payoff date at this pace and name the ' +
+    'monthly reduction needed to create one.\n' +
     '- Never invent numbers. Plain prose only: no markdown, lists, or headings.';
 
   const userContent =

@@ -21,7 +21,7 @@ const {
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
 } = require('../db');
-const { monthlyPaceFromSnapshots } = require('../services/pace');
+const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth } = require('../services/pace');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -313,15 +313,16 @@ router.get('/status', (req, res) => {
   // (e.g. correcting a typo) where dividing by near-zero elapsed time gives a
   // bogus "1 month away" answer.
   let monthsEstimateClimb = null;
-  if (next.nextTier && next.gapDollars > 0) {
-    // Shared span-gated monthly pace — same helper the Steward forecasts use,
-    // so the dashboard estimate and the AI dates can never disagree, and a
-    // burst of same-week entries can't produce a bogus "1 month away".
-    const monthlyPace = monthlyPaceFromSnapshots(snapshots);
-    if (monthlyPace && monthlyPace > 0) {
-      monthsEstimateClimb = Math.ceil(next.gapDollars / monthlyPace);
-    }
+  // Shared span-gated monthly pace — same helper the Steward forecasts use,
+  // so the dashboard estimate and the AI dates can never disagree, and a
+  // burst of same-week entries can't produce a bogus "1 month away".
+  const monthlyPace = monthlyPaceFromSnapshots(snapshots);
+  if (next.nextTier && next.gapDollars > 0 && monthlyPace && monthlyPace > 0) {
+    monthsEstimateClimb = Math.ceil(next.gapDollars / monthlyPace);
   }
+  // Projected debt-free date + this-month progress, from the same real history.
+  const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
+  const netPaidThisMonth = paidThisMonth(snapshots);
 
   const payload = {
     ready: true,
@@ -338,6 +339,9 @@ router.get('/status', (req, res) => {
       cumulativeNewDebtAdded: climb.cumulativeNewDebtAdded,
       cumulativeInterestAccrued: climb.cumulativeInterestAccrued,
       canUndo:               hasUndoState(),
+      monthlyPace:           monthlyPace || 0,
+      debtFree:              debtFreeProjection,
+      paidThisMonth:         netPaidThisMonth,
       netImprovement:        climb.netImprovement,
       debtPaid:              climb.cumulativePaidDown,
       debtStart:             climb.climbBaselineDebt,

@@ -324,6 +324,16 @@ function buildStageProgressDetail() {
     </summary>
     <div id="progress-milestone-recent" class="milestone-recent-banner" hidden aria-live="polite"></div>
     <p class="progress-note" id="progress-stale-note" hidden style="font-size:12px;color:var(--amber);margin-bottom:12px;"></p>
+    <div id="debt-free-banner" class="debt-free-banner" hidden>
+      <div class="debt-free-main">
+        <span class="debt-free-flag" aria-hidden="true">🏁</span>
+        <div>
+          <div class="debt-free-label">Projected debt-free</div>
+          <div class="debt-free-date" id="debt-free-date">—</div>
+        </div>
+      </div>
+      <div class="debt-free-sub" id="debt-free-sub"></div>
+    </div>
     <ul class="sp-grid" id="progress-detail-bullets" aria-label="Session progress">
       <li id="progress-bullet-paid"></li>
       <li id="progress-bullet-turn"></li>
