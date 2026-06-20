@@ -727,6 +727,9 @@ board-liquidity-pill
   padding: 14px 16px;
   background: var(--surface);
 }
+/* With an odd number of cells the last one spans both columns so the grid never
+   shows a dangling empty cell (e.g. 5 items: the bottom row is full-width). */
+.sp-grid li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .sp-label {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 9px;
@@ -2219,6 +2222,23 @@ body[data-setup-mode="first"] .setup-welcome {
 }
 .paydown-classify-amt { color: var(--text-3); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
 .paydown-classify-opts { display: flex; flex-direction: column; gap: 6px; }
+
+/* Reclassify control + dialog */
+.reclassify-link {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.reclassify-link:hover { text-decoration: underline; }
+.reclassify-field { margin: 4px 0 14px; }
+.reclassify-label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.reclassify-msg { margin: 10px 0 0; font-size: 12px; color: var(--rose, #f87171); }
 .paydown-classify-opts label {
   display: flex;
   align-items: center;

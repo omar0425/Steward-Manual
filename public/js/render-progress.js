@@ -121,6 +121,18 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     const ndClass = nd > 0 ? 'sp-val--bad' : '';
     elNew.innerHTML = `<span class="sp-label">New debt added</span><span class="sp-val ${ndClass}">${ndStr}</span>`;
   }
+  const elInterest = document.getElementById('progress-bullet-interest');
+  if (elInterest) {
+    const ia = Number(stats && stats.cumulativeInterestAccrued);
+    // Interest is the cost of carrying the debt — shown in a neutral tone, not
+    // the red of "new debt", since it doesn't count against the user's effort.
+    const iaStr = Number.isFinite(ia) && ia > 0 ? '+' + fmtDollar(Math.round(ia)) : '$0';
+    elInterest.innerHTML = `<span class="sp-label">Interest accrued</span><span class="sp-val">${iaStr}</span>`;
+    elInterest.title = 'Balance growth from interest and fees — the cost of carrying the debt, tracked apart from new spending.';
+  }
+  // Offer the retroactive correction only when there's new debt to move.
+  const reclassifyBtn = document.getElementById('reclassify-debt-btn');
+  if (reclassifyBtn) reclassifyBtn.hidden = !(Number.isFinite(nd) && nd > 0);
   if (elDir) {
     let d = 'flat'; let dirClass = '';
     if (stats && stats.debtDirection === 'increasing') { d = 'backward'; dirClass = 'sp-val--bad'; }

@@ -394,6 +394,7 @@ function buildPaydownSummary(accounts) {
   let totalPaid = 0;
 
   for (const row of rows) {
+    const id = row.dataset.accountId;
     const name = row.dataset.name;
     const prev = Math.round(parseFloat(row.dataset.prevBalance));
     const input = row.querySelector('.saved-debt-balance-input');
@@ -401,7 +402,7 @@ function buildPaydownSummary(accounts) {
     if (!Number.isFinite(prev) || !Number.isFinite(curr)) continue;
     const delta = prev - curr;
     if (Math.abs(delta) >= 1) {
-      changes.push({ name, prev, curr, delta });
+      changes.push({ id, name, prev, curr, delta });
       if (delta > 0) totalPaid += delta;
     }
   }
@@ -424,14 +425,22 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   const existing = document.getElementById('paydown-confirm-dialog');
   if (existing) existing.remove();
 
-  // newAccounts: genuinely-new accounts added this pull while a climb is active.
-  // Each must be classified as new debt vs already-had before saving, so a
-  // forgotten-then-added account doesn't silently spiral the user backward.
-  const toClassify = Array.isArray(newAccounts) ? newAccounts : [];
+  // Every increase needs a reason so we route it correctly: a new account, or a
+  // balance that went up (delta < 0). Each is classified as a purchase, interest,
+  // a new loan, or debt the user already had — so a forgotten or interest-driven
+  // bump never silently spirals them backward.
+  const newAccts = Array.isArray(newAccounts) ? newAccounts : [];
+  const newIds = new Set(newAccts.map(a => String(a.id)));
+  const toClassify = [
+    ...newAccts.map(a => ({ id: String(a.id), name: a.name, amount: Math.round(a.balance), isNew: true })),
+    ...summary.changes
+      .filter(c => !c.removed && c.delta < 0 && !newIds.has(String(c.id)))
+      .map(c => ({ id: String(c.id), name: c.name, amount: Math.abs(c.delta), isNew: false })),
+  ];
 
   // Nothing to confirm AND nothing to classify → save straight through.
   if (summary.changes.length === 0 && toClassify.length === 0) {
-    onConfirm([]);
+    onConfirm({});
     return;
   }
 
@@ -456,18 +465,20 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
     return `<div class="paydown-line ${dir}"><span class="paydown-name">${safeName}</span> <span class="paydown-detail">$${c.prev.toLocaleString()} ${arrow} $${c.curr.toLocaleString()} (${label})</span></div>`;
   }).join('');
 
-  // Classification block for newly-added accounts. No default — the user must
-  // pick, because guessing wrong either spirals them (counting a forgotten debt
-  // as new) or flatters them (counting genuinely-new debt as pre-existing).
+  // Classification block. No default — the user must pick, because guessing wrong
+  // either spirals them (counting interest or a forgotten debt as new spending)
+  // or flatters them. Four reasons a balance can go up, each routed differently.
   const classifyHtml = toClassify.length === 0 ? '' : `
     <div class="paydown-classify-section">
-      <p class="paydown-classify-intro">You're adding ${toClassify.length === 1 ? 'a new account' : 'new accounts'}. For each, is this debt you just took on, or one you already had and are only now tracking?</p>
+      <p class="paydown-classify-intro">${toClassify.length === 1 ? 'One balance went up.' : 'Some balances went up.'} What caused ${toClassify.length === 1 ? 'it' : 'each'}? This keeps interest and debts you forgot to log from counting against your progress.</p>
       ${toClassify.map(a => `
         <div class="paydown-classify-row" data-account-id="${escHtml(String(a.id))}">
-          <div class="paydown-classify-name">${escHtml(a.name)} <span class="paydown-classify-amt">$${Math.round(a.balance).toLocaleString()}</span></div>
+          <div class="paydown-classify-name">${escHtml(a.name)} <span class="paydown-classify-amt">+$${Math.round(a.amount).toLocaleString()}${a.isNew ? ' (new account)' : ''}</span></div>
           <div class="paydown-classify-opts">
-            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="new"> New debt I just took on</label>
-            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="existing"> A debt I already had</label>
+            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="purchase"> New purchase or spending</label>
+            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="interest"> Interest or fees</label>
+            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="new_loan"> A new loan I took on</label>
+            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="preexisting"> Debt I already had (forgot to log)</label>
           </div>
         </div>
       `).join('')}
@@ -500,13 +511,13 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   }
   radios.forEach(r => r.addEventListener('change', refreshSaveEnabled));
   refreshSaveEnabled();
-  function collectPreexistingIds() {
-    return toClassify
-      .filter(a => {
-        const checked = overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`);
-        return checked && checked.value === 'existing';
-      })
-      .map(a => String(a.id));
+  function collectClassifications() {
+    const out = {};
+    for (const a of toClassify) {
+      const checked = overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`);
+      if (checked && checked.value) out[String(a.id)] = checked.value;
+    }
+    return out;
   }
 
   const closeDialog = () => {
@@ -521,9 +532,9 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', closeDialog);
   overlay.querySelector('.paydown-confirm-save').addEventListener('click', () => {
     if (toClassify.length > 0 && !allClassified()) return; // guard double-fire
-    const preexistingIds = collectPreexistingIds();
+    const classifications = collectClassifications();
     closeDialog();
-    onConfirm(preexistingIds);
+    onConfirm(classifications);
   });
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeDialog();
@@ -576,9 +587,12 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
   // Filter out zero-balance (paid off) accounts
   const activeAccounts = debtAccounts.filter(a => a.balance > 0);
   const totalDebt = debtAccounts.reduce((sum, a) => sum + a.balance, 0);
-  // Accounts the user marked "I already had this" \u2014 server folds them into the
-  // baseline instead of counting them as new debt.
-  const preexistingAccountIds = Array.isArray(opts.preexistingAccountIds) ? opts.preexistingAccountIds : [];
+  // Per-account reason for each increase this pull, e.g. { id: 'interest' }.
+  // The server routes purchases/loans to new debt, interest to its own bucket,
+  // and "already had" into the baseline.
+  const classifications = (opts.classifications && typeof opts.classifications === 'object')
+    ? opts.classifications
+    : {};
 
   try {
     const res = await fetch(stewardApiUrl('/api/snapshot'), {
@@ -591,7 +605,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
         monthlyExpenses:  0,
         investmentValue:  0,
         debtAccounts,
-        preexistingAccountIds,
+        classifications,
       }),
     });
     const data = await res.json();
@@ -733,9 +747,12 @@ export function initManualEntryForm() {
       // Only ask the new-debt-vs-already-had question once a climb is running —
       // during first-run setup every account is just inventory, no baseline yet.
       const isSetup = document.body && document.body.dataset.setupMode === 'first';
-      const toClassify = isSetup ? [] : newAccounts.filter(a => a.balance > 0);
-      showPaydownConfirmation(summary, toClassify, async (preexistingAccountIds) => {
-        await saveSnapshot(allAccounts, msg, updateBtn, { preexistingAccountIds });
+      const newForClimb = isSetup ? [] : newAccounts.filter(a => a.balance > 0);
+      // During first-run setup nothing is classified (no baseline yet); otherwise
+      // the dialog also surfaces existing-account increases from the summary.
+      const summaryForDialog = isSetup ? { changes: [], totalPaid: summary.totalPaid } : summary;
+      showPaydownConfirmation(summaryForDialog, newForClimb, async (classifications) => {
+        await saveSnapshot(allAccounts, msg, updateBtn, { classifications });
       });
     });
   }
@@ -817,3 +834,94 @@ function prefillFromLastSnapshot() {
       showFirstTimeHint();
     });
 }
+
+/* ── Reclassify already-counted "new debt added" ──────────────────────────────
+   Fixes debt the user forgot to log at the start (folds into the baseline) or
+   interest that was counted as new spending (moves to the interest bucket).
+   Reuses the paydown-confirm overlay styles for a consistent modal. */
+function showReclassifyDialog() {
+  const existing = document.getElementById('reclassify-dialog');
+  if (existing) existing.remove();
+  const previouslyFocused = document.activeElement;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'reclassify-dialog';
+  overlay.className = 'paydown-confirm-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.innerHTML = `
+    <div class="paydown-confirm-card">
+      <h3 class="paydown-confirm-title">Reclassify added debt</h3>
+      <p class="paydown-classify-intro">Move an amount out of "new debt added". Use this for debt you already had but forgot to log at the start, or for interest that got counted as new spending.</p>
+      <div class="reclassify-field">
+        <label class="reclassify-label" for="reclassify-amount">Amount</label>
+        <div class="apr-form-input-wrap">
+          <span class="apr-form-suffix" style="left:10px;right:auto;">$</span>
+          <input type="number" id="reclassify-amount" class="apr-form-input" min="1" step="1" inputmode="numeric" placeholder="0" style="padding-left:22px;">
+        </div>
+      </div>
+      <div class="paydown-classify-opts" id="reclassify-kind">
+        <label><input type="radio" name="reclassify-kind" value="preexisting" checked> Debt I already had (fold into my starting total)</label>
+        <label><input type="radio" name="reclassify-kind" value="interest"> Interest or fees (track separately)</label>
+      </div>
+      <p class="reclassify-msg" id="reclassify-msg" hidden></p>
+      <div class="paydown-confirm-actions">
+        <button type="button" class="paydown-confirm-cancel">Cancel</button>
+        <button type="button" class="paydown-confirm-save">Apply</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const closeDialog = () => {
+    overlay.remove();
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
+    }
+  };
+  const msgEl = overlay.querySelector('#reclassify-msg');
+  const showMsg = (text) => { if (msgEl) { msgEl.textContent = text; msgEl.hidden = false; } };
+
+  overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', closeDialog);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDialog(); });
+
+  const applyBtn = overlay.querySelector('.paydown-confirm-save');
+  applyBtn.addEventListener('click', async () => {
+    const amount = Math.round(parseFloat(overlay.querySelector('#reclassify-amount').value));
+    if (!Number.isFinite(amount) || amount <= 0) { showMsg('Enter a positive amount.'); return; }
+    const kindEl = overlay.querySelector('input[name="reclassify-kind"]:checked');
+    const kind = kindEl ? kindEl.value : 'preexisting';
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Applying…';
+    try {
+      const res = await fetch(stewardApiUrl('/api/climb/reclassify-added-debt'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, kind }),
+      });
+      const data = await readJsonRes(res);
+      if (res.ok && data && data.ok) {
+        closeDialog();
+        await manualRefresh();
+        void resyncSavedDebtsFromServer();
+      } else {
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Apply';
+        showMsg((data && data.error) || 'Could not apply. Try again.');
+      }
+    } catch (_) {
+      applyBtn.disabled = false;
+      applyBtn.textContent = 'Apply';
+      showMsg('Network error. Try again.');
+    }
+  });
+
+  const amtInput = overlay.querySelector('#reclassify-amount');
+  if (amtInput) { try { amtInput.focus(); } catch (_) { /* ignore */ } }
+}
+
+// Delegated so it works whichever render created the button.
+document.addEventListener('click', (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('#reclassify-debt-btn');
+  if (btn) { e.preventDefault(); showReclassifyDialog(); }
+});
