@@ -171,6 +171,29 @@ h1, h2, h3 {
   color: var(--gold-2); flex-shrink: 0;
 }
 .nav-brand-text { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 600; letter-spacing: 0.01em; }
+
+/* Page-bottom Steward sign-off. */
+.steward-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 40px auto 8px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.steward-footer-emoji {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 30px; line-height: 1;
+  background: var(--gold-soft); border: 1px solid var(--gold);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
+}
+.steward-footer-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px; font-style: italic;
+  color: var(--text-2); letter-spacing: 0.02em;
+}
 .nav-links { display: flex; align-items: center; gap: 20px; }
 .nav-link { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text-2); text-decoration: none; letter-spacing: 0.06em; transition: color 140ms; }
 .nav-link:hover, .nav-link.active { color: var(--text); }
