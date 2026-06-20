@@ -126,8 +126,13 @@ export function renderNetWorthChart(snapshots) {
   const historyDays = (lastDate - firstDate) / 86400000;
   const dailyPace = historyDays > 0 ? (values[0] - latest) / historyDays : 0;
   const daysToZero = dailyPace > 0 ? latest / dailyPace : Infinity;
+  // Gate at ~3 weeks of real span — the same MIN_SPAN_DAYS guard the server uses
+  // (services/pace.js). Below that a couple of clustered entries produce a
+  // fantasy rate, and the dashed line / what-if slider would disagree with the
+  // "Projected debt-free" banner. Both must tell one story.
+  const MIN_SPAN_DAYS = 21;
   const projecting =
-    historyDays >= 1 && dailyPace > 0 && latest > 0 && daysToZero <= 365 * 30;
+    historyDays >= MIN_SPAN_DAYS && dailyPace > 0 && latest > 0 && daysToZero <= 365 * 30;
 
   /* Projection owns the right 30% of the plot, drawn at the same days-per-
      pixel scale as the history. A payoff further out than that still gets the
