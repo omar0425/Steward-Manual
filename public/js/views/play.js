@@ -381,6 +381,7 @@ function buildManualEntryForm() {
         <button type="button" class="commitment-btn" id="update-balances-btn">Update Balances</button>
         <button type="button" class="commitment-btn setup-start-btn" id="start-climb-btn" hidden>Start Climb</button>
         <p class="data-strip-msg" id="snapshot-save-msg"></p>
+        <button type="button" class="undo-last-btn" id="undo-last-btn" hidden>↶ Undo last update (entered the wrong amount?)</button>
       </div>
     </div>
 

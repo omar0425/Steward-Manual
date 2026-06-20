@@ -22,6 +22,9 @@ const {
   applyClimbMetricsOnPull,
   reclassifyAddedDebt,
   getClimbStatsFromConfig,
+  captureUndoState,
+  undoLastPull,
+  hasUndoState,
   KEY_MAP_SEEDED,
   KEY_BASELINE,
   KEY_PAID,
@@ -216,6 +219,38 @@ test('reclassifyAddedDebt: moves new debt into the baseline, capped at available
     const r2 = reclassifyAddedDebt(500, 'preexisting');
     assert.equal(r2.moved, 0);
     assert.equal(getClimbStatsFromConfig().cumulativeNewDebtAdded, 0);
+  });
+});
+
+test('undoLastPull: restores interest + baseline + balances captured before a pull', () => {
+  withUser(0, () => {
+    setConfig(KEY_BASELINE, '10000');
+    setConfig(KEY_PAID, '0');
+    setConfig(KEY_NEW, '0');
+    setConfig(KEY_INTEREST, '0');
+    setConfig(KEY_LAST, '10000');
+    setConfig(KEY_MAP_SEEDED, '1');
+    setConfig('game_start_debt', '10000');
+    replaceDebtAccountBalances(new Map([['card', 10000]]));
+
+    // Capture BEFORE the pull, then apply a classified pull (interest + forgot).
+    const prev = new Map([['card', 10000]]);
+    captureUndoState(null, prev);
+    assert.equal(hasUndoState(), true);
+    const curr = new Map([['card', 10150], ['loan', 2000]]);
+    applyClimbMetricsOnPull(12150, prev, curr, { card: 'interest', loan: 'preexisting' });
+    assert.equal(getConfig(KEY_INTEREST), '150');
+    assert.equal(getConfig(KEY_BASELINE), '12000');
+    replaceDebtAccountBalances(curr);
+
+    const r = undoLastPull();
+    assert.equal(r.undone, true);
+    assert.equal(getConfig(KEY_INTEREST), '0', 'interest restored');
+    assert.equal(getConfig(KEY_BASELINE), '10000', 'baseline restored');
+    assert.equal(getConfig('game_start_debt'), '10000', 'game-start restored');
+    assert.equal(getConfig(KEY_LAST), '10000', 'last reading restored');
+    assert.equal(getAllDebtAccountBalances().size, 1, 'the forgotten loan row is gone');
+    assert.equal(hasUndoState(), false);
   });
 });
 

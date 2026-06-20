@@ -225,6 +225,16 @@ function recentSnapshots(limit = 60) {
   ).all(currentUserId(), limit);
 }
 
+/** Delete one snapshot by id (scoped to the current user). Used by undo. */
+function deleteSnapshotById(id) {
+  const n = Number(id);
+  if (!Number.isInteger(n)) return 0;
+  const info = db
+    .prepare(`DELETE FROM snapshots WHERE user_id = ? AND id = ?`)
+    .run(currentUserId(), n);
+  return info.changes;
+}
+
 // ── Per-account debt (liability balances, magnitude in dollars) ─────────────
 // Used to diff climb metrics without treating removed accounts as paydown.
 
@@ -456,6 +466,8 @@ function resetAllGameState() {
   const GAME_STATE_KEYS = [
     'climb_baseline_debt',
     'climb_per_account_map_seeded',
+    'climb_undo_stack',
+    'cumulative_interest_accrued',
     'cumulative_new_debt_added',
     'cumulative_paid_down',
     'debt_account_name_map',
@@ -537,6 +549,7 @@ module.exports = {
   insertSnapshot,
   latestSnapshot,
   recentSnapshots,
+  deleteSnapshotById,
   resetAllGameState,
   getAllDebtAccountBalances,
   replaceDebtAccountBalances,

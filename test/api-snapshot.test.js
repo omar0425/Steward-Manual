@@ -679,6 +679,62 @@ test('reclassify-added-debt: moves stuck new debt into the baseline (HTTP)', asy
   });
 });
 
+test('undo-last: reverses a wrong-amount entry exactly (no phantom payment)', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // A genuine $2,000 paydown.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 8000 }],
+    });
+    assert.equal(res.status, 200);
+    let status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativePaidDown, 2000);
+    assert.equal(status.stats.canUndo, true);
+
+    // Oops — fat-fingered the next entry as $800 instead of $8,000. That looks
+    // like a huge extra paydown and corrupts the totals.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 800 }],
+    });
+    assert.equal(res.status, 200);
+    status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativePaidDown, 9200, 'typo inflated paid-down');
+    assert.equal(status.stats.debtRemaining, 800);
+
+    // Undo restores the exact pre-typo state — not a compensating entry.
+    res = await postJson(baseUrl, '/api/climb/undo-last', {});
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.snapshotDeleted, 1, 'the bad snapshot was removed');
+
+    status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativePaidDown, 2000, 'paid-down back to the true $2k');
+    assert.equal(status.stats.cumulativeNewDebtAdded, 0, 'no phantom new debt');
+    assert.equal(status.stats.debtRemaining, 8000, 'balance back to the real number');
+    assert.equal(status.stats.canUndo, true, 'the earlier paydown is still undoable');
+
+    // Step back once more → back to the locked starting line.
+    res = await postJson(baseUrl, '/api/climb/undo-last', {});
+    assert.equal(res.status, 200);
+    status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativePaidDown, 0);
+    assert.equal(status.stats.debtRemaining, 10000);
+    assert.equal(status.stats.canUndo, false, 'nothing left to undo');
+
+    // Nothing to undo now → friendly non-OK, not a crash.
+    res = await postJson(baseUrl, '/api/climb/undo-last', {});
+    const empty = await res.json();
+    assert.equal(empty.ok, false);
+  });
+});
+
 test('forgot-a-debt: WITHOUT the flag, a new account counts as new debt (the spiral)', async () => {
   await withApp(async (baseUrl) => {
     let res = await postJson(baseUrl, '/api/snapshot', {
