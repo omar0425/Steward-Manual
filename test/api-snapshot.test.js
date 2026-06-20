@@ -676,6 +676,46 @@ test('reclassify-added-debt: moves stuck new debt into the baseline (HTTP)', asy
     assert.equal(status.stats.cumulativeNewDebtAdded, 0, 'no longer counted as new debt');
     assert.equal(status.stats.climbBaselineDebt, 12034, 'baseline absorbed the correction');
     assert.equal(status.stats.netImprovement, 0, 'net no longer dragged negative');
+    assert.equal(status.stats.undoLabel, 'correction', 'the correction is now the undoable action');
+  });
+});
+
+test('undo-last: a reclassification is undoable too (shared safety net)', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'visa', name: 'Visa', balance: 10000 },
+        { id: 'loan', name: 'Forgotten', balance: 2034 },
+      ],
+    });
+    assert.equal(res.status, 200);
+
+    // Reclassify the $2,034 into the baseline...
+    res = await postJson(baseUrl, '/api/climb/reclassify-added-debt', { amount: 2034, kind: 'preexisting' });
+    assert.equal(res.status, 200);
+    let status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativeNewDebtAdded, 0);
+    assert.equal(status.stats.climbBaselineDebt, 12034);
+
+    // ...then change your mind: undo puts the dollars right back as new debt.
+    res = await postJson(baseUrl, '/api/climb/undo-last', {});
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.snapshotDeleted, 0, 'a correction touches no snapshot');
+
+    status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativeNewDebtAdded, 2034, 'new debt restored');
+    assert.equal(status.stats.climbBaselineDebt, 10000, 'baseline restored');
+    assert.equal(status.stats.debtRemaining, 12034, 'balances untouched by the correction undo');
+    assert.equal(status.stats.undoLabel, 'update', 'the loan entry is the next undoable action');
   });
 });
 

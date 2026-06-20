@@ -926,13 +926,21 @@ document.addEventListener('click', (e) => {
   if (btn) { e.preventDefault(); showReclassifyDialog(); }
 });
 
-/* ── Undo last update ─────────────────────────────────────────────────────────
-   Reverses the most recent balance entry — for a typo or mistaken amount —
-   restoring the exact prior totals instead of logging a fake payment. */
+/* ── Undo last change ─────────────────────────────────────────────────────────
+   Reverses the most recent action — a balance entry OR a reclassification —
+   restoring the exact prior totals instead of logging a fake payment. The copy
+   adapts to whichever action is on top (read from the button's dataset). */
 function showUndoConfirm() {
   const existing = document.getElementById('undo-confirm-dialog');
   if (existing) existing.remove();
   const previouslyFocused = document.activeElement;
+
+  const trigger = document.getElementById('undo-last-btn');
+  const isCorrection = trigger && trigger.dataset && trigger.dataset.undoLabel === 'correction';
+  const title = isCorrection ? 'Undo last correction?' : 'Undo last update?';
+  const body = isCorrection
+    ? 'This reverses your most recent reclassification — moving those dollars back where they were and restoring your previous progress numbers exactly.'
+    : 'This reverses your most recent balance entry — restoring your previous balances and progress numbers exactly, and removing that entry from history. Use it if you typed the wrong amount.';
 
   const overlay = document.createElement('div');
   overlay.id = 'undo-confirm-dialog';
@@ -941,8 +949,8 @@ function showUndoConfirm() {
   overlay.setAttribute('aria-modal', 'true');
   overlay.innerHTML = `
     <div class="paydown-confirm-card">
-      <h3 class="paydown-confirm-title">Undo last update?</h3>
-      <p class="paydown-classify-intro">This reverses your most recent balance entry — restoring your previous balances and progress numbers exactly, and removing that entry from history. Use it if you typed the wrong amount.</p>
+      <h3 class="paydown-confirm-title">${title}</h3>
+      <p class="paydown-classify-intro">${body}</p>
       <p class="reclassify-msg" id="undo-confirm-msg" hidden></p>
       <div class="paydown-confirm-actions">
         <button type="button" class="paydown-confirm-cancel">Cancel</button>

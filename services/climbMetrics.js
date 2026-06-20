@@ -317,11 +317,14 @@ function mapToObj(map) {
  *
  * @param {number|null} snapshotId  id of the snapshots row this pull inserted
  * @param {Map<string,number>} prevBalances  per-account balances before the pull
+ * @param {string} [label]  what kind of action this entry reverses ('update' |
+ *        'correction'), surfaced so the UI can describe the undo accurately
  */
-function captureUndoState(snapshotId, prevBalances) {
+function captureUndoState(snapshotId, prevBalances, label = 'update') {
   const entry = {
     ts: new Date().toISOString(),
     snapshotId: snapshotId == null ? null : Number(snapshotId),
+    label: typeof label === 'string' ? label : 'update',
     prev: {
       paid: getConfig(KEY_PAID),
       newD: getConfig(KEY_NEW),
@@ -341,6 +344,14 @@ function captureUndoState(snapshotId, prevBalances) {
 /** Whether there is anything to undo (drives the UI control's visibility). */
 function hasUndoState() {
   return readUndoStack().length > 0;
+}
+
+/** Label of the action the next undo would reverse ('update'|'correction'), or null. */
+function peekUndoLabel() {
+  const stack = readUndoStack();
+  if (stack.length === 0) return null;
+  const top = stack[stack.length - 1];
+  return top && typeof top.label === 'string' ? top.label : 'update';
 }
 
 function restoreConfigValue(key, value) {
@@ -706,6 +717,7 @@ module.exports = {
   captureUndoState,
   undoLastPull,
   hasUndoState,
+  peekUndoLabel,
   routeDeltasByClassification,
   applyDeltaToTotals,
   analyzePerAccountDebtDiff,
