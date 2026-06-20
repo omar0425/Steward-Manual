@@ -749,7 +749,9 @@ board-liquidity-pill
 .debt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto minmax(42px, auto) 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .debt-row:last-child { border-bottom: none; }
 .dr-name  { min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dr-balance-cell { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
 .dr-balance { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+.dr-paid-pct { margin-top: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 400; color: var(--emerald, #10b981); opacity: 0.85; white-space: nowrap; }
 .dr-delta { min-width: 42px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-align: right; color: var(--text-3); white-space: nowrap; }
 .dr-delta.down { color: var(--emerald); }
 .dr-delta.up { color: var(--rose); }

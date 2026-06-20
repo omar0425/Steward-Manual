@@ -152,26 +152,24 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     monthsNext.textContent = moVal != null ? moVal : '\u2014';
   }
 
-  /* ── Daily target ── */
-  const dailyTarget = document.getElementById('stat-daily-target');
-  const dailyTargetSub = document.getElementById('hero-cta-sub');
-  if (dailyTarget) {
+  /* ── Monthly target ── */
+  // This is a monthly check-in app, so the directive is the whole gap to the
+  // next stage (what clearing this month unlocks), not a per-day bite.
+  const monthlyTarget = document.getElementById('stat-monthly-target');
+  const monthlyTargetSub = document.getElementById('hero-cta-sub');
+  if (monthlyTarget) {
     if (nextTier && nextTier.gapDollars > 0) {
       const gap = Math.round(Number(nextTier.gapDollars));
-      const per = Math.ceil(Number(nextTier.gapDollars) / 30);
-      dailyTarget.textContent = '$' + per.toLocaleString();
-      // Make the basis explainable \u2014 otherwise "$223" can't be derived from
-      // anything else on screen. (= escape gap \u00f7 30 days.)
-      dailyTarget.title = `About $${per.toLocaleString()}/day clears the $${gap.toLocaleString()} gap to the next stage in roughly a month.`;
-      // And surface that basis visibly (the tooltip is hover-only / invisible on touch).
-      if (dailyTargetSub) {
-        dailyTargetSub.textContent = `clears the $${gap.toLocaleString()} gap to the next stage in ~30 days`;
-        dailyTargetSub.hidden = false;
+      monthlyTarget.textContent = '$' + gap.toLocaleString();
+      monthlyTarget.title = `Clearing $${gap.toLocaleString()} this month unlocks the next stage.`;
+      if (monthlyTargetSub) {
+        monthlyTargetSub.textContent = 'unlocks the next stage';
+        monthlyTargetSub.hidden = false;
       }
     } else {
-      dailyTarget.textContent = '\u2014';
-      dailyTarget.removeAttribute('title');
-      if (dailyTargetSub) { dailyTargetSub.textContent = ''; dailyTargetSub.hidden = true; }
+      monthlyTarget.textContent = '\u2014';
+      monthlyTarget.removeAttribute('title');
+      if (monthlyTargetSub) { monthlyTargetSub.textContent = ''; monthlyTargetSub.hidden = true; }
     }
   }
 

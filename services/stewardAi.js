@@ -37,7 +37,17 @@ const PENNYBAGS_VOICE =
   'Address the player directly as "you." ' +
   'Refer to accounts by the user-supplied name; if a nickname is provided, ' +
   'use the nickname in parentheses on first mention, then by nickname thereafter. ' +
-  'Use specific dollar figures from the data. No emojis. No markdown.';
+  'Use specific dollar figures from the data. No emojis. No markdown.' +
+  // Shared money rules — every call inherits these so the framing never drifts.
+  '\n\nMONEY RULES (always):\n' +
+  '- This is a MONTHLY tool: the player checks in about once a month. Speak in ' +
+  'monthly terms. Never daily — no "per day", "a day", or daily dollar amounts.\n' +
+  '- "Paid down" means the drop in the WHOLE balance across all accounts. Never ' +
+  'present one card\'s payment as the month\'s total.\n' +
+  '- The paydown figure already reflects interest (the balance fell by that ' +
+  'much after interest was added). Never subtract interest from it again, and ' +
+  'never call (paydown minus interest) their "net" progress — the balance drop ' +
+  'IS the progress.';
 
 // ── Mode instructions (only the chosen mode\'s lines are emphasized to the AI) ─
 const MODE_INSTRUCTIONS = {
@@ -46,9 +56,9 @@ const MODE_INSTRUCTIONS = {
     "each month. Name the dollar amount (interest.monthlyCost). One short " +
     'sentence of accusation, one short sentence of counter-move.',
   todays_deal:
-    "Today's Deal mode: name ONE specific transaction the user could make " +
-    "this turn (or have made), framed as a 'deal'. Use the account with the " +
-    'highest interest cost (interest.topAccount). Specify dollars saved or earned.',
+    "This Month's Move mode: name ONE specific move the user could make this " +
+    "month, framed as a worthwhile deal. Use the account with the highest " +
+    'interest cost (interest.topAccount). Specify dollars saved or earned.',
   climb_forecast:
     "Climb Forecast mode: cite a forecast DATE from forecasts[0..2] (already " +
     'projected from their pace). Frame it as a milestone they are pacing toward. ' +
@@ -63,8 +73,9 @@ const MODE_INSTRUCTIONS = {
     'or a small reset prompt. Do NOT scold.',
   observation:
     'Observation mode: one quiet, specific observation from the data — a ' +
-    'pattern across snapshotTrail, an account whose nickname earned it this ' +
-    'turn, a quiet milestone. End with the next move.',
+    'pattern across snapshotTrail, an account whose nickname earned it, a ' +
+    'quiet milestone (a card crossing a paid-down percentage is fair game). ' +
+    'End with the next move.',
 };
 
 // ── Common Anthropic-call helper ──────────────────────────────────────────────
@@ -144,11 +155,11 @@ async function generateModeDialog({ eligibleModes, payload }) {
   const system =
     PENNYBAGS_VOICE +
     '\n\n' +
-    'TASK: read the snapshot data and write the Steward\'s remark for this turn. ' +
-    'You will pick ONE narrative mode from the eligible list below — each ' +
-    'mode has a specific instruction. Then you will also write a single ' +
+    'TASK: read the snapshot data and write the Steward\'s remark for this ' +
+    'check-in. You will pick ONE narrative mode from the eligible list below — ' +
+    'each mode has a specific instruction. Then you will also write a single ' +
     'one-line "ledger entry" in the Steward\'s journal — a chronicler\'s line, ' +
-    'past-tense, third-person, naming a concrete fact from this turn.\n\n' +
+    'past-tense, third-person, naming a concrete fact from this check-in.\n\n' +
     'ELIGIBLE MODES (pick exactly one):\n' +
     modeMenu +
     '\n\nHARD RULES:\n' +
@@ -284,37 +295,29 @@ async function generateAnswer({ question, payload }) {
     PENNYBAGS_VOICE +
     '\n\nThe player asked you a direct question about their debt. Answer it ' +
     'in 2–4 short sentences using the figures provided. Be decisive and ' +
-    'useful — give a real number or a real next move, never a non-answer.\n\n' +
+    'useful — give a real number or a real next move, never a non-answer. The ' +
+    'MONEY RULES above always apply.\n\n' +
     'HARD RULES:\n' +
     '- NEVER mention data, fields, arrays, "the system", "on file", or what ' +
     'you were "given". The player has no idea those exist. Speak only about ' +
     'their money, in plain English.\n' +
-    '- This is a MONTHLY tool: the player checks in once a month, not daily. ' +
-    'Frame every rate, paydown, and interest figure PER MONTH. Never speak in ' +
-    'daily terms — no "per day", no "a day", no daily dollar amounts. If you ' +
-    'need a yearly figure, use month × 12.\n' +
-    '- When you state how much they paid down over a period, use the TOTAL ' +
-    'across ALL their cards — the drop in their whole balance. The provided ' +
-    'monthly paydown already sums every card. NEVER quote a single card\'s ' +
-    'payment as if it were the month\'s total; one account\'s figure is not ' +
-    'the month\'s paydown.\n' +
-    '- Do the arithmetic yourself from what you have. Compute a payoff horizon ' +
-    'from the monthly paydown against the balance even when no date is ' +
-    'precomputed.\n' +
-    '- CRITICAL — how paydown and interest relate: the monthly paydown figure ' +
-    'is the ACTUAL drop in their total balance over the month. It ALREADY ' +
-    'reflects interest — the balance fell by that much after interest was ' +
-    'added. So do NOT subtract interest from it again, and do NOT call ' +
-    '(paydown minus interest) their "net progress" — that double-counts ' +
-    'interest. Their real progress is the balance drop itself. Payoff horizon ' +
-    '= current balance ÷ monthly balance drop.\n' +
-    '- Use the interest figure for context and as the lever, never as a second ' +
-    'subtraction: interest is roughly how much MORE than the balance drop they ' +
-    'actually paid (gross payment ≈ balance drop + interest), and killing the ' +
-    'highest-APR balance is what frees that money to speed the climb. If the ' +
-    'balance is flat or rising (paydown zero or negative), say plainly there is ' +
-    'no payoff date at this pace and name how much monthly balance reduction it ' +
-    'would take to turn it around.\n' +
+    '- Frame every rate and figure per month; if you need a yearly figure, use ' +
+    'month × 12.\n' +
+    '- Do the arithmetic yourself. Payoff horizon = current balance ÷ monthly ' +
+    'balance drop (the paydown figure); compute it even when no date is given. ' +
+    'Remember the paydown already reflects interest — do not subtract interest ' +
+    'from it.\n' +
+    '- Use interest as context and the lever, not a second subtraction: it is ' +
+    'roughly how much MORE than the balance drop they actually paid (gross ≈ ' +
+    'balance drop + interest), and clearing the highest-APR balance frees that ' +
+    'money. If the balance is flat or rising, say plainly there is no payoff ' +
+    'date at this pace and name the monthly reduction it would take to turn it.\n' +
+    '- If the period covered is not a full month (a recent fromDate on the ' +
+    'paydown figure), say "since <that month/date>" rather than implying a ' +
+    'clean month — do not overstate a short window as monthly.\n' +
+    '- Percentages are fair game when they help: how far they are through their ' +
+    'whole debt, or how far a specific card is paid down, when asked "how am I ' +
+    'doing" or about a particular account.\n' +
     '- If a figure truly is not available (e.g. no APRs entered), name the ONE ' +
     'thing they could enter to get a sharper answer — framed as their next ' +
     'move, in one short clause, not as an apology or a refusal.\n' +
@@ -326,7 +329,29 @@ async function generateAnswer({ question, payload }) {
 
   const res = await callAnthropic({ system, userContent, maxTokens: 320 });
   if (!res.ok) return res;
-  return { ok: true, text: asString(res.text, 1200) };
+  let answer = asString(res.text, 1200);
+  // Guardrail: a monthly tool must never answer in daily terms. If the model
+  // slips, give it exactly one corrective retry before serving what we have.
+  if (hasDailyFraming(answer)) {
+    const retry = await callAnthropic({
+      system: system +
+        '\n\nREMINDER: your previous attempt slipped into daily framing, which ' +
+        'is forbidden here. Rewrite the whole answer in monthly terms only.',
+      userContent,
+      maxTokens: 320,
+    });
+    if (retry.ok && retry.text && !hasDailyFraming(retry.text)) {
+      answer = asString(retry.text, 1200);
+    }
+  }
+  return { ok: true, text: answer };
+}
+
+/** True when prose leaks daily framing into what must be a monthly answer. */
+function hasDailyFraming(text) {
+  return /\bper day\b|\/\s*day\b|\ba day\b|\beach day\b|\bevery day\b|\bper diem\b|\bdaily\b/i.test(
+    String(text || ''),
+  );
 }
 
 module.exports = {
@@ -336,5 +361,6 @@ module.exports = {
   generateQuarterlyLetter,
   generateTierQuote,
   generateAnswer,
+  hasDailyFraming,
   MODEL,
 };

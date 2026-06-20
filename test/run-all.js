@@ -30,4 +30,5 @@ require('./auth-password-reset.test');
 require('./account-security.test');
 require('./inactivity-nudge.test');
 require('./steward-ai-paydown.test');
+require('./steward-ai-pace.test');
 require('./zzz-climb-metrics-apply.test');

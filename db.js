@@ -321,6 +321,32 @@ function getDebtAccountHistory(daysBack = 30) {
 }
 
 /**
+ * Earliest recorded balance per account across ALL history (no day window) —
+ * each account's starting point, used to compute how far it has been paid
+ * down in percentage terms. Returns Map(accountId → starting balance).
+ */
+function getDebtAccountFirstBalances() {
+  const rows = db.prepare(`
+    SELECT h.ynab_account_id AS id, h.balance AS balance
+    FROM debt_account_history h
+    JOIN (
+      SELECT ynab_account_id, MIN(recorded_at) AS first_at
+      FROM debt_account_history
+      WHERE user_id = ?
+      GROUP BY ynab_account_id
+    ) f ON f.ynab_account_id = h.ynab_account_id AND f.first_at = h.recorded_at
+    WHERE h.user_id = ?
+  `).all(currentUserId(), currentUserId());
+  const m = new Map();
+  for (const r of rows) {
+    // A row can tie on first_at for the same account only once in practice;
+    // keep the first seen if a duplicate timestamp ever occurs.
+    if (!m.has(String(r.id))) m.set(String(r.id), Number(r.balance));
+  }
+  return m;
+}
+
+/**
  * Everything the current user owns, for the "Export my data" download.
  * Full history (no day window), raw column names preserved so the file is a
  * faithful record rather than a UI projection.
@@ -519,6 +545,7 @@ module.exports = {
   setConfigIfAbsent,
   appendDebtAccountHistory,
   getDebtAccountHistory,
+  getDebtAccountFirstBalances,
   exportUserData,
   getGameStart,
   initGameState,
