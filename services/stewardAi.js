@@ -293,6 +293,11 @@ async function generateAnswer({ question, payload }) {
     'Frame every rate, paydown, and interest figure PER MONTH. Never speak in ' +
     'daily terms — no "per day", no "a day", no daily dollar amounts. If you ' +
     'need a yearly figure, use month × 12.\n' +
+    '- When you state how much they paid down over a period, use the TOTAL ' +
+    'across ALL their cards — the drop in their whole balance. The provided ' +
+    'monthly paydown already sums every card. NEVER quote a single card\'s ' +
+    'payment as if it were the month\'s total; one account\'s figure is not ' +
+    'the month\'s paydown.\n' +
     '- Do the arithmetic yourself from what you have. Compute a payoff horizon ' +
     'from the average monthly paydown against the balance even when no date is ' +
     'precomputed.\n' +
