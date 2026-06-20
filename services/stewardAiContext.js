@@ -423,6 +423,9 @@ function buildContext() {
         baselineDebt: dollars(climb.climbBaselineDebt),
         totalPaidDown: dollars(climb.cumulativePaidDown),
         totalAdded: dollars(climb.cumulativeNewDebtAdded),
+        // Interest the user has paid to carry the debt, tracked apart from new
+        // spending. Real classified dollars (not the APR estimate in interest{}).
+        totalInterestAccrued: dollars(climb.cumulativeInterestAccrued),
         pctPaid: Number.isFinite(Number(climb.pctPaid))
           ? Math.round(Number(climb.pctPaid) * 10) / 10
           : null,

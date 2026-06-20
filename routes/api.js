@@ -32,6 +32,7 @@ const {
 const {
   clearLastDebtSyncDebug,
   getClimbStatsFromConfig,
+  reclassifyAddedDebt,
   getLastDebtSyncDebugForStatus,
   computeStreak,
   applyClimbMetricsOnPull,
@@ -332,6 +333,7 @@ router.get('/status', (req, res) => {
       climbBaselineDebt:     climb.climbBaselineDebt,
       cumulativePaidDown:    climb.cumulativePaidDown,
       cumulativeNewDebtAdded: climb.cumulativeNewDebtAdded,
+      cumulativeInterestAccrued: climb.cumulativeInterestAccrued,
       netImprovement:        climb.netImprovement,
       debtPaid:              climb.cumulativePaidDown,
       debtStart:             climb.climbBaselineDebt,
@@ -424,7 +426,11 @@ router.post('/snapshot', (req, res) => {
       debtAccounts = [],
       // Account ids the user flagged as "I already had this debt, just hadn't
       // tracked it" — folded into the baseline rather than counted as new debt.
+      // (Legacy shape; superseded by `classifications` below but still honored.)
       preexistingAccountIds = [],
+      // Per-account category for this pull's increases / new accounts:
+      // { accountId: 'purchase' | 'new_loan' | 'interest' | 'preexisting' }.
+      classifications = {},
     } = body;
 
     const moneyFields = {
@@ -535,45 +541,42 @@ router.post('/snapshot', (req, res) => {
     // Months ahead (simple: assets / expenses)
     const monthsAhead = expenses > 0 ? roundMoney(assets / expenses) : null;
 
-    // ── Forgot-a-debt correction ──────────────────────────────────────────
-    // A debt account added mid-climb is normally counted as NEW debt (it works
-    // against the user and can slip their stage — the "downward spiral" when
-    // someone just forgot to enter an account they always had). When the client
-    // flags such an account as pre-existing, fold its balance into the baseline
-    // instead: the stage position is preserved, "paid down" is unchanged, and it
-    // is excluded from "new debt added". `prevForClimb` carries the seeded map
-    // (pre-existing ids set to their current balance) so the per-account diff
-    // below sees no change for them. Built only when a climb is active.
-    let prevForClimb = null;
-    if (gameActive && debtBalanceMap.size > 0 && Array.isArray(preexistingAccountIds) && preexistingAccountIds.length > 0) {
-      prevForClimb = getAllDebtAccountBalances();
-      let baselineBump = 0;
-      for (const rawId of preexistingAccountIds) {
-        const id = String(rawId);
-        // Only genuinely-new accounts (present now, absent before) qualify.
-        if (debtBalanceMap.has(id) && !prevForClimb.has(id)) {
-          const bal = debtBalanceMap.get(id);
-          baselineBump = roundMoney(baselineBump + bal);
-          prevForClimb.set(id, bal); // seed → diff sees no change → not new debt
-        }
-      }
-      if (baselineBump > 0) {
-        const climbNow = getClimbStatsFromConfig();
-        const newBaseline = roundMoney((Number(climbNow.climbBaselineDebt) || 0) + baselineBump);
-        setConfig('climb_baseline_debt', String(newBaseline));
-        const gs = getGameStart();
-        if (gs.gameStartDebt != null) {
-          setConfig('game_start_debt', String(roundMoney(Number(gs.gameStartDebt) + baselineBump)));
-        }
-        console.log(`[api] forgot-a-debt: +$${baselineBump} folded into baseline (now $${newBaseline})`);
+    // ── Increase classifications ──────────────────────────────────────────
+    // Every balance increase (or new account) this pull is routed by category:
+    // purchases/new loans count as new debt, interest is tracked separately, and
+    // debt the user only now remembered ('preexisting') folds into the baseline
+    // so it never reads as back-sliding. The routing itself lives in
+    // applyClimbMetricsOnPull; here we just assemble the per-account map. The
+    // legacy `preexistingAccountIds` array is honored as 'preexisting'.
+    const increaseClassifications = {};
+    if (classifications && typeof classifications === 'object') {
+      for (const [id, cat] of Object.entries(classifications)) {
+        if (typeof cat === 'string') increaseClassifications[String(id)] = cat;
       }
     }
+    for (const rawId of Array.isArray(preexistingAccountIds) ? preexistingAccountIds : []) {
+      increaseClassifications[String(rawId)] = 'preexisting';
+    }
 
-    // Determine tier (relative to climb baseline, falls back to rock_bottom if not yet set).
-    // Re-read config so any baseline bump above is reflected in the stored tier
-    // (prevents a false "stage slipped" milestone on the corrected pull).
+    // Determine tier (relative to climb baseline, falls back to rock_bottom if
+    // not yet set). 'preexisting' classifications will bump the baseline inside
+    // applyClimbMetricsOnPull below; preview that bump here so the snapshot's
+    // stored tier already reflects it and we don't fire a false "stage slipped".
     const climb = getClimbStatsFromConfig();
-    const tierObj = getClimbTier(debtRemaining, climb.climbBaselineDebt);
+    let preexistingBumpPreview = 0;
+    if (gameActive && debtBalanceMap.size > 0) {
+      const prevForPreview = getAllDebtAccountBalances();
+      for (const [id, cat] of Object.entries(increaseClassifications)) {
+        if (cat !== 'preexisting') continue;
+        const curr = debtBalanceMap.get(String(id));
+        if (curr == null) continue;
+        const prevBal = prevForPreview.get(String(id));
+        const inc = prevBal == null ? curr : Math.max(0, roundMoney(curr - prevBal));
+        preexistingBumpPreview = roundMoney(preexistingBumpPreview + inc);
+      }
+    }
+    const effectiveBaseline = roundMoney((Number(climb.climbBaselineDebt) || 0) + preexistingBumpPreview);
+    const tierObj = getClimbTier(debtRemaining, effectiveBaseline);
 
     // Insert snapshot — when individual accounts are provided their sum is authoritative
     // for both total_debt and debt_remaining so the two columns stay consistent.
@@ -597,15 +600,15 @@ router.post('/snapshot', (req, res) => {
     // Update per-account debt tracking. During setup this is inventory only;
     // climb metrics begin after POST /api/start-game locks the baseline.
     if (debtBalanceMap.size > 0) {
-      // Reuse the seeded map from the forgot-a-debt correction when present so
-      // flagged pre-existing accounts don't register as new debt in the diff.
-      const prevBalances = prevForClimb || getAllDebtAccountBalances();
+      const prevBalances = getAllDebtAccountBalances();
 
       replaceDebtAccountBalances(debtBalanceMap);
       appendDebtAccountHistory(debtBalanceMap);
 
       if (gameActive) {
-        applyClimbMetricsOnPull(debtRemaining, prevBalances, debtBalanceMap);
+        // Per-account classifications route this pull's increases to new debt,
+        // interest, or the baseline (forgot-a-debt) — see applyClimbMetricsOnPull.
+        applyClimbMetricsOnPull(debtRemaining, prevBalances, debtBalanceMap, increaseClassifications);
       }
 
       // Build display rows for the debt sync debug
@@ -756,6 +759,38 @@ router.post('/config/interest-rates', express.json(), (req, res) => {
 router.get('/debt-history', (req, res) => {
   const byAccount = getDebtAccountHistory(30);
   res.json({ byAccount });
+});
+
+// ── POST /api/climb/reclassify-added-debt ─────────────────────────────────────
+// Retroactive correction: move dollars already counted as "new debt added" into
+// either the starting baseline ('preexisting' — debt forgotten at the start) or
+// the interest bucket. Caps at the amount actually in the new-debt bucket so the
+// metric can never go negative. Returns the refreshed climb stats.
+router.post('/climb/reclassify-added-debt', express.json(), (req, res) => {
+  try {
+    if (getGameStart().gameStartDebt == null) {
+      return res.status(400).json({ ok: false, error: 'Start the climb before correcting debt.' });
+    }
+    const { amount, kind = 'preexisting' } = req.body || {};
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return res.status(400).json({ ok: false, error: 'A positive amount is required.' });
+    }
+    if (kind !== 'preexisting' && kind !== 'interest') {
+      return res.status(400).json({ ok: false, error: 'kind must be "preexisting" or "interest".' });
+    }
+    const result = reclassifyAddedDebt(amt, kind);
+    if (result.moved <= 0) {
+      return res.status(200).json({
+        ok: false,
+        error: 'Nothing to reclassify — there is no "new debt added" to move.',
+      });
+    }
+    return res.json({ ok: true, moved: result.moved, kind: result.kind, stats: getClimbStatsFromConfig() });
+  } catch (err) {
+    console.error('[api] reclassify-added-debt', err);
+    return res.status(500).json({ ok: false, error: 'Reclassification failed.' });
+  }
 });
 
 // ── Commitment promise (cross-device) ─────────────────────────────────────────

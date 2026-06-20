@@ -623,6 +623,62 @@ test('forgot-a-debt: flagging a new account as pre-existing folds it into baseli
   });
 });
 
+test('classifications: an interest increase is tracked apart from new debt (HTTP)', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Balance grows by $150; user says it's interest.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10150 }],
+      classifications: { visa: 'interest' },
+    });
+    assert.equal(res.status, 200);
+
+    const status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativeNewDebtAdded, 0, 'interest is not new debt');
+    assert.equal(status.stats.cumulativeInterestAccrued, 150, 'interest tracked separately');
+  });
+});
+
+test('reclassify-added-debt: moves stuck new debt into the baseline (HTTP)', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // A $2,034 account added without a flag → counts as new debt (the bug).
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'visa', name: 'Visa', balance: 10000 },
+        { id: 'loan', name: 'Forgotten', balance: 2034 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    let status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativeNewDebtAdded, 2034);
+
+    // The retroactive correction folds it into the baseline.
+    res = await postJson(baseUrl, '/api/climb/reclassify-added-debt', { amount: 2034, kind: 'preexisting' });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.moved, 2034);
+
+    status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.cumulativeNewDebtAdded, 0, 'no longer counted as new debt');
+    assert.equal(status.stats.climbBaselineDebt, 12034, 'baseline absorbed the correction');
+    assert.equal(status.stats.netImprovement, 0, 'net no longer dragged negative');
+  });
+});
+
 test('forgot-a-debt: WITHOUT the flag, a new account counts as new debt (the spiral)', async () => {
   await withApp(async (baseUrl) => {
     let res = await postJson(baseUrl, '/api/snapshot', {

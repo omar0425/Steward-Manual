@@ -20,10 +20,13 @@ const assert = require('node:assert/strict');
 
 const {
   applyClimbMetricsOnPull,
+  reclassifyAddedDebt,
+  getClimbStatsFromConfig,
   KEY_MAP_SEEDED,
   KEY_BASELINE,
   KEY_PAID,
   KEY_NEW,
+  KEY_INTEREST,
   KEY_LAST,
 } = require('../services/climbMetrics');
 const {
@@ -160,5 +163,71 @@ test('mixed pull: payment on one account + removed other — only payment counts
     assert.equal(r.analysis.accountsDecreasedCount, 1);
     assert.equal(getConfig(KEY_PAID), '1000');
     assert.equal(getConfig(KEY_NEW), '0');
+  });
+});
+
+test('classified pull: interest goes to its bucket, not new debt; baseline holds', () => {
+  withUser(0, () => {
+    setConfig(KEY_BASELINE, '10000');
+    setConfig(KEY_PAID, '0');
+    setConfig(KEY_NEW, '0');
+    setConfig(KEY_INTEREST, '0');
+    setConfig(KEY_LAST, '10000');
+    setConfig(KEY_MAP_SEEDED, '1');
+    setConfig('game_start_debt', '10000');
+    const prev = new Map([['card', 10000]]);
+    const curr = new Map([['card', 10150]]);
+    applyClimbMetricsOnPull(10150, prev, curr, { card: 'interest' });
+    assert.equal(getConfig(KEY_NEW), '0', 'interest is not new debt');
+    assert.equal(getConfig(KEY_INTEREST), '150', 'interest tracked separately');
+    assert.equal(getConfig(KEY_BASELINE), '10000', 'baseline unchanged by interest');
+  });
+});
+
+test('classified pull: a forgotten pre-existing account folds into the baseline', () => {
+  withUser(0, () => {
+    setConfig(KEY_BASELINE, '10000');
+    setConfig(KEY_PAID, '0');
+    setConfig(KEY_NEW, '0');
+    setConfig(KEY_LAST, '10000');
+    setConfig(KEY_MAP_SEEDED, '1');
+    setConfig('game_start_debt', '10000');
+    const prev = new Map([['card', 10000]]);
+    const curr = new Map([['card', 10000], ['loan', 2034]]);
+    applyClimbMetricsOnPull(12034, prev, curr, { loan: 'preexisting' });
+    assert.equal(getConfig(KEY_NEW), '0', 'forgotten debt is not new debt');
+    assert.equal(getConfig(KEY_BASELINE), '12034', 'baseline absorbed the forgotten loan');
+    assert.equal(getConfig('game_start_debt'), '12034', 'game-start debt rose too');
+  });
+});
+
+test('reclassifyAddedDebt: moves new debt into the baseline, capped at available', () => {
+  withUser(0, () => {
+    setConfig(KEY_BASELINE, '10000');
+    setConfig(KEY_PAID, '0');
+    setConfig(KEY_NEW, '2034');
+    setConfig('game_start_debt', '10000');
+    const r = reclassifyAddedDebt(2034, 'preexisting');
+    assert.equal(r.moved, 2034);
+    assert.equal(getConfig(KEY_NEW), '0', 'new debt cleared');
+    assert.equal(getConfig(KEY_BASELINE), '12034', 'baseline rose by the correction');
+    assert.equal(getConfig('game_start_debt'), '12034');
+    // Can't move more than what's there.
+    const r2 = reclassifyAddedDebt(500, 'preexisting');
+    assert.equal(r2.moved, 0);
+    assert.equal(getClimbStatsFromConfig().cumulativeNewDebtAdded, 0);
+  });
+});
+
+test('reclassifyAddedDebt: interest kind moves new debt into the interest bucket', () => {
+  withUser(0, () => {
+    setConfig(KEY_BASELINE, '10000');
+    setConfig(KEY_NEW, '300');
+    setConfig(KEY_INTEREST, '0');
+    const r = reclassifyAddedDebt(300, 'interest');
+    assert.equal(r.moved, 300);
+    assert.equal(getConfig(KEY_NEW), '0');
+    assert.equal(getConfig(KEY_INTEREST), '300');
+    assert.equal(getConfig(KEY_BASELINE), '10000', 'baseline untouched for interest');
   });
 });

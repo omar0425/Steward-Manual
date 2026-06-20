@@ -328,8 +328,10 @@ function buildStageProgressDetail() {
       <li id="progress-bullet-paid"></li>
       <li id="progress-bullet-turn"></li>
       <li id="progress-bullet-newdebt"></li>
+      <li id="progress-bullet-interest"></li>
       <li id="progress-bullet-direction"></li>
     </ul>
+    <button type="button" id="reclassify-debt-btn" class="reclassify-link" hidden>Some of that was interest or a debt you forgot to log? Reclassify it →</button>
     <p class="progress-note" id="progress-debt-direction" hidden style="font-size:12px;color:var(--text-2);margin-top:14px;"></p>
     <p id="progress-milestone-next" hidden style="font-size:12px;color:var(--gold);margin-top:14px;font-style:italic;"></p>
     <p id="progress-next-move" hidden style="font-size:12px;color:var(--text-2);margin-top:6px;"></p>

@@ -11,6 +11,7 @@ const { getConfig, setConfig, setConfigIfAbsent, currentUserId } = require('../d
 const KEY_BASELINE = 'climb_baseline_debt';
 const KEY_PAID = 'cumulative_paid_down';
 const KEY_NEW = 'cumulative_new_debt_added';
+const KEY_INTEREST = 'cumulative_interest_accrued';
 const KEY_LAST = 'last_aggregate_debt_for_climb';
 /** After first successful `replaceDebtAccountBalances`, per-account deltas are trusted (incl. empty maps). */
 const KEY_MAP_SEEDED = 'climb_per_account_map_seeded';
@@ -192,6 +193,92 @@ function perAccountDebtDeltaDisplayRows(previousByAccountId, currentByAccountId,
   return rows;
 }
 
+/**
+ * Categories a balance INCREASE (or a brand-new account) can be classified as.
+ * Each routes the dollars to a different bucket:
+ *   - purchase / new_loan / (default) → counts as new debt added (works against)
+ *   - interest                         → tracked separately, never penalizes net
+ *   - preexisting                      → folded into the starting baseline
+ */
+function classifyBucket(category) {
+  if (category === 'interest') return 'interest';
+  if (category === 'preexisting') return 'preexisting';
+  return 'new'; // purchase, new_loan, anything unrecognized
+}
+
+/**
+ * Split this pull's positive deltas (existing-account increases + new accounts)
+ * into buckets by the per-account classifications the client supplied. Decreases
+ * are always paydown; removals never count. Returns dollar sums.
+ *
+ * @param {Map<string, number>} prev
+ * @param {Map<string, number>} curr
+ * @param {Object<string,string>} classifications  accountId → category
+ */
+function routeDeltasByClassification(prev, curr, classifications) {
+  const p = prev instanceof Map ? prev : new Map();
+  const c = curr instanceof Map ? curr : new Map();
+  const cls = classifications && typeof classifications === 'object' ? classifications : {};
+  let paydownSum = 0;
+  let newDebtSum = 0;
+  let interestSum = 0;
+  let baselineBump = 0;
+
+  const routeIncrease = (id, amt) => {
+    const bucket = classifyBucket(cls[String(id)]);
+    if (bucket === 'interest') interestSum = roundMoney(interestSum + amt);
+    else if (bucket === 'preexisting') baselineBump = roundMoney(baselineBump + amt);
+    else newDebtSum = roundMoney(newDebtSum + amt);
+  };
+
+  for (const [id, prevBal] of p) {
+    if (!c.has(id)) continue; // removed → no effect
+    const delta = roundMoney(c.get(id) - prevBal);
+    if (delta < 0) paydownSum = roundMoney(paydownSum + Math.abs(delta));
+    else if (delta > 0) routeIncrease(id, delta);
+  }
+  for (const [id, currBal] of c) {
+    if (!p.has(id) && currBal > 0) routeIncrease(id, currBal);
+  }
+  return { paydownSum, newDebtSum, interestSum, baselineBump };
+}
+
+/** Add `amount` to the climb baseline and the game-start debt (forgot-a-debt). */
+function bumpBaselineAndStart(amount) {
+  const bump = roundMoney(amount);
+  if (!Number.isFinite(bump) || bump <= 0) return;
+  const baseline = parseConfigNum(getConfig(KEY_BASELINE), 0);
+  setConfig(KEY_BASELINE, String(roundMoney(baseline + bump)));
+  const start = getConfig('game_start_debt');
+  if (start != null && start !== '') {
+    setConfig('game_start_debt', String(roundMoney(parseConfigNum(start, 0) + bump)));
+  }
+}
+
+/**
+ * Retroactively reclassify dollars already counted as "new debt added" — the fix
+ * for debt the user forgot to enter at the start (or interest that was wrongly
+ * counted as new spending). Moves up to the available amount out of the new-debt
+ * bucket into either the baseline ('preexisting') or the interest bucket.
+ *
+ * @returns {{ moved: number, kind: string }}
+ */
+function reclassifyAddedDebt(amount, kind) {
+  const requested = roundMoney(amount);
+  const newD = Math.max(0, parseConfigNum(getConfig(KEY_NEW), 0));
+  const moved = roundMoney(Math.min(Math.max(0, requested), newD));
+  if (moved <= 0) return { moved: 0, kind };
+  setConfig(KEY_NEW, String(roundMoney(newD - moved)));
+  if (kind === 'interest') {
+    const interest = Math.max(0, parseConfigNum(getConfig(KEY_INTEREST), 0));
+    setConfig(KEY_INTEREST, String(roundMoney(interest + moved)));
+  } else {
+    // 'preexisting' (default): it was always part of the debt → fold into baseline.
+    bumpBaselineAndStart(moved);
+  }
+  return { moved, kind: kind === 'interest' ? 'interest' : 'preexisting' };
+}
+
 /** Last debt-sync summary per user (keyed by userId to prevent cross-user bleed). */
 const lastDebtSyncDebugByUser = new Map();
 
@@ -245,9 +332,12 @@ function getLastDebtSyncDebugForStatus() {
  * @param {number} debtRemaining  Aggregate debt (sum of liability balances), same as snapshots.
  * @param {Map<string, number>} previousByAccountId  From `debt_account_balances` (may be empty).
  * @param {Map<string, number>} currentByAccountId  Built from current debt accounts.
+ * @param {Object<string,string>} [classifications]  accountId → category for this
+ *        pull's increases/new accounts: 'purchase' | 'new_loan' | 'interest' |
+ *        'preexisting'. Omitted/unknown → treated as new debt (legacy behavior).
  * @returns {object} climbAction, analysis, map_seeded_before, aggregate_debt_remaining
  */
-function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAccountId) {
+function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAccountId, classifications = {}) {
   const prev = previousByAccountId instanceof Map ? previousByAccountId : new Map();
   const curr = currentByAccountId instanceof Map ? currentByAccountId : new Map();
   const analysis = analyzePerAccountDebtDiff(prev, curr);
@@ -339,13 +429,28 @@ function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAc
     };
   }
 
-  const { paydownSum, newDebtSum } = analysis;
+  // Route this pull's increases by their per-account classification: purchases
+  // and new loans count as new debt, interest goes to its own bucket, and debt
+  // the user only now remembered ('preexisting') folds into the baseline so it
+  // never reads as back-sliding. With no classifications every increase is new
+  // debt — identical to the original behavior.
+  const routed = routeDeltasByClassification(prev, curr, classifications);
   const paid = parseConfigNum(getConfig(KEY_PAID), 0);
   const newD = parseConfigNum(getConfig(KEY_NEW), 0);
-  setConfig(KEY_PAID, String(roundMoney(paid + paydownSum)));
-  setConfig(KEY_NEW, String(roundMoney(newD + newDebtSum)));
+  setConfig(KEY_PAID, String(roundMoney(paid + routed.paydownSum)));
+  setConfig(KEY_NEW, String(roundMoney(newD + routed.newDebtSum)));
+  if (routed.interestSum > 0) {
+    const interest = parseConfigNum(getConfig(KEY_INTEREST), 0);
+    setConfig(KEY_INTEREST, String(roundMoney(interest + routed.interestSum)));
+  }
+  if (routed.baselineBump > 0) bumpBaselineAndStart(routed.baselineBump);
   setConfig(KEY_LAST, String(debt));
-  return { ...baseReturn, climbAction: 'deltas_applied', aggregate_debt_remaining: debt };
+  return {
+    ...baseReturn,
+    climbAction: 'deltas_applied',
+    aggregate_debt_remaining: debt,
+    routed,
+  };
 }
 
 /**
@@ -362,7 +467,11 @@ function getClimbStatsFromConfig() {
 
   const cumulativePaidDown = Math.max(0, parseConfigNum(getConfig(KEY_PAID), 0));
   const cumulativeNewDebtAdded = Math.max(0, parseConfigNum(getConfig(KEY_NEW), 0));
+  const cumulativeInterestAccrued = Math.max(0, parseConfigNum(getConfig(KEY_INTEREST), 0));
   const lastAggregateDebt = parseConfigNum(getConfig(KEY_LAST), NaN);
+  // Net improvement deliberately excludes interest: it measures progress from
+  // the user's own actions (payments minus new spending/loans), not the cost of
+  // carrying the debt, which is tracked separately.
   const netImprovement = roundMoney(cumulativePaidDown - cumulativeNewDebtAdded);
 
   let pctPaid = 0;
@@ -374,6 +483,7 @@ function getClimbStatsFromConfig() {
     climbBaselineDebt,
     cumulativePaidDown,
     cumulativeNewDebtAdded,
+    cumulativeInterestAccrued,
     lastAggregateDebt,
     netImprovement,
     pctPaid: parseFloat(pctPaid.toFixed(1)),
@@ -475,10 +585,13 @@ module.exports = {
   KEY_BASELINE,
   KEY_PAID,
   KEY_NEW,
+  KEY_INTEREST,
   KEY_LAST,
   KEY_MAP_SEEDED,
   applyClimbMetricsOnPull,
   getClimbStatsFromConfig,
+  reclassifyAddedDebt,
+  routeDeltasByClassification,
   applyDeltaToTotals,
   analyzePerAccountDebtDiff,
   summarizePerAccountDebtDeltas,
