@@ -925,3 +925,70 @@ document.addEventListener('click', (e) => {
   const btn = e.target && e.target.closest && e.target.closest('#reclassify-debt-btn');
   if (btn) { e.preventDefault(); showReclassifyDialog(); }
 });
+
+/* ── Undo last update ─────────────────────────────────────────────────────────
+   Reverses the most recent balance entry — for a typo or mistaken amount —
+   restoring the exact prior totals instead of logging a fake payment. */
+function showUndoConfirm() {
+  const existing = document.getElementById('undo-confirm-dialog');
+  if (existing) existing.remove();
+  const previouslyFocused = document.activeElement;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'undo-confirm-dialog';
+  overlay.className = 'paydown-confirm-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.innerHTML = `
+    <div class="paydown-confirm-card">
+      <h3 class="paydown-confirm-title">Undo last update?</h3>
+      <p class="paydown-classify-intro">This reverses your most recent balance entry — restoring your previous balances and progress numbers exactly, and removing that entry from history. Use it if you typed the wrong amount.</p>
+      <p class="reclassify-msg" id="undo-confirm-msg" hidden></p>
+      <div class="paydown-confirm-actions">
+        <button type="button" class="paydown-confirm-cancel">Cancel</button>
+        <button type="button" class="paydown-confirm-save">Undo it</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const closeDialog = () => {
+    overlay.remove();
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
+    }
+  };
+  const msgEl = overlay.querySelector('#undo-confirm-msg');
+  const showMsg = (t) => { if (msgEl) { msgEl.textContent = t; msgEl.hidden = false; } };
+
+  overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', closeDialog);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeDialog(); });
+
+  const btn = overlay.querySelector('.paydown-confirm-save');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Undoing…';
+    try {
+      const res = await fetch(stewardApiUrl('/api/climb/undo-last'), { method: 'POST' });
+      const data = await readJsonRes(res);
+      if (res.ok && data && data.ok) {
+        closeDialog();
+        await manualRefresh();
+        void resyncSavedDebtsFromServer();
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Undo it';
+        showMsg((data && data.error) || 'Could not undo. Try again.');
+      }
+    } catch (_) {
+      btn.disabled = false;
+      btn.textContent = 'Undo it';
+      showMsg('Network error. Try again.');
+    }
+  });
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('#undo-last-btn');
+  if (btn) { e.preventDefault(); showUndoConfirm(); }
+});

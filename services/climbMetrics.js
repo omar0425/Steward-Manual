@@ -6,13 +6,23 @@
  * removing a liability account is not counted as paydown.
  */
 
-const { getConfig, setConfig, setConfigIfAbsent, currentUserId } = require('../db');
+const {
+  getConfig,
+  setConfig,
+  setConfigIfAbsent,
+  currentUserId,
+  replaceDebtAccountBalances,
+  deleteSnapshotById,
+} = require('../db');
 
 const KEY_BASELINE = 'climb_baseline_debt';
 const KEY_PAID = 'cumulative_paid_down';
 const KEY_NEW = 'cumulative_new_debt_added';
 const KEY_INTEREST = 'cumulative_interest_accrued';
 const KEY_LAST = 'last_aggregate_debt_for_climb';
+const KEY_UNDO = 'climb_undo_stack';
+/** How many entries deep "undo last update" can step back. */
+const UNDO_MAX = 20;
 /** After first successful `replaceDebtAccountBalances`, per-account deltas are trusted (incl. empty maps). */
 const KEY_MAP_SEEDED = 'climb_per_account_map_seeded';
 
@@ -277,6 +287,107 @@ function reclassifyAddedDebt(amount, kind) {
     bumpBaselineAndStart(moved);
   }
   return { moved, kind: kind === 'interest' ? 'interest' : 'preexisting' };
+}
+
+// ── Undo stack ───────────────────────────────────────────────────────────────
+// Before a pull mutates the cumulative metrics we snapshot the pre-pull state so
+// a mis-typed balance can be reversed exactly — not papered over with a fake
+// compensating payment (which would inflate both "paid down" and "new debt").
+
+function readUndoStack() {
+  const raw = getConfig(KEY_UNDO);
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function mapToObj(map) {
+  const o = {};
+  if (map instanceof Map) for (const [k, v] of map) o[String(k)] = roundMoney(v);
+  return o;
+}
+
+/**
+ * Snapshot the current (pre-pull) cumulative state and balances onto the undo
+ * stack. Call this *before* applyClimbMetricsOnPull / replaceDebtAccountBalances.
+ *
+ * @param {number|null} snapshotId  id of the snapshots row this pull inserted
+ * @param {Map<string,number>} prevBalances  per-account balances before the pull
+ */
+function captureUndoState(snapshotId, prevBalances) {
+  const entry = {
+    ts: new Date().toISOString(),
+    snapshotId: snapshotId == null ? null : Number(snapshotId),
+    prev: {
+      paid: getConfig(KEY_PAID),
+      newD: getConfig(KEY_NEW),
+      interest: getConfig(KEY_INTEREST),
+      last: getConfig(KEY_LAST),
+      baseline: getConfig(KEY_BASELINE),
+      gameStart: getConfig('game_start_debt'),
+    },
+    balances: mapToObj(prevBalances),
+  };
+  const stack = readUndoStack();
+  stack.push(entry);
+  while (stack.length > UNDO_MAX) stack.shift();
+  setConfig(KEY_UNDO, JSON.stringify(stack));
+}
+
+/** Whether there is anything to undo (drives the UI control's visibility). */
+function hasUndoState() {
+  return readUndoStack().length > 0;
+}
+
+function restoreConfigValue(key, value) {
+  // null/undefined means the key was absent before the pull → leave it cleared
+  // by writing an empty string (parseConfigNum treats '' as the fallback).
+  setConfig(key, value == null ? '' : String(value));
+}
+
+/**
+ * Reverse the most recent pull: restore the saved cumulative totals + per-account
+ * balances and delete that pull's snapshot row. Returns what happened so the API
+ * can report it. Idempotent-safe: returns { undone: false } when nothing remains.
+ */
+function undoLastPull() {
+  const stack = readUndoStack();
+  if (stack.length === 0) return { undone: false };
+  const entry = stack.pop();
+  const prev = entry && entry.prev ? entry.prev : {};
+
+  restoreConfigValue(KEY_PAID, prev.paid);
+  restoreConfigValue(KEY_NEW, prev.newD);
+  restoreConfigValue(KEY_INTEREST, prev.interest);
+  restoreConfigValue(KEY_LAST, prev.last);
+  restoreConfigValue(KEY_BASELINE, prev.baseline);
+  restoreConfigValue('game_start_debt', prev.gameStart);
+
+  const restored = new Map();
+  if (entry && entry.balances && typeof entry.balances === 'object') {
+    for (const [id, bal] of Object.entries(entry.balances)) {
+      const n = Number(bal);
+      if (Number.isFinite(n) && n >= 0) restored.set(String(id), roundMoney(n));
+    }
+  }
+  replaceDebtAccountBalances(restored);
+
+  let snapshotDeleted = 0;
+  if (entry && entry.snapshotId != null) {
+    snapshotDeleted = deleteSnapshotById(entry.snapshotId);
+  }
+
+  setConfig(KEY_UNDO, JSON.stringify(stack));
+  return {
+    undone: true,
+    snapshotDeleted,
+    remaining: stack.length,
+    restoredAt: entry ? entry.ts : null,
+  };
 }
 
 /** Last debt-sync summary per user (keyed by userId to prevent cross-user bleed). */
@@ -587,10 +698,14 @@ module.exports = {
   KEY_NEW,
   KEY_INTEREST,
   KEY_LAST,
+  KEY_UNDO,
   KEY_MAP_SEEDED,
   applyClimbMetricsOnPull,
   getClimbStatsFromConfig,
   reclassifyAddedDebt,
+  captureUndoState,
+  undoLastPull,
+  hasUndoState,
   routeDeltasByClassification,
   applyDeltaToTotals,
   analyzePerAccountDebtDiff,

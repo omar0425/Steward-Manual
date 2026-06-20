@@ -33,6 +33,9 @@ const {
   clearLastDebtSyncDebug,
   getClimbStatsFromConfig,
   reclassifyAddedDebt,
+  captureUndoState,
+  undoLastPull,
+  hasUndoState,
   getLastDebtSyncDebugForStatus,
   computeStreak,
   applyClimbMetricsOnPull,
@@ -334,6 +337,7 @@ router.get('/status', (req, res) => {
       cumulativePaidDown:    climb.cumulativePaidDown,
       cumulativeNewDebtAdded: climb.cumulativeNewDebtAdded,
       cumulativeInterestAccrued: climb.cumulativeInterestAccrued,
+      canUndo:               hasUndoState(),
       netImprovement:        climb.netImprovement,
       debtPaid:              climb.cumulativePaidDown,
       debtStart:             climb.climbBaselineDebt,
@@ -582,7 +586,7 @@ router.post('/snapshot', (req, res) => {
     // for both total_debt and debt_remaining so the two columns stay consistent.
     const effectiveTotalDebt = debtBalanceMap.size > 0 ? debtRemaining : debt;
     const netWorth = roundMoney(assets + invest - effectiveTotalDebt);
-    insertSnapshot({
+    const snapshotId = insertSnapshot({
       source:           'manual',
       pulled_at:        now,
       net_worth:        netWorth,
@@ -601,6 +605,10 @@ router.post('/snapshot', (req, res) => {
     // climb metrics begin after POST /api/start-game locks the baseline.
     if (debtBalanceMap.size > 0) {
       const prevBalances = getAllDebtAccountBalances();
+
+      // Snapshot the pre-pull state so a wrong entry can be undone exactly.
+      // Captured before any mutation, only while the climb is running.
+      if (gameActive) captureUndoState(snapshotId, prevBalances);
 
       replaceDebtAccountBalances(debtBalanceMap);
       appendDebtAccountHistory(debtBalanceMap);
@@ -629,6 +637,7 @@ router.post('/snapshot', (req, res) => {
       setConfig('debt_account_name_map', JSON.stringify(nameMapObj));
     } else if (gameActive) {
       // No individual accounts — apply aggregate climb metrics
+      captureUndoState(snapshotId, getAllDebtAccountBalances());
       const climb = getClimbStatsFromConfig();
       const lastDebt = climb.lastAggregateDebt;
       if (Number.isFinite(lastDebt) && lastDebt > 0) {
@@ -790,6 +799,27 @@ router.post('/climb/reclassify-added-debt', express.json(), (req, res) => {
   } catch (err) {
     console.error('[api] reclassify-added-debt', err);
     return res.status(500).json({ ok: false, error: 'Reclassification failed.' });
+  }
+});
+
+// ── POST /api/climb/undo-last ─────────────────────────────────────────────────
+// Reverse the most recent balance update — for a typo or a mistaken entry. Each
+// press steps back one update: it restores the exact pre-pull totals + balances
+// and removes that pull's snapshot, instead of logging a fake compensating entry
+// (which would inflate both "paid down" and "new debt added").
+router.post('/climb/undo-last', express.json(), (req, res) => {
+  try {
+    if (getGameStart().gameStartDebt == null) {
+      return res.status(400).json({ ok: false, error: 'No active climb to undo.' });
+    }
+    const result = undoLastPull();
+    if (!result.undone) {
+      return res.status(200).json({ ok: false, error: 'Nothing to undo.' });
+    }
+    return res.json({ ok: true, ...result, stats: getClimbStatsFromConfig() });
+  } catch (err) {
+    console.error('[api] undo-last', err);
+    return res.status(500).json({ ok: false, error: 'Undo failed.' });
   }
 });
 

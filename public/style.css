@@ -2259,6 +2259,19 @@ body[data-setup-mode="first"] .setup-welcome {
   text-align: left;
 }
 .reclassify-link:hover { text-decoration: underline; }
+.undo-last-btn {
+  display: block;
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  width: 100%;
+}
+.undo-last-btn:hover { color: var(--text-2); text-decoration: underline; }
 .reclassify-field { margin: 4px 0 14px; }
 .reclassify-label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
 .reclassify-msg { margin: 10px 0 0; font-size: 12px; color: var(--rose, #f87171); }

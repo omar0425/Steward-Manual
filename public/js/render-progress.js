@@ -133,6 +133,9 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
   // Offer the retroactive correction only when there's new debt to move.
   const reclassifyBtn = document.getElementById('reclassify-debt-btn');
   if (reclassifyBtn) reclassifyBtn.hidden = !(Number.isFinite(nd) && nd > 0);
+  // Offer "undo last update" only when there's a captured pull to reverse.
+  const undoBtn = document.getElementById('undo-last-btn');
+  if (undoBtn) undoBtn.hidden = !(stats && stats.canUndo === true);
   if (elDir) {
     let d = 'flat'; let dirClass = '';
     if (stats && stats.debtDirection === 'increasing') { d = 'backward'; dirClass = 'sp-val--bad'; }
