@@ -299,13 +299,22 @@ async function generateAnswer({ question, payload }) {
     'payment as if it were the month\'s total; one account\'s figure is not ' +
     'the month\'s paydown.\n' +
     '- Do the arithmetic yourself from what you have. Compute a payoff horizon ' +
-    'from the average monthly paydown against the balance even when no date is ' +
+    'from the monthly paydown against the balance even when no date is ' +
     'precomputed.\n' +
-    '- CRITICAL: compare the monthly paydown to the monthly interest. If ' +
-    'interest is close to or larger than what they are paying down, say so ' +
-    'plainly — the balance is barely moving or growing, and no honest payoff ' +
-    'date exists at this pace. Then state the lever: roughly how much per ' +
-    'month, above interest, would actually turn it around.\n' +
+    '- CRITICAL — how paydown and interest relate: the monthly paydown figure ' +
+    'is the ACTUAL drop in their total balance over the month. It ALREADY ' +
+    'reflects interest — the balance fell by that much after interest was ' +
+    'added. So do NOT subtract interest from it again, and do NOT call ' +
+    '(paydown minus interest) their "net progress" — that double-counts ' +
+    'interest. Their real progress is the balance drop itself. Payoff horizon ' +
+    '= current balance ÷ monthly balance drop.\n' +
+    '- Use the interest figure for context and as the lever, never as a second ' +
+    'subtraction: interest is roughly how much MORE than the balance drop they ' +
+    'actually paid (gross payment ≈ balance drop + interest), and killing the ' +
+    'highest-APR balance is what frees that money to speed the climb. If the ' +
+    'balance is flat or rising (paydown zero or negative), say plainly there is ' +
+    'no payoff date at this pace and name how much monthly balance reduction it ' +
+    'would take to turn it around.\n' +
     '- If a figure truly is not available (e.g. no APRs entered), name the ONE ' +
     'thing they could enter to get a sharper answer — framed as their next ' +
     'move, in one short clause, not as an apology or a refusal.\n' +
