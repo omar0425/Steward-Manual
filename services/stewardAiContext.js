@@ -115,6 +115,38 @@ function avgDailyPaydown(snapshots) {
 }
 
 /**
+ * Net debt reduction across the TRAILING WINDOW, summed over every account —
+ * i.e. how far the whole balance moved, not how much a single card was paid.
+ * Uses the snapshots table (the source of truth for monthly totals), so it is
+ * immune to the "last entry only touched one card" trap that makes the
+ * per-entry delta understate the month.
+ *
+ * Returns the dollar reduction (positive = paid down, negative = grew) or null
+ * when there isn't a second snapshot to compare against. Falls back to the
+ * oldest snapshot we have when none is a full `days` old, so the figure is
+ * always honest about the period it actually covers (reported via `fromDate`).
+ */
+function paydownOverWindow(snapshots, days) {
+  if (!Array.isArray(snapshots) || snapshots.length < 2) return null;
+  const newest = snapshots[0];
+  const newestT = new Date(newest.pulled_at).getTime();
+  if (!Number.isFinite(newestT)) return null;
+  const cutoff = newestT - days * 86400000;
+  let ref = null;
+  for (let i = 1; i < snapshots.length; i++) {
+    const t = new Date(snapshots[i].pulled_at).getTime();
+    if (Number.isFinite(t) && t <= cutoff) { ref = snapshots[i]; break; }
+  }
+  if (!ref) ref = snapshots[snapshots.length - 1];
+  const reduction = Number(ref.debt_remaining) - Number(newest.debt_remaining);
+  if (!Number.isFinite(reduction)) return null;
+  return {
+    paydown: round2(reduction),
+    fromDate: typeof ref.pulled_at === 'string' ? ref.pulled_at.slice(0, 10) : null,
+  };
+}
+
+/**
  * Forecast calendar dates for the next 1–3 climb tiers based on avgDailyPaydown.
  * Returns [] when pace is null or projected horizon exceeds ~2 years.
  */
@@ -247,13 +279,19 @@ function buildContext() {
     }
   }
 
-  // Pace & forecast
+  // Pace & forecast. avgPerDay stays internal (forecast-date math only); it is
+  // unreliable as a user-facing rate when entries cluster in time.
   const avgPerDay = avgDailyPaydown(snapshots);
   const forecasts = forecastTierDates({
     currentDebt: snap.debt_remaining,
     baseline: climb.climbBaselineDebt,
     avgPerDay,
   });
+
+  // True monthly paydown: total balance reduction across ALL cards over the
+  // last ~30 days, from the snapshots table. This is the figure the Steward
+  // should quote for "last month" — never a single entry's per-card delta.
+  const last30 = paydownOverWindow(snapshots, 30);
 
   // Recent paydown sum (last 4 deltas, in dollars)
   let recentPaydownSum = 0;
@@ -372,15 +410,19 @@ function buildContext() {
           ? Math.round(Number(climb.pctPaid) * 10) / 10
           : null,
         netImprovement: dollars(climb.netImprovement),
-        lastPullPaydown: dollars(lastPullPaydown),
-        lastPullAdded: dollars(lastPullAdded),
+        // Most recent ENTRY only — may be a single card the user just updated,
+        // NOT the month's total. Never quote this as "paid down last month".
+        latestEntryPaydown: dollars(lastPullPaydown),
+        latestEntryAdded: dollars(lastPullAdded),
         direction,
         daysSinceLastTurn,
         daysIntoClimb,
         recentPaydownSum4Turns: dollars(recentPaydownSum),
-        // This is a monthly check-in app, so the model is given pace in
-        // dollars-per-month. (avgPerDay stays internal, for forecast dates.)
-        avgMonthlyPaydown: avgPerDay != null ? dollars(avgPerDay * 30) : null,
+        // THE monthly figure to quote: total balance reduction across ALL cards
+        // over the last ~30 days, from the snapshots table. fromDate is the start
+        // of the window actually covered (positive = paid down, negative = grew).
+        paidDownLast30Days: last30 ? dollars(last30.paydown) : null,
+        paidDownLast30DaysFromDate: last30 ? last30.fromDate : null,
       },
       interest: {
         monthlyCost: monthlyInterest,
@@ -407,5 +449,6 @@ module.exports = {
   monthlyInterestCost,
   highestInterestAccount,
   avgDailyPaydown,
+  paydownOverWindow,
   forecastTierDates,
 };
