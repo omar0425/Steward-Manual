@@ -133,9 +133,17 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
   // Offer the retroactive correction only when there's new debt to move.
   const reclassifyBtn = document.getElementById('reclassify-debt-btn');
   if (reclassifyBtn) reclassifyBtn.hidden = !(Number.isFinite(nd) && nd > 0);
-  // Offer "undo last update" only when there's a captured pull to reverse.
+  // Offer undo only when there's a captured action to reverse; label it for
+  // whichever action is on top (a balance update or a reclassification).
   const undoBtn = document.getElementById('undo-last-btn');
-  if (undoBtn) undoBtn.hidden = !(stats && stats.canUndo === true);
+  if (undoBtn) {
+    undoBtn.hidden = !(stats && stats.canUndo === true);
+    const label = stats && stats.undoLabel === 'correction' ? 'correction' : 'update';
+    undoBtn.dataset.undoLabel = label;
+    undoBtn.textContent = label === 'correction'
+      ? '↶ Undo last correction'
+      : '↶ Undo last update (entered the wrong amount?)';
+  }
 
   fillDebtFreeBanner(stats);
   if (elDir) {

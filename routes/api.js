@@ -37,6 +37,7 @@ const {
   captureUndoState,
   undoLastPull,
   hasUndoState,
+  peekUndoLabel,
   getLastDebtSyncDebugForStatus,
   computeStreak,
   applyClimbMetricsOnPull,
@@ -352,6 +353,7 @@ router.get('/status', (req, res) => {
       cumulativeNewDebtAdded: climb.cumulativeNewDebtAdded,
       cumulativeInterestAccrued: climb.cumulativeInterestAccrued,
       canUndo:               hasUndoState(),
+      undoLabel:             peekUndoLabel(),
       monthlyPace:           monthlyPace || 0,
       debtFree:              debtFreeProjection,
       paidThisMonth:         netPaidThisMonth,
@@ -806,6 +808,15 @@ router.post('/climb/reclassify-added-debt', express.json(), (req, res) => {
     if (kind !== 'preexisting' && kind !== 'interest') {
       return res.status(400).json({ ok: false, error: 'kind must be "preexisting" or "interest".' });
     }
+    // Nothing in the new-debt bucket → no-op; don't leave a useless undo entry.
+    if (getClimbStatsFromConfig().cumulativeNewDebtAdded <= 0) {
+      return res.status(200).json({
+        ok: false,
+        error: 'Nothing to reclassify — there is no "new debt added" to move.',
+      });
+    }
+    // Capture pre-correction state so this reclassify can be undone too.
+    captureUndoState(null, getAllDebtAccountBalances(), 'correction');
     const result = reclassifyAddedDebt(amt, kind);
     if (result.moved <= 0) {
       return res.status(200).json({
