@@ -207,13 +207,20 @@ router.get('/status', (req, res) => {
       ? lastDebtSync.current_account_lines
       : null;
   if (!debtAccountLines) {
-    // Fall back to the persisted name map so "THIS TURN" shows real account names
-    const rawNameMap = getConfig('debt_account_name_map');
-    if (rawNameMap) {
-      try {
-        const m = JSON.parse(rawNameMap);
-        debtAccountLines = Object.entries(m).map(([id, name]) => ({ id, name }));
-      } catch (_) { /* ignore malformed */ }
+    // No last-pull debug snapshot (e.g. right after an undo, which clears it).
+    // Fall back to the AUTHORITATIVE per-account balances so the panel still
+    // shows real numbers — not just names. Reading balances only from the debug
+    // snapshot made an undo look like it wiped every account.
+    const nameMap = parseJsonObject(getConfig('debt_account_name_map'));
+    const balances = getAllDebtAccountBalances();
+    if (balances.size > 0) {
+      debtAccountLines = [...balances.entries()].map(([id, balance]) => ({
+        id,
+        name: nameMap[id] || 'Account',
+        balance,
+      }));
+    } else if (Object.keys(nameMap).length > 0) {
+      debtAccountLines = Object.entries(nameMap).map(([id, name]) => ({ id, name }));
     }
   }
 
