@@ -1139,43 +1139,131 @@ router.get('/export', (req, res) => {
   const data = exportUserData();
   const stamp = new Date().toISOString().slice(0, 10);
 
-  if (req.query.format === 'csv') {
-    // Account names live in the settings name map, not the history table.
-    let nameById = {};
-    try { nameById = JSON.parse(data.settings.debt_account_name_map || '{}'); } catch { /* ignore */ }
+  // Shared lookups so names + APRs appear everywhere (raw IDs like "manual-acct-0"
+  // are meaningless on their own).
+  const nameById = parseJsonObject(data.settings.debt_account_name_map);
+  const aprById = parseJsonObject(data.settings.interest_rates);
+  const nameOf = (id) => nameById[id] || 'Account';
+  const aprOf = (id) => {
+    const n = Number(aprById[id]);
+    return Number.isFinite(n) && n > 0 ? n : '';
+  };
+  const baseline = Number(data.settings.climb_baseline_debt) || Number(data.settings.game_start_debt) || 0;
 
+  // Column order for per-account views: current accounts first (export order),
+  // then any history-only ids that no longer have a live balance.
+  const accountIds = [];
+  for (const b of data.debtAccountBalances) if (!accountIds.includes(b.accountId)) accountIds.push(b.accountId);
+  for (const h of data.debtAccountHistory) if (!accountIds.includes(h.accountId)) accountIds.push(h.accountId);
+
+  if (req.query.format === 'csv') {
     if (req.query.table === 'accounts') {
-      // Long-format per-account balance history — pivots cleanly in Excel.
+      // Long-format per-account balance history, now with the APR on each row.
       const csv = toCsv(
-        ['account_id', 'account_name', 'recorded_at', 'balance'],
-        data.debtAccountHistory.map((r) => [r.accountId, nameById[r.accountId] || '', excelDate(r.recordedAt), r.balance]),
+        ['account_id', 'account_name', 'apr_pct', 'recorded_at', 'balance'],
+        data.debtAccountHistory.map((r) => [r.accountId, nameOf(r.accountId), aprOf(r.accountId), excelDate(r.recordedAt), r.balance]),
       );
       res.setHeader('Content-Disposition', `attachment; filename="steward-accounts-${stamp}.csv"`);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       return res.send(csv);
     }
 
-    // Default CSV: the snapshot time series — the sheet you'd actually chart.
+    if (req.query.table === 'matrix') {
+      // Wide pivot: one row per pull, one column per card — every balance side by
+      // side over time. This is the view that makes a single card's jump obvious.
+      const byTs = new Map();
+      for (const h of data.debtAccountHistory) {
+        if (!byTs.has(h.recordedAt)) byTs.set(h.recordedAt, {});
+        byTs.get(h.recordedAt)[h.accountId] = h.balance;
+      }
+      const stamps = [...byTs.keys()].sort();
+      const headers = ['recorded_at', ...accountIds.map(nameOf), 'total'];
+      const rows = stamps.map((ts) => {
+        const row = byTs.get(ts);
+        const cells = accountIds.map((id) => (row[id] == null ? '' : row[id]));
+        const total = accountIds.reduce((s, id) => s + (Number(row[id]) || 0), 0);
+        return [excelDate(ts), ...cells, Math.round(total * 100) / 100];
+      });
+      const csv = toCsv(headers, rows);
+      res.setHeader('Content-Disposition', `attachment; filename="steward-accounts-matrix-${stamp}.csv"`);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      return res.send(csv);
+    }
+
+    // Default CSV: the snapshot time series + derived progress columns so the
+    // sheet shows movement, not just levels. (snapshots are oldest→newest.)
+    let prevDebt = null;
+    const rows = data.snapshots.map((s) => {
+      const dr = Number(s.debt_remaining);
+      const change = prevDebt == null ? '' : Math.round((dr - prevDebt) * 100) / 100;
+      prevDebt = dr;
+      const paidSinceStart = baseline > 0 ? Math.round((baseline - dr) * 100) / 100 : '';
+      return [
+        excelDate(s.pulled_at), s.total_debt, s.debt_remaining, change, paidSinceStart,
+        s.total_assets, s.investment_value, s.monthly_income, s.monthly_expenses, s.net_worth, s.tier,
+      ];
+    });
     const csv = toCsv(
-      ['pulled_at', 'total_debt', 'debt_remaining', 'total_assets', 'investment_value',
-        'monthly_income', 'monthly_expenses', 'net_worth', 'tier'],
-      data.snapshots.map((s) => [
-        excelDate(s.pulled_at), s.total_debt, s.debt_remaining, s.total_assets,
-        s.investment_value, s.monthly_income, s.monthly_expenses, s.net_worth, s.tier,
-      ]),
+      ['pulled_at', 'total_debt', 'debt_remaining', 'debt_change_from_prev', 'paid_since_start',
+        'total_assets', 'investment_value', 'monthly_income', 'monthly_expenses', 'net_worth', 'tier'],
+      rows,
     );
     res.setHeader('Content-Disposition', `attachment; filename="steward-snapshots-${stamp}.csv"`);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     return res.send(csv);
   }
 
+  // ── JSON: keep the raw arrays (restore reads these) and ADD readable layers ──
+  const climb = getClimbStatsFromConfig();
+  const firstBalances = getDebtAccountFirstBalances();
+  const latestDebt = data.snapshots.length ? Number(data.snapshots[data.snapshots.length - 1].debt_remaining) : null;
+
+  const accounts = data.debtAccountBalances.map((b) => {
+    const first = Number(firstBalances.get(String(b.accountId)));
+    const apr = Number(aprById[b.accountId]);
+    const pctPaid = Number.isFinite(first) && first > 0
+      ? Math.round(((first - b.balance) / first) * 1000) / 10
+      : null;
+    return {
+      id: b.accountId,
+      name: nameOf(b.accountId),
+      balance: b.balance,
+      apr: Number.isFinite(apr) && apr > 0 ? apr : null,
+      startingBalance: Number.isFinite(first) ? first : null,
+      pctPaid,
+    };
+  });
+
+  const pace = monthlyPaceFromSnapshots(recentSnapshots(60));
+  const proj = latestDebt != null ? projectDebtFree(recentSnapshots(60), latestDebt, { monthlyPace: pace }) : null;
+  const plan = buildPayoffPlan(accounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance, apr: a.apr })));
+  const payTarget = plan
+    ? (plan.recommended === 'avalanche' && plan.avalanche ? plan.avalanche.target : plan.snowball.target)
+    : null;
+
   const payload = {
     exportedAt: new Date().toISOString(),
     app: 'steward-manual',
-    user: req.user
-      ? { username: req.user.username, email: req.user.email || null }
-      : null,
-    ...data,
+    user: req.user ? { username: req.user.username, email: req.user.email || null } : null,
+    // Human-readable summary layer (derived; the raw arrays below are the source of truth).
+    climb: {
+      baselineDebt: baseline || null,
+      debtRemaining: latestDebt,
+      totalPaidDown: climb.cumulativePaidDown,
+      totalNewDebtAdded: climb.cumulativeNewDebtAdded,
+      interestAccrued: climb.cumulativeInterestAccrued,
+      pctPaid: climb.pctPaid,
+      netImprovement: climb.netImprovement,
+      avgMonthlyPaydown: pace || null,
+      projectedDebtFree: proj && proj.onTrack ? proj.debtFreeDate : null,
+      payThisNext: payTarget ? { name: payTarget.name, balance: payTarget.balance, apr: payTarget.apr || null, strategy: plan.recommended } : null,
+    },
+    accounts,
+    // Raw, restore-critical data. debtAccountBalances now also carries the name.
+    snapshots: data.snapshots,
+    debtAccountBalances: data.debtAccountBalances.map((b) => ({ ...b, name: nameOf(b.accountId) })),
+    debtAccountHistory: data.debtAccountHistory,
+    settings: data.settings,
   };
   res.setHeader('Content-Disposition', `attachment; filename="steward-export-${stamp}.json"`);
   res.setHeader('Content-Type', 'application/json');

@@ -559,7 +559,7 @@ test('GET /api/export?format=csv: Excel-ready snapshot series and account histor
     assert.deepEqual([...buf.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'BOM present for Excel UTF-8 detection');
     const csv = buf.toString('utf8').replace(/^﻿/, '');
     const lines = csv.trim().split('\r\n');
-    assert.equal(lines[0].replace('﻿', ''), 'pulled_at,total_debt,debt_remaining,total_assets,investment_value,monthly_income,monthly_expenses,net_worth,tier');
+    assert.equal(lines[0].replace('﻿', ''), 'pulled_at,total_debt,debt_remaining,debt_change_from_prev,paid_since_start,total_assets,investment_value,monthly_income,monthly_expenses,net_worth,tier');
     assert.ok(lines.length >= 3, 'header + 2 snapshot rows');
     // Excel-friendly datetime: no T separator, no trailing Z
     assert.match(lines[1], /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},/);
@@ -570,7 +570,7 @@ test('GET /api/export?format=csv: Excel-ready snapshot series and account histor
     assert.match(res.headers.get('content-disposition'), /steward-accounts-\d{4}-\d{2}-\d{2}\.csv/);
     const acsv = await res.text();
     const alines = acsv.trim().split('\r\n');
-    assert.equal(alines[0].replace('﻿', ''), 'account_id,account_name,recorded_at,balance');
+    assert.equal(alines[0].replace('﻿', ''), 'account_id,account_name,apr_pct,recorded_at,balance');
     assert.ok(alines.length >= 3, 'two history rows for visa');
     assert.match(alines[1], /^visa,"Visa, ""Gold"" Card",/, 'name with comma+quotes is CSV-escaped');
   });
@@ -801,6 +801,70 @@ test('forgot-a-debt: WITHOUT the flag, a new account counts as new debt (the spi
     const status = await (await fetch(`${baseUrl}/api/status`)).json();
     assert.equal(status.stats.climbBaselineDebt, 12000, 'baseline unchanged without the flag');
     assert.equal(status.stats.cumulativeNewDebtAdded, 5000, 'unflagged new account = new debt');
+  });
+});
+
+test('export: enriched JSON carries names/summary and still restores cleanly', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'visa', name: 'Visa', balance: 10000 },
+        { id: 'car', name: 'Car Loan', balance: 5000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'visa', name: 'Visa', balance: 9000 },
+        { id: 'car', name: 'Car Loan', balance: 5000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+
+    // Enriched JSON export
+    const exp = await (await fetch(`${baseUrl}/api/export`)).json();
+    assert.ok(Array.isArray(exp.accounts), 'has accounts array');
+    const visa = exp.accounts.find((a) => a.id === 'visa');
+    assert.equal(visa.name, 'Visa', 'account name joined in');
+    assert.equal(visa.balance, 9000);
+    assert.equal(exp.climb.totalPaidDown, 1000, 'summary shows the $1k paid');
+    assert.equal(exp.debtAccountBalances[0].name !== undefined, true, 'raw balances carry name too');
+    // Raw arrays still present for restore.
+    assert.ok(Array.isArray(exp.snapshots) && Array.isArray(exp.debtAccountBalances));
+
+    // The enriched JSON must still round-trip through restore.
+    res = await postJson(baseUrl, '/api/restore', exp);
+    const restored = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(restored.ok, true);
+
+    const status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.debtRemaining, 14000, 'balances intact after restore');
+    assert.equal(status.stats.cumulativePaidDown, 1000, 'paid-down intact after restore');
+  });
+});
+
+test('export CSV: matrix pivot lists every card as a column', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }, { id: 'car', name: 'Car Loan', balance: 5000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    const csv = await (await fetch(`${baseUrl}/api/export?format=csv&table=matrix`)).text();
+    const header = csv.split('\r\n').find((l) => l.includes('recorded_at'));
+    assert.match(header, /Visa/);
+    assert.match(header, /Car Loan/);
+    assert.match(header, /total/);
+
+    // Default snapshot CSV gains the derived progress columns.
+    const snapCsv = await (await fetch(`${baseUrl}/api/export?format=csv`)).text();
+    assert.match(snapCsv, /debt_change_from_prev/);
+    assert.match(snapCsv, /paid_since_start/);
   });
 });
 
