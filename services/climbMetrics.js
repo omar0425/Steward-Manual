@@ -392,6 +392,13 @@ function undoLastPull() {
     snapshotDeleted = deleteSnapshotById(entry.snapshotId);
   }
 
+  // The "This Turn" panel (and its per-account +/- lines and net direction) is
+  // driven by a SEPARATELY persisted debt-sync debug snapshot, not the climb
+  // totals. Clear it too, or the reverted pull's deltas keep showing and undo
+  // looks like it did nothing.
+  clearLastDebtSyncDebug();
+  setConfig(KEY_LAST_DEBT_SYNC_SNAPSHOT, '');
+
   setConfig(KEY_UNDO, JSON.stringify(stack));
   return {
     undone: true,
