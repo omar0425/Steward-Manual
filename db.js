@@ -381,6 +381,127 @@ function exportUserData() {
   return { snapshots, debtAccountBalances, debtAccountHistory, settings };
 }
 
+/**
+ * Restore the CURRENT user's state from a prior export() payload — full replace
+ * of snapshots, per-account balances, history, and config. Always scoped to the
+ * current user (the export's own user_id/id fields are ignored, so an export can
+ * never write into someone else's rows). The undo stack is cleared because its
+ * snapshotIds referenced the pre-restore rows. Returns counts of what was written.
+ */
+function importUserData(data) {
+  const userId = currentUserId();
+  if (!data || typeof data !== 'object') throw new Error('import payload must be an object');
+  const snapshots = Array.isArray(data.snapshots) ? data.snapshots : [];
+  const balances = Array.isArray(data.debtAccountBalances) ? data.debtAccountBalances : [];
+  const history = Array.isArray(data.debtAccountHistory) ? data.debtAccountHistory : [];
+  const settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+
+  const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
+
+  const insSnap = db.prepare(`
+    INSERT INTO snapshots
+      (user_id, source, pulled_at, net_worth, total_assets, safety_liquid, total_debt,
+       investment_value, debt_remaining, months_ahead, monthly_income, monthly_expenses, tier)
+    VALUES
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insBal = db.prepare(`
+    INSERT OR REPLACE INTO debt_account_balances (user_id, ynab_account_id, last_balance, updated_at)
+    VALUES (?, ?, ?, ?)
+  `);
+  const insHist = db.prepare(`
+    INSERT OR IGNORE INTO debt_account_history (user_id, ynab_account_id, recorded_at, balance)
+    VALUES (?, ?, ?, ?)
+  `);
+  const insCfg = db.prepare(`INSERT OR REPLACE INTO config (user_id, key, value) VALUES (?, ?, ?)`);
+  const now = new Date().toISOString();
+
+  let counts = { snapshots: 0, balances: 0, history: 0, settings: 0 };
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM snapshots WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM debt_account_balances WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM debt_account_history WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM config WHERE user_id = ?').run(userId);
+
+    for (const s of snapshots) {
+      if (!s || s.pulled_at == null) continue;
+      insSnap.run(
+        userId,
+        String(s.source || 'manual'),
+        String(s.pulled_at),
+        num(s.net_worth), num(s.total_assets),
+        s.safety_liquid == null ? null : num(s.safety_liquid),
+        num(s.total_debt), num(s.investment_value), num(s.debt_remaining),
+        s.months_ahead == null ? null : num(s.months_ahead),
+        num(s.monthly_income), num(s.monthly_expenses),
+        String(s.tier || 'rock_bottom'),
+      );
+      counts.snapshots += 1;
+    }
+    for (const b of balances) {
+      const id = b && (b.accountId != null ? b.accountId : b.ynab_account_id);
+      const bal = num(b && (b.balance != null ? b.balance : b.last_balance), NaN);
+      if (id == null || !Number.isFinite(bal) || bal < 0) continue;
+      insBal.run(userId, String(id), Math.round(bal * 100) / 100, String(b.updatedAt || b.updated_at || now));
+      counts.balances += 1;
+    }
+    for (const h of history) {
+      const id = h && (h.accountId != null ? h.accountId : h.ynab_account_id);
+      const at = h && (h.recordedAt || h.recorded_at);
+      const bal = num(h && h.balance, NaN);
+      if (id == null || !at || !Number.isFinite(bal) || bal < 0) continue;
+      insHist.run(userId, String(id), String(at), Math.round(bal * 100) / 100);
+      counts.history += 1;
+    }
+    for (const [key, value] of Object.entries(settings)) {
+      if (key === 'climb_undo_stack') continue; // referenced now-stale snapshot ids
+      if (value == null) continue;
+      insCfg.run(userId, String(key), String(value));
+      counts.settings += 1;
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return counts;
+}
+
+/** Shape-check an import/restore payload before it touches the DB. */
+function isValidImportPayload(data) {
+  if (!data || typeof data !== 'object') return { ok: false, error: 'Payload must be a JSON object.' };
+  if (!Array.isArray(data.snapshots)) return { ok: false, error: 'Payload is missing a "snapshots" array.' };
+  if (!Array.isArray(data.debtAccountBalances)) return { ok: false, error: 'Payload is missing a "debtAccountBalances" array.' };
+  if (data.debtAccountHistory != null && !Array.isArray(data.debtAccountHistory)) {
+    return { ok: false, error: '"debtAccountHistory" must be an array.' };
+  }
+  if (data.settings != null && (typeof data.settings !== 'object' || Array.isArray(data.settings))) {
+    return { ok: false, error: '"settings" must be an object.' };
+  }
+  return { ok: true };
+}
+
+/**
+ * Loud warning when the SQLite file is on ephemeral storage on Railway, where a
+ * redeploy would wipe ALL users. Heuristic: on Railway, the DB path must live
+ * under the attached volume (RAILWAY_VOLUME_MOUNT_PATH). Returns a message or null.
+ */
+function storageDurabilityWarning() {
+  const onRailway = !!(
+    process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_SERVICE_ID
+  );
+  if (!onRailway) return null;
+  const mount = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  if (!mount) {
+    return 'No Railway volume detected (RAILWAY_VOLUME_MOUNT_PATH unset). The SQLite database is on ephemeral storage and WILL BE LOST on the next redeploy. Attach a volume and point STEWARD_DB_PATH inside it.';
+  }
+  if (!DB_PATH.startsWith(path.resolve(mount))) {
+    return `The database (${DB_PATH}) is NOT under the Railway volume (${mount}); it will be LOST on redeploy. Set STEWARD_DB_PATH to a path inside the volume.`;
+  }
+  return null;
+}
+
 // ── Game-start snapshot (write-once, seeded from first snapshot) ──────────────
 
 const GAME_START_DEBT_KEY = 'game_start_debt';
@@ -550,6 +671,9 @@ module.exports = {
   latestSnapshot,
   recentSnapshots,
   deleteSnapshotById,
+  importUserData,
+  isValidImportPayload,
+  storageDurabilityWarning,
   resetAllGameState,
   getAllDebtAccountBalances,
   replaceDebtAccountBalances,

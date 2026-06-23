@@ -1068,3 +1068,61 @@ document.addEventListener('click', (e) => {
   const btn = e.target && e.target.closest && e.target.closest('#undo-last-btn');
   if (btn) { e.preventDefault(); showUndoConfirm(); }
 });
+
+/* ── Import / Restore from a JSON backup ──────────────────────────────────────
+   Reads an export() file, confirms (it's a full replace), POSTs to /api/restore
+   scoped to the logged-in user, then soft-refreshes. */
+function triggerRestorePicker() {
+  const input = document.getElementById('import-data-file');
+  if (input) input.click();
+}
+
+async function handleRestoreFile(file) {
+  if (!file) return;
+  let payload;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch (_) {
+    window.alert('That file is not valid JSON. Use a JSON backup exported from Steward (the ⤓ JSON button).');
+    return;
+  }
+  if (!payload || !Array.isArray(payload.snapshots) || !Array.isArray(payload.debtAccountBalances)) {
+    window.alert("That doesn't look like a Steward backup (missing snapshots / account balances).");
+    return;
+  }
+  const n = payload.snapshots.length;
+  const ok = window.confirm(
+    `Restore from this backup?\n\nThis REPLACES your current snapshots, balances, history, and settings with the backup (${n} snapshot${n === 1 ? '' : 's'}). Your current data will be overwritten.`,
+  );
+  if (!ok) return;
+  try {
+    const res = await fetch(stewardApiUrl('/api/restore'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await readJsonRes(res);
+    if (res.ok && data && data.ok) {
+      await manualRefresh();
+      void resyncSavedDebtsFromServer();
+      window.alert('Restored. Your data has been rebuilt from the backup.');
+    } else {
+      window.alert(`Restore failed: ${(data && data.error) || 'unknown error'}`);
+    }
+  } catch (_) {
+    window.alert('Restore failed: network error.');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('#import-data-btn');
+  if (btn) { e.preventDefault(); triggerRestorePicker(); }
+});
+document.addEventListener('change', (e) => {
+  const input = e.target;
+  if (input && input.id === 'import-data-file' && input.files && input.files[0]) {
+    const file = input.files[0];
+    input.value = ''; // allow re-selecting the same file later
+    void handleRestoreFile(file);
+  }
+});

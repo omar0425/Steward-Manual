@@ -455,6 +455,9 @@ function buildDataStrip() {
          title="Your snapshot history as a CSV \u2014 opens straight into Excel / Google Sheets. Per-account history: /api/export?format=csv&table=accounts">\u2913 CSV</a>
       <a class="refresh-btn" id="export-data-btn" href="/api/export" download
          title="Everything (snapshots, account history, settings) as a JSON file \u2014 your complete personal backup.">\u2913 JSON</a>
+      <button type="button" class="refresh-btn" id="import-data-btn"
+         title="Restore everything from a JSON backup you exported earlier. Replaces your current data.">\u21a5 Restore</button>
+      <input type="file" id="import-data-file" accept="application/json,.json" hidden />
     </div>
   `;
   return section;
