@@ -452,7 +452,7 @@ function buildDataStrip() {
     </div>
     <div class="data-strip-actions">
       <a class="refresh-btn" id="export-csv-btn" href="/api/export?format=csv" download
-         title="Your snapshot history as a CSV \u2014 opens straight into Excel / Google Sheets. Per-account history: /api/export?format=csv&table=accounts">\u2913 CSV</a>
+         title="Snapshot history as CSV (with per-entry change + paid-since-start), opens in Excel/Sheets. Also: every card side-by-side over time \u2192 /api/export?format=csv&table=matrix \u00b7 long per-account history \u2192 /api/export?format=csv&table=accounts">\u2913 CSV</a>
       <a class="refresh-btn" id="export-data-btn" href="/api/export" download
          title="Everything (snapshots, account history, settings) as a JSON file \u2014 your complete personal backup.">\u2913 JSON</a>
       <button type="button" class="refresh-btn" id="import-data-btn"
