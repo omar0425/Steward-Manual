@@ -574,9 +574,60 @@ function resyncSavedDebtsFromServer() {
     .catch(() => { /* non-fatal — the read-only dashboard already refreshed */ });
 }
 
+/* Pure: which saved rows were built on a balance that no longer matches the
+   server? formRows: [{id,name,baseline}], serverById: {id: number}. A mismatch
+   means the form is stale (e.g. a tab left open across a payment logged
+   elsewhere) and saving it would silently overwrite real progress. */
+function findStaleBaselines(formRows, serverById) {
+  const stale = [];
+  for (const r of formRows || []) {
+    const server = serverById ? serverById[r.id] : undefined;
+    if (server == null || !Number.isFinite(Number(server))) continue;
+    if (!Number.isFinite(Number(r.baseline))) continue;
+    if (Math.round(Number(server)) !== Math.round(Number(r.baseline))) {
+      stale.push({ id: r.id, name: r.name, formBaseline: Math.round(Number(r.baseline)), serverBalance: Math.round(Number(server)) });
+    }
+  }
+  return stale;
+}
+
+/* Fetch the server's current per-account balances and compare them to the
+   baselines this form loaded. Returns a (possibly empty) list of stale rows, or
+   null if we couldn't check (network/shape) — in which case the save proceeds
+   rather than blocking the user offline. */
+async function detectStaleBaselines() {
+  const rows = Array.from(document.querySelectorAll('#saved-debts-rows .saved-debt-row'));
+  if (rows.length === 0) return [];
+  const formRows = rows.map(row => ({
+    id: row.dataset.accountId,
+    name: row.dataset.name,
+    baseline: parseFloat(row.dataset.prevBalance),
+  }));
+  let status;
+  try {
+    status = await fetch(stewardApiUrl('/api/status')).then(r => r.json());
+  } catch (_) {
+    return null; // can't verify → don't block
+  }
+  const lines = status && status.stats && Array.isArray(status.stats.debtAccountLines)
+    ? status.stats.debtAccountLines
+    : null;
+  if (!lines) return null;
+  const serverById = {};
+  let hasBalances = false;
+  for (const l of lines) {
+    if (l && l.id != null && Number.isFinite(Number(l.balance))) {
+      serverById[String(l.id)] = Number(l.balance);
+      hasBalances = true;
+    }
+  }
+  if (!hasBalances) return null; // server didn't report balances → can't verify
+  return findStaleBaselines(formRows, serverById);
+}
+
 async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
   if (btnEl) btnEl.disabled = true;
-  if (msgEl) msgEl.textContent = 'Saving\u2026';
+  if (msgEl) msgEl.textContent = 'Saving…';
 
   if (!debtAccounts || debtAccounts.length === 0) {
     if (msgEl) msgEl.textContent = 'Enter at least one debt account.';
@@ -739,18 +790,35 @@ export function initManualEntryForm() {
 
   // "Update Balances" — shows confirmation summary then saves
   if (updateBtn) {
-    updateBtn.addEventListener('click', () => {
+    updateBtn.addEventListener('click', async () => {
+      const isSetupMode = document.body && document.body.dataset.setupMode === 'first';
+      // Stale-form guard: if the balances this form loaded no longer match the
+      // server (a tab left open across a payment logged elsewhere), saving would
+      // silently overwrite that progress and read as "new debt". Refuse, refresh
+      // the rows to the live numbers, and let the user redo their edits.
+      if (!isSetupMode) {
+        updateBtn.disabled = true;
+        const stale = await detectStaleBaselines();
+        updateBtn.disabled = false;
+        if (stale && stale.length > 0) {
+          await resyncSavedDebtsFromServer();
+          const names = stale.map(s => s.name).filter(Boolean).join(', ');
+          if (msg) {
+            msg.textContent = `Heads up — these balances changed since you opened this page: ${names}. I've reloaded the latest numbers so your earlier payments aren't overwritten. Re-enter today's balances and save again.`;
+          }
+          return;
+        }
+      }
       const updatedAccounts = collectSavedDebtUpdates();
       const newAccounts = collectDebtAccounts();
       const allAccounts = [...updatedAccounts, ...newAccounts];
       const summary = buildPaydownSummary(allAccounts);
       // Only ask the new-debt-vs-already-had question once a climb is running —
       // during first-run setup every account is just inventory, no baseline yet.
-      const isSetup = document.body && document.body.dataset.setupMode === 'first';
-      const newForClimb = isSetup ? [] : newAccounts.filter(a => a.balance > 0);
+      const newForClimb = isSetupMode ? [] : newAccounts.filter(a => a.balance > 0);
       // During first-run setup nothing is classified (no baseline yet); otherwise
       // the dialog also surfaces existing-account increases from the summary.
-      const summaryForDialog = isSetup ? { changes: [], totalPaid: summary.totalPaid } : summary;
+      const summaryForDialog = isSetupMode ? { changes: [], totalPaid: summary.totalPaid } : summary;
       showPaydownConfirmation(summaryForDialog, newForClimb, async (classifications) => {
         await saveSnapshot(allAccounts, msg, updateBtn, { classifications });
       });
