@@ -759,6 +759,10 @@ test('undo-last: reverses a wrong-amount entry exactly (no phantom payment)', as
     assert.equal(status.stats.cumulativeNewDebtAdded, 0, 'no phantom new debt');
     assert.equal(status.stats.debtRemaining, 8000, 'balance back to the real number');
     assert.equal(status.stats.canUndo, true, 'the earlier paydown is still undoable');
+    // The "This Turn" panel is driven by a separate debug snapshot — undo must
+    // clear it too, or the reverted deltas keep showing and undo looks broken.
+    assert.equal(status.stats.lastPullNewDebtSum, 0, 'reverted turn no longer shows added debt');
+    assert.equal(status.stats.lastPullAccountLines.length, 0, '"This Turn" lines cleared on undo');
 
     // Step back once more → back to the locked starting line.
     res = await postJson(baseUrl, '/api/climb/undo-last', {});
