@@ -13,6 +13,7 @@ const {
   currentUserId,
   replaceDebtAccountBalances,
   deleteSnapshotById,
+  exportUserData,
 } = require('../db');
 
 const KEY_BASELINE = 'climb_baseline_debt';
@@ -287,6 +288,85 @@ function reclassifyAddedDebt(amount, kind) {
     bumpBaselineAndStart(moved);
   }
   return { moved, kind: kind === 'interest' ? 'interest' : 'preexisting' };
+}
+
+/**
+ * Pure: rebuild cumulative paid-down / new-debt by replaying the per-account
+ * balance history from the game-start anchor forward. Every consecutive pull is
+ * diffed: decreases on an existing account are paydown, increases (and a new
+ * account's first balance) are new debt, removed accounts count for nothing —
+ * the same rules as a live pull. Repair-of-last-resort: it CANNOT reconstruct
+ * interest/forgot classifications, so every increase reads as new debt.
+ *
+ * @param {Array<{accountId:string,recordedAt:string,balance:number}>} historyRows
+ * @param {string} gameStartAt  ISO timestamp the baseline was locked at
+ */
+function recomputeTotalsFromHistory(historyRows, gameStartAt) {
+  const rows = Array.isArray(historyRows) ? historyRows : [];
+  // Group into one balance map per pull (rows of a pull share recordedAt).
+  const byTs = new Map();
+  for (const r of rows) {
+    if (!r || r.accountId == null || !r.recordedAt) continue;
+    const bal = Number(r.balance);
+    if (!Number.isFinite(bal)) continue;
+    if (!byTs.has(r.recordedAt)) byTs.set(r.recordedAt, new Map());
+    byTs.get(r.recordedAt).set(String(r.accountId), roundMoney(bal));
+  }
+  const stamps = [...byTs.keys()].sort((a, b) => {
+    const ta = Date.parse(a); const tb = Date.parse(b);
+    if (Number.isFinite(ta) && Number.isFinite(tb)) return ta - tb;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+  if (stamps.length === 0) return { cumulativePaidDown: 0, cumulativeNewDebtAdded: 0, pullsReplayed: 0, anchorAt: null };
+
+  // Anchor = the pull as of game start (latest stamp <= gameStartAt), else the
+  // earliest pull. Deltas are counted from the anchor onward.
+  const startMs = Date.parse(gameStartAt);
+  let anchorIdx = 0;
+  if (Number.isFinite(startMs)) {
+    for (let i = 0; i < stamps.length; i++) {
+      if (Date.parse(stamps[i]) <= startMs) anchorIdx = i; else break;
+    }
+  }
+
+  let paid = 0;
+  let added = 0;
+  let pulls = 0;
+  for (let i = anchorIdx + 1; i < stamps.length; i++) {
+    const diff = analyzePerAccountDebtDiff(byTs.get(stamps[i - 1]), byTs.get(stamps[i]));
+    paid = roundMoney(paid + diff.paydownSum);
+    added = roundMoney(added + diff.newDebtSum);
+    pulls += 1;
+  }
+  return { cumulativePaidDown: paid, cumulativeNewDebtAdded: added, pullsReplayed: pulls, anchorAt: stamps[anchorIdx] };
+}
+
+/**
+ * Recompute the stored paid/new totals from balance history. Dry-run by default
+ * (returns { before, after } without writing). With { apply: true } it writes
+ * the rebuilt paid + new and zeroes the interest bucket (classifications can't
+ * be reconstructed). Baseline is left untouched.
+ */
+function recomputeClimbTotalsFromHistory({ apply = false } = {}) {
+  const history = exportUserData().debtAccountHistory || [];
+  const gameStartAt = getConfig('game_start_at');
+  const result = recomputeTotalsFromHistory(history, gameStartAt);
+  const before = {
+    cumulativePaidDown: Math.max(0, parseConfigNum(getConfig(KEY_PAID), 0)),
+    cumulativeNewDebtAdded: Math.max(0, parseConfigNum(getConfig(KEY_NEW), 0)),
+    cumulativeInterestAccrued: Math.max(0, parseConfigNum(getConfig(KEY_INTEREST), 0)),
+  };
+  const after = {
+    cumulativePaidDown: result.cumulativePaidDown,
+    cumulativeNewDebtAdded: result.cumulativeNewDebtAdded,
+    cumulativeInterestAccrued: 0,
+  };
+  if (apply) {
+    setConfig(KEY_PAID, String(after.cumulativePaidDown));
+    setConfig(KEY_NEW, String(after.cumulativeNewDebtAdded));
+    setConfig(KEY_INTEREST, '0');
+  }
+  return { applied: !!apply, anchorAt: result.anchorAt, pullsReplayed: result.pullsReplayed, before, after };
 }
 
 // ── Undo stack ───────────────────────────────────────────────────────────────
@@ -721,6 +801,8 @@ module.exports = {
   applyClimbMetricsOnPull,
   getClimbStatsFromConfig,
   reclassifyAddedDebt,
+  recomputeTotalsFromHistory,
+  recomputeClimbTotalsFromHistory,
   captureUndoState,
   undoLastPull,
   hasUndoState,

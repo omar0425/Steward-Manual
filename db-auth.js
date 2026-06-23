@@ -109,6 +109,13 @@ function findUserById(id) {
   return db.prepare(`SELECT * FROM users WHERE id = ?`).get(id) || null;
 }
 
+/** Lightweight roster for admin tooling — no password/hash fields. */
+function listAllUsers() {
+  return db.prepare(
+    `SELECT id, username, email, provider, created_at FROM users ORDER BY id ASC`,
+  ).all();
+}
+
 function findOrCreateGoogleUser(email, displayName) {
   let user = findUserByEmail(email);
   if (user) return user;
@@ -248,6 +255,7 @@ module.exports = {
   findUserByUsername,
   findUserByEmail,
   findUserById,
+  listAllUsers,
   findOrCreateGoogleUser,
   setUserEmail,
   setUserPassword,

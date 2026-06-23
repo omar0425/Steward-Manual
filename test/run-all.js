@@ -35,3 +35,4 @@ require('./classify-debt.test');
 require('./pace-projection.test');
 require('./payoff-plan.test');
 require('./zzz-climb-metrics-apply.test');
+require('./admin-restore.test');

@@ -7,6 +7,7 @@ const {
   latestSnapshot,
   recentSnapshots,
   exportUserData,
+  importUserData,
   getConfig,
   withUser,
   setConfig,
@@ -34,6 +35,7 @@ const {
   clearLastDebtSyncDebug,
   getClimbStatsFromConfig,
   reclassifyAddedDebt,
+  recomputeClimbTotalsFromHistory,
   captureUndoState,
   undoLastPull,
   hasUndoState,
@@ -54,6 +56,7 @@ const {
 const stewardAi = require('../services/stewardAi');
 const stewardAiContext = require('../services/stewardAiContext');
 const stewardAiLedger = require('../services/stewardAiLedger');
+const { findUserById, listAllUsers } = require('../db-auth');
 
 router.use((req, res, next) => {
   withUser(req.user && req.user.userId, next);
@@ -1177,6 +1180,24 @@ router.get('/export', (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="steward-export-${stamp}.json"`);
   res.setHeader('Content-Type', 'application/json');
   res.send(JSON.stringify(payload, null, 2));
+});
+
+// ── POST /api/restore ─────────────────────────────────────────────────────────
+// Rebuild the logged-in user's own data from an export() payload. Always scoped
+// to the current session user — the export's user_id is ignored, so this can
+// never write into another account. Destructive (full replace); the client
+// confirms first. Body can be large (full history), so the JSON limit is raised.
+router.post('/restore', express.json({ limit: '8mb' }), (req, res) => {
+  const { isValidImportPayload } = require('../db');
+  const check = isValidImportPayload(req.body);
+  if (!check.ok) return res.status(400).json({ ok: false, error: check.error });
+  try {
+    const restored = importUserData(req.body);
+    return res.json({ ok: true, restored });
+  } catch (err) {
+    console.error('[api] restore', err);
+    return res.status(500).json({ ok: false, error: 'Restore failed.' });
+  }
 });
 
 // ── GET /health ───────────────────────────────────────────────────────────────

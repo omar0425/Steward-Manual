@@ -294,6 +294,11 @@ app.get('/admin/backup', (req, res) => {
   });
 });
 
+// ── Admin tooling (ADMIN_TOKEN, no session) ───────────────────────────────────
+// Mounted outside the /api session gate so the operator can inspect/repair a
+// single user's data with just the token. See routes/admin.js.
+app.use('/admin/api', require('./routes/admin'));
+
 // ── Health (no auth) ──────────────────────────────────────────────────────────
 // version comes from package.json (bumped per release batch); commit is the
 // short deploy SHA when the platform provides one (Railway sets
@@ -376,6 +381,16 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+// Loud, early warning if the SQLite file isn't on a Railway persistent volume —
+// a redeploy would wipe every user's data. Logged once at boot.
+try {
+  const { storageDurabilityWarning } = require('./db');
+  const warning = storageDurabilityWarning && storageDurabilityWarning();
+  if (warning) {
+    console.warn(`\n  ⚠️  [storage] ${warning}\n`);
+  }
+} catch (_) { /* never block startup on the check itself */ }
+
 app.listen(PORT, () => {
   const base = `http://localhost:${PORT}`;
   console.log(`\n  Steward (Manual) v${APP_VERSION}${APP_COMMIT ? ` (${APP_COMMIT})` : ''} running at ${base}`);
