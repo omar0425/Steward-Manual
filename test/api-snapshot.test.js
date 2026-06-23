@@ -763,6 +763,10 @@ test('undo-last: reverses a wrong-amount entry exactly (no phantom payment)', as
     // clear it too, or the reverted deltas keep showing and undo looks broken.
     assert.equal(status.stats.lastPullNewDebtSum, 0, 'reverted turn no longer shows added debt');
     assert.equal(status.stats.lastPullAccountLines.length, 0, '"This Turn" lines cleared on undo');
+    // Clearing the debug snapshot must NOT blank the accounts panel — balances
+    // come from the authoritative store, so undo can never look like a wipe.
+    assert.equal(status.stats.debtAccountLines.length, 1, 'account still listed after undo');
+    assert.equal(status.stats.debtAccountLines[0].balance, 8000, 'real balance still shown after undo');
 
     // Step back once more → back to the locked starting line.
     res = await postJson(baseUrl, '/api/climb/undo-last', {});
