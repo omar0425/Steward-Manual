@@ -130,6 +130,15 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     elInterest.innerHTML = `<span class="sp-label">Interest accrued</span><span class="sp-val">${iaStr}</span>`;
     elInterest.title = 'Balance growth from interest and fees — the cost of carrying the debt, tracked apart from new spending.';
   }
+  const elAvg = document.getElementById('progress-bullet-avgmonth');
+  if (elAvg) {
+    const avg = Number(stats && stats.avgMonthlyPayment);
+    // Lifetime average paid down per month. Neutral tone — it's pace, not a win
+    // or a setback. "—" until there's enough history to average honestly.
+    const avgStr = Number.isFinite(avg) && avg > 0 ? fmtDollar(Math.round(avg)) : '—';
+    elAvg.innerHTML = `<span class="sp-label">Avg / month</span><span class="sp-val">${avgStr}</span>`;
+    elAvg.title = 'Average amount you’ve paid down per month since you started (Total Cleared ÷ months).';
+  }
   // Offer the retroactive correction only when there's new debt to move.
   const reclassifyBtn = document.getElementById('reclassify-debt-btn');
   if (reclassifyBtn) reclassifyBtn.hidden = !(Number.isFinite(nd) && nd > 0);

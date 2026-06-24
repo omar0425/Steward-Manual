@@ -95,10 +95,31 @@ function paidThisMonth(snapshots, { now = Date.now() } = {}) {
   return Math.round((openingDebt - newestDebt) * 100) / 100;
 }
 
+/**
+ * Lifetime average paid down per month: total cleared ÷ months since the climb
+ * started. More robust than the trailing snapshot pace (which bails when the
+ * first recorded balance was lower than today). Returns null until the climb has
+ * run long enough to average honestly, or when no progress has been made.
+ *
+ * @param {number} cumulativePaidDown  total balance reduction since game start
+ * @param {string} gameStartAt         ISO timestamp the baseline was locked
+ */
+function averageMonthlyPaydown(cumulativePaidDown, gameStartAt, { now = Date.now(), minDays = 14 } = {}) {
+  const paid = Number(cumulativePaidDown);
+  const startMs = Date.parse(gameStartAt);
+  if (!Number.isFinite(paid) || paid <= 0 || !Number.isFinite(startMs)) return null;
+  const days = (now - startMs) / 86400000;
+  if (!Number.isFinite(days) || days < minDays) return null; // too early to average
+  const months = days / DAYS_PER_MONTH;
+  if (months <= 0) return null;
+  return Math.round((paid / months) * 100) / 100;
+}
+
 module.exports = {
   monthlyPaceFromSnapshots,
   projectDebtFree,
   paidThisMonth,
+  averageMonthlyPaydown,
   DAYS_PER_MONTH,
   MIN_SPAN_DAYS,
 };

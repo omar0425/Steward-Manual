@@ -62,3 +62,24 @@ test('paidThisMonth: climb started this month → opening is earliest in-month r
 test('paidThisMonth: no snapshots → null', () => {
   assert.equal(paidThisMonth([], { now: NOW }), null);
 });
+
+const { averageMonthlyPaydown } = require('../services/pace');
+
+test('averageMonthlyPaydown: total cleared / months since start', () => {
+  // $1,713 cleared, started 32 days before NOW → ~1.05 months → ~$1,629/mo.
+  const start = new Date(NOW - 32 * 86400000).toISOString();
+  const avg = averageMonthlyPaydown(1713, start, { now: NOW });
+  const months = 32 / DAYS_PER_MONTH;
+  assert.equal(avg, Math.round((1713 / months) * 100) / 100);
+});
+
+test('averageMonthlyPaydown: too early (< 14 days) → null', () => {
+  const start = new Date(NOW - 5 * 86400000).toISOString();
+  assert.equal(averageMonthlyPaydown(500, start, { now: NOW }), null);
+});
+
+test('averageMonthlyPaydown: no progress or bad input → null', () => {
+  const start = new Date(NOW - 60 * 86400000).toISOString();
+  assert.equal(averageMonthlyPaydown(0, start, { now: NOW }), null);
+  assert.equal(averageMonthlyPaydown(1000, null, { now: NOW }), null);
+});
