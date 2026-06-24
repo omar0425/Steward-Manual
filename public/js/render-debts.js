@@ -416,6 +416,19 @@ export function fillDebtAccountsList(stats) {
     return Number.isFinite(b) && b > max ? b : max;
   }, 0);
 
+  // Column header row — labels the sparkline column ("Trend") that otherwise has
+  // no header. Uses the same grid as .debt-row so the label sits over the spark.
+  const header = document.createElement('div');
+  header.className = 'debt-row debt-row--header';
+  header.setAttribute('aria-hidden', 'true');
+  header.innerHTML =
+    '<span class="dr-col-head"></span>' +
+    '<span class="dr-col-head"></span>' +
+    '<span class="dr-col-head"></span>' +
+    '<span class="dr-col-head"></span>' +
+    '<span class="dr-col-head dr-col-head--trend">Trend</span>';
+  listEl.appendChild(header);
+
   // Avalanche guidance: the open account with the highest APR is the one
   // every extra dollar should hit first. Only meaningful when APRs are set.
   let payFirstId = null;
@@ -512,16 +525,17 @@ export function fillDebtAccountsList(stats) {
     amount.className = 'dr-balance debt-row-balance';
     amount.textContent = fmtDollar(balance);
     amountCell.appendChild(amount);
-    const pctPaidVal = Number(acct.pctPaid);
-    if (!isPaidOff && Number.isFinite(pctPaidVal) && pctPaidVal > 0) {
-      const pctEl = document.createElement('span');
-      pctEl.className = 'dr-paid-pct';
-      pctEl.textContent = `${pctPaidVal}% paid`;
-      if (acct.startBalance != null && Number.isFinite(Number(acct.startBalance))) {
-        pctEl.title = `Down from ${fmtDollar(Number(acct.startBalance))} since you started tracking it.`;
-      }
-      amountCell.appendChild(pctEl);
+    // Always render the "% paid" line so every row is the same height (rows
+    // that used to omit it for 0% read as uneven). Paid-off rows show 100%.
+    const pctPaidRaw = Number(acct.pctPaid);
+    const pctPaidVal = isPaidOff ? 100 : (Number.isFinite(pctPaidRaw) && pctPaidRaw > 0 ? pctPaidRaw : 0);
+    const pctEl = document.createElement('span');
+    pctEl.className = 'dr-paid-pct';
+    pctEl.textContent = `${pctPaidVal}% paid`;
+    if (acct.startBalance != null && Number.isFinite(Number(acct.startBalance))) {
+      pctEl.title = `Down from ${fmtDollar(Number(acct.startBalance))} since you started tracking it.`;
     }
+    amountCell.appendChild(pctEl);
 
     const deltaEl = document.createElement('span');
     const latestDelta = latestDebtHistoryDelta(acct.id);
