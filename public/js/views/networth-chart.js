@@ -111,7 +111,7 @@ export function renderNetWorthChart(snapshots, opts = {}) {
     return;
   }
 
-  const W = 600, H = 110, PX = 20, PY_TOP = 10, PY_BOT = 100;
+  const W = 600, H = 150, PX = 20, PY_TOP = 10, PY_BOT = 140;
   const plotW = W - PX * 2;
   const plotH = PY_BOT - PY_TOP;
 

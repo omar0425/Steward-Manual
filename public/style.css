@@ -162,7 +162,11 @@ h1, h2, h3 {
   background: var(--nav-bg); border-bottom: 1px solid var(--border);
   backdrop-filter: blur(16px);
 }
-.nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+/* Equal-weight side clusters so the centre nav links land on the true page
+   centre regardless of how wide the brand (left) or stage/theme/sign-out group
+   (right) happen to be — space-between alone lets a heavier side shove them off. */
+.nav-brand { flex: 1 1 0; display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+.nav-links { flex: 0 0 auto; }
 .nav-brand-icon {
   width: 28px; height: 28px; border-radius: 8px;
   background: var(--gold-soft); border: 1px solid var(--gold);
@@ -178,7 +182,12 @@ h1, h2, h3 {
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  margin: 40px auto 8px;
+  /* width:100% (not auto side-margins): a flex item in the column-flex .dashboard
+     with `margin: … auto …` opts OUT of align-items:stretch and collapses to its
+     content width (~377px), reading as a misaligned narrow block. An explicit
+     width keeps it full-bleed; its own align-items:center still centers the mark. */
+  width: 100%;
+  margin: 40px 0 8px;
   padding: 24px 16px;
   text-align: center;
 }
@@ -201,7 +210,7 @@ h1, h2, h3 {
 .nav-link.active::after { content: ''; position: absolute; bottom: -4px; left: 0; right: 0; height: 1px; background: var(--gold); }
 .nav-link.nav-link-btn { background: none; border: none; padding: 0; cursor: pointer; font: inherit; letter-spacing: inherit; }
 .nav-link.nav-link-btn:focus-visible { outline: 1px dashed var(--gold); outline-offset: 3px; border-radius: 2px; }
-.nav-right { display: flex; align-items: center; gap: 12px; }
+.nav-right { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .nav-badge {
   font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--gold); padding: 4px 10px; border-radius: 999px;
@@ -660,7 +669,7 @@ board-liquidity-pill
 .chart-trend.pos { color: var(--emerald); }
 .chart-trend.neg { color: var(--rose); }
 .nw-single-dot { fill: var(--gold); opacity: 0.75; }
-.chart-wrap { height: 110px; position: relative; }
+.chart-wrap { height: 150px; position: relative; }
 .chart-wrap svg { display: block; }
 /* `display: block` above wins over the UA `[hidden] { display: none }` rule, so
    setting `svg.hidden = true` in JS would not actually hide the chart. This
@@ -821,7 +830,12 @@ board-liquidity-pill
 .sp-val--good { color: var(--emerald); }
 .sp-val--bad  { color: var(--rose); }
 
-.debt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto minmax(42px, auto) 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+/* Fixed numeric tracks (not `auto`): every .debt-row — and the header — is its
+   OWN grid container, so `auto`/content-sized tracks resolve per row and the
+   columns never line up across rows (the header's empty cells even collapse the
+   balance/APR tracks to 0px). Definite px widths make the APR, balance, delta and
+   trend columns share one alignment down the whole table; only the name flexes. */
+.debt-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 104px 52px 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .debt-row:last-child { border-bottom: none; }
 .dr-name  { min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dr-balance-cell { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
@@ -1463,7 +1477,7 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 }
 
 /* When the chart panel falls back to empty state, the message sits inside
-   chart-wrap (which is a fixed-height 110px box). Center it absolutely so
+   chart-wrap (which is a fixed-height 150px box). Center it absolutely so
    it doesn't overflow into the x-labels / caption sitting below. */
 .chart-wrap > .panel-empty-state {
   position: absolute;
@@ -1808,6 +1822,11 @@ body[data-theme-transitioning] .data-chip {
 
 /* ── Danger zone disclosure (destructive actions, collapsed by default) ── */
 .play-danger-zone {
+  /* width:100% so the auto side-margins center a full 480px box. Without an
+     explicit width this flex item (column-flex parent) skips align-items:stretch
+     because of the auto cross-margins and shrinks to the collapsed <summary>'s
+     content width (~206px), reading as crushed and off-centre. */
+  width: 100%;
   margin: 4px auto 32px;
   max-width: 480px;
   border-top: 1px solid var(--border);
@@ -2314,7 +2333,10 @@ body[data-setup-mode="first"] .setup-welcome {
 .reclassify-link:hover { text-decoration: underline; }
 .undo-last-btn {
   display: block;
-  align-self: flex-start;
+  /* Centre it like the "Update Balances" button above it — the column-flex
+     .manual-entry-actions centres its children, and a lone flex-start link read
+     as misaligned against that primary CTA. */
+  align-self: center;
   margin: 8px 0;
   padding: 0;
   background: none;

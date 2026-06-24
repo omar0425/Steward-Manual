@@ -70,8 +70,20 @@ function addDebtAccountRow(container, name, balance, id) {
   if (name) nameInput.value = name;
   if (balance != null) row.querySelector('.debt-acct-balance').value = balance;
   syncRemoveLabel();
-  removeBtn.addEventListener('click', () => row.remove());
+  removeBtn.addEventListener('click', () => { row.remove(); syncAddSaveBtnVisibility(); });
   container.appendChild(row);
+  syncAddSaveBtnVisibility();
+}
+
+/* The bottom "Save account" / "Save Debts" button only has meaning once there's
+   at least one account row to commit. With an empty #debt-accounts-entries it
+   renders as an orphaned, dead button (layout audit #4) — so hide it until a row
+   exists and reveal it the moment "+ Add Account" creates one. */
+function syncAddSaveBtnVisibility() {
+  const entries = document.getElementById('debt-accounts-entries');
+  const saveBtn = document.getElementById('save-snapshot-btn');
+  if (!entries || !saveBtn) return;
+  saveBtn.hidden = entries.querySelector('.debt-account-entry-row') == null;
 }
 
 function collectDebtAccounts() {
@@ -125,6 +137,8 @@ function renderSavedDebtsList(debtLines) {
     // Nothing saved yet, so saving IS the primary action — keep it gold.
     if (addBtn) { addBtn.textContent = 'Save Debts'; addBtn.classList.remove('commitment-btn--ghost'); }
     setSetupStartVisible(false);
+    // Hide "Save Debts" until the first account row is added (no orphaned button).
+    syncAddSaveBtnVisibility();
     return;
   }
 
@@ -195,6 +209,8 @@ function renderSavedDebtsList(debtLines) {
   // Clear any leftover rows in the add form
   const addEntries = document.getElementById('debt-accounts-entries');
   if (addEntries) addEntries.innerHTML = '';
+  // Empty entries → keep the "Save account" button hidden so it isn't orphaned.
+  syncAddSaveBtnVisibility();
 }
 
 function setSetupStartVisible(visible) {
@@ -725,6 +741,10 @@ export function initManualEntryForm() {
   addBtn.addEventListener('click', () => {
     addDebtAccountRow(container);
   });
+
+  // Set the initial "Save" button state before any data loads (avoids a flash of
+  // an orphaned button on first paint).
+  syncAddSaveBtnVisibility();
 
   // "Save Debts" — adds new debts (from the add form)
   /* Validation toast: snappy 3s auto-dismiss, a clear × button so users can

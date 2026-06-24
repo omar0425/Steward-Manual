@@ -240,7 +240,7 @@ function buildDebtReductionChart() {
       </span>
     </summary>
     <div class="chart-wrap">
-      <svg id="networth-chart-svg" viewBox="0 0 600 110" width="100%" height="110" preserveAspectRatio="none">
+      <svg id="networth-chart-svg" viewBox="0 0 600 150" width="100%" height="150" preserveAspectRatio="none">
         <defs>
           <linearGradient id="nw-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="#14a469" stop-opacity="0.16"/>
