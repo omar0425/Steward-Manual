@@ -43,7 +43,7 @@ function maybeApplyAiTierQuote(meta, tier) {
     .catch(() => { /* keep the static fallback */ });
 }
 
-window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTier, meta, stability: stab, snapshots, streak }) {
+window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTier, meta, stability: stab, snapshots, streak, correctedDebtSeries }) {
   const quoteLabel = document.getElementById('tier-quote-label');
   const quoteText = document.getElementById('tier-quote-text');
   if (tier && quoteLabel && quoteText) {
@@ -276,9 +276,12 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
    * real debt growth. The climb's baseline is the snapshot stamped at
    * start-game, so anything strictly earlier is pre-climb noise. */
   const gameStartAt = stats && stats.gameStartAt;
-  const chartSnaps = (snapshots || []).filter(
-    (s) => !gameStartAt || (s.pulled_at || s.date) >= gameStartAt,
-  );
+  // Prefer the correction-aware series (forgotten debts carried back, new loans
+  // still rising) so the line matches how the metrics treat corrections. Fall
+  // back to raw snapshots when it isn't available.
+  const chartSnaps = Array.isArray(correctedDebtSeries) && correctedDebtSeries.length >= 2
+    ? correctedDebtSeries.map((p) => ({ date: p.date, debt_remaining: p.debt }))
+    : (snapshots || []).filter((s) => !gameStartAt || (s.pulled_at || s.date) >= gameStartAt);
   const chartWrap = document.querySelector('.chart-wrap');
   if (chartSnaps.length >= 2) {
     renderNetWorthChart(chartSnaps, {

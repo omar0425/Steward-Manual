@@ -18,6 +18,7 @@ const {
   insertSnapshot,
   replaceDebtAccountBalances,
   appendDebtAccountHistory,
+  debtAccountHistoryRows,
   lastNonZeroFinancials,
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
@@ -47,6 +48,7 @@ const {
   setLastDebtSyncDebug,
   persistLastDebtSyncDebugSnapshot,
   perAccountDebtDeltaDisplayRows,
+  buildCorrectedDebtSeries,
   roundMoney,
 } = require('../services/climbMetrics');
 const {
@@ -407,6 +409,12 @@ router.get('/status', (req, res) => {
       nextScheduled:       null,
     },
     netWorthHistory,
+    // Correction-aware debt line: forgotten debts carried back so they don't
+    // read as spikes; genuinely-new loans still rise. The chart prefers this.
+    correctedDebtSeries: buildCorrectedDebtSeries(debtAccountHistoryRows(), {
+      originById: parseJsonObject(getConfig('debt_account_origin')),
+      gameStartAt,
+    }),
   };
 
   if (debugDebtTier) {
@@ -590,6 +598,28 @@ router.post('/snapshot', (req, res) => {
     }
     for (const rawId of Array.isArray(preexistingAccountIds) ? preexistingAccountIds : []) {
       increaseClassifications[String(rawId)] = 'preexisting';
+    }
+
+    // ── Record each account's ORIGIN the first time we see it ─────────────────
+    // 'baseline' = a debt you always had (setup inventory, an existing account,
+    // or one flagged pre-existing) → carried back on the chart so it never reads
+    // as back-sliding. 'new' = a genuinely-new loan/spend taken on mid-climb →
+    // shown as a real rise. This is the per-entry classification that lets the
+    // corrected debt graph be exact going forward.
+    if (debtBalanceMap.size > 0) {
+      const originMap = parseJsonObject(getConfig('debt_account_origin'));
+      const prevForOrigin = getAllDebtAccountBalances();
+      let originChanged = false;
+      for (const id of debtBalanceMap.keys()) {
+        if (originMap[id]) continue; // first sighting only
+        let origin;
+        if (!gameActive) origin = 'baseline';            // setup inventory
+        else if (prevForOrigin.has(id)) origin = 'baseline'; // pre-existed our tracking
+        else origin = increaseClassifications[id] === 'preexisting' ? 'baseline' : 'new';
+        originMap[id] = origin;
+        originChanged = true;
+      }
+      if (originChanged) setConfig('debt_account_origin', JSON.stringify(originMap));
     }
 
     // Determine tier (relative to climb baseline, falls back to rock_bottom if

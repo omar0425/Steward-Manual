@@ -140,6 +140,59 @@ function analyzePerAccountDebtDiff(prev, curr) {
   };
 }
 
+/**
+ * Pure: a "corrected" debt-over-time series for the chart, consistent with how
+ * the metrics treat corrections. Each account contributes at every pull:
+ *   - its balance at that pull (exact), or the most recent earlier balance
+ *     (carried forward — e.g. an account you stopped logging still counts), or
+ *   - for pulls BEFORE the account first appeared:
+ *       · origin 'new'  → 0  (a genuinely-new loan wasn't owed yet → shows as a rise)
+ *       · otherwise     → its first-known balance (a debt you always had, just
+ *         logged late → carried back so it never reads as back-sliding).
+ * Unknown/legacy accounts default to carry-back, matching "it was always yours".
+ *
+ * @param {Array<{accountId:string,recordedAt:string,balance:number}>} historyRows
+ * @param {{originById?:Object<string,string>, gameStartAt?:string}} opts
+ * @returns {Array<{date:string, debt:number}>} ascending by date
+ */
+function buildCorrectedDebtSeries(historyRows, { originById = {}, gameStartAt = null } = {}) {
+  const rows = Array.isArray(historyRows) ? historyRows : [];
+  const byAcct = new Map();   // id → [{ ms, bal }] ascending
+  const tsSet = new Set();
+  for (const r of rows) {
+    if (!r || r.accountId == null || !r.recordedAt) continue;
+    const bal = Number(r.balance);
+    const ms = Date.parse(r.recordedAt);
+    if (!Number.isFinite(bal) || !Number.isFinite(ms)) continue;
+    const id = String(r.accountId);
+    if (!byAcct.has(id)) byAcct.set(id, []);
+    byAcct.get(id).push({ ms, bal });
+    tsSet.add(r.recordedAt);
+  }
+  for (const arr of byAcct.values()) arr.sort((a, b) => a.ms - b.ms);
+
+  const startMs = gameStartAt ? Date.parse(gameStartAt) : NaN;
+  const stamps = [...tsSet]
+    .filter((ts) => !Number.isFinite(startMs) || Date.parse(ts) >= startMs)
+    .sort((a, b) => Date.parse(a) - Date.parse(b));
+
+  return stamps.map((ts) => {
+    const T = Date.parse(ts);
+    let total = 0;
+    for (const [id, arr] of byAcct) {
+      let val = null;
+      for (let i = arr.length - 1; i >= 0; i--) {
+        if (arr[i].ms <= T) { val = arr[i].bal; break; }
+      }
+      if (val == null) {
+        val = originById[id] === 'new' ? 0 : arr[0].bal;
+      }
+      total += val;
+    }
+    return { date: ts, debt: Math.round(total * 100) / 100 };
+  });
+}
+
 /** @returns {{ paydownSum: number, newDebtSum: number }} */
 function summarizePerAccountDebtDeltas(prev, curr) {
   const a = analyzePerAccountDebtDiff(prev, curr);
@@ -810,6 +863,7 @@ module.exports = {
   routeDeltasByClassification,
   applyDeltaToTotals,
   analyzePerAccountDebtDiff,
+  buildCorrectedDebtSeries,
   summarizePerAccountDebtDeltas,
   perAccountDebtDeltaDisplayRows,
   getLastDebtSyncDebug,

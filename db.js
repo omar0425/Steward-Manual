@@ -314,6 +314,14 @@ function appendDebtAccountHistory(balanceMap) {
   }
 }
 
+/** Raw per-account history rows (ascending) for the current user — chart series. */
+function debtAccountHistoryRows() {
+  return db.prepare(
+    `SELECT ynab_account_id AS accountId, recorded_at AS recordedAt, balance
+     FROM debt_account_history WHERE user_id = ? ORDER BY recorded_at ASC, ynab_account_id ASC`,
+  ).all(currentUserId());
+}
+
 function getDebtAccountHistory(daysBack = 30) {
   const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
   const rows = db.prepare(`
@@ -592,6 +600,7 @@ function resetAllGameState() {
     'cumulative_new_debt_added',
     'cumulative_paid_down',
     'debt_account_name_map',
+    'debt_account_origin',
     'debt_start',
     'game_start_at',
     'game_start_debt',
@@ -682,6 +691,7 @@ module.exports = {
   setConfigIfAbsent,
   appendDebtAccountHistory,
   getDebtAccountHistory,
+  debtAccountHistoryRows,
   getDebtAccountFirstBalances,
   exportUserData,
   getGameStart,
