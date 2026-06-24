@@ -319,6 +319,10 @@ async function generateAnswer({ question, payload }) {
     '- Percentages are fair game when they help: how far they are through their ' +
     'whole debt, or how far a specific card is paid down, when asked "how am I ' +
     'doing" or about a particular account.\n' +
+    '- When encouraging (or answering "how am I doing"), and ' +
+    'interest.savedPerMonthVsStart is a positive number, name it as money kept ' +
+    'from the bank — e.g. "your paydown is saving about $X a month in interest ' +
+    'versus where you started." Skip it if null or zero.\n' +
     '- If a figure truly is not available (e.g. no APRs entered), name the ONE ' +
     'thing they could enter to get a sharper answer — framed as their next ' +
     'move, in one short clause, not as an apology or a refusal.\n' +

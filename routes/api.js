@@ -24,7 +24,7 @@ const {
   getDebtAccountFirstBalances,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth } = require('../services/pace');
-const { buildPayoffPlan } = require('../services/payoffPlan');
+const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -342,13 +342,18 @@ router.get('/status', (req, res) => {
   // from authoritative balances joined with stored APRs and names.
   const planRates = parseJsonObject(getConfig('interest_rates'));
   const planNames = parseJsonObject(getConfig('debt_account_name_map'));
+  const planFirstBalances = getDebtAccountFirstBalances();
   const planAccounts = [...getAllDebtAccountBalances().entries()].map(([id, balance]) => ({
     id,
     name: planNames[id] || 'Account',
     balance,
     apr: planRates[id],
+    startBalance: Number(planFirstBalances.get(String(id))),
   }));
   const payoffPlan = buildPayoffPlan(planAccounts);
+  // "Interest saved" — how much less interest your balances cost per month now
+  // versus your starting balances (money paydown has kept from the bank).
+  const interestSaved = interestSavedSinceStart(planAccounts);
 
   const payload = {
     ready: true,
@@ -370,6 +375,7 @@ router.get('/status', (req, res) => {
       debtFree:              debtFreeProjection,
       paidThisMonth:         netPaidThisMonth,
       payoffPlan,
+      interestSaved,
       netImprovement:        climb.netImprovement,
       debtPaid:              climb.cumulativePaidDown,
       debtStart:             climb.climbBaselineDebt,

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildPayoffPlan } = require('../services/payoffPlan');
+const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 
 test('avalanche targets the highest APR; snowball the smallest balance', () => {
   const plan = buildPayoffPlan([
@@ -44,4 +44,28 @@ test('partial APRs: avalanche only considers accounts with a known APR', () => {
   assert.equal(plan.recommended, 'avalanche');
   assert.equal(plan.avalanche.target.name, 'KnownApr');
   assert.equal(plan.snowball.target.name, 'KnownApr'); // 3000 < 10000
+});
+
+test('interestSavedSinceStart: monthly interest reduction from paydown', () => {
+  // $10,000 → $8,000 at 12% APR: monthly rate 1% → start $100/mo, now $80/mo.
+  const r = interestSavedSinceStart([
+    { apr: 12, startBalance: 10000, balance: 8000 },
+    { apr: 0, startBalance: 5000, balance: 5000 },   // no APR → ignored
+  ]);
+  assert.equal(r.startMonthly, 100);
+  assert.equal(r.currentMonthly, 80);
+  assert.equal(r.savedMonthly, 20);
+  assert.equal(r.savedAnnual, 240);
+  assert.equal(r.hasApr, true);
+});
+
+test('interestSavedSinceStart: no APRs → zeros, hasApr false', () => {
+  const r = interestSavedSinceStart([{ apr: null, startBalance: 9000, balance: 8000 }]);
+  assert.equal(r.hasApr, false);
+  assert.equal(r.savedMonthly, 0);
+});
+
+test('interestSavedSinceStart: balance grew → negative saved (honest)', () => {
+  const r = interestSavedSinceStart([{ apr: 24, startBalance: 1000, balance: 2000 }]);
+  assert.equal(r.savedMonthly < 0, true);
 });
