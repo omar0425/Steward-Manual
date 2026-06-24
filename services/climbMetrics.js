@@ -172,6 +172,11 @@ function buildCorrectedDebtSeries(historyRows, { originById = {}, gameStartAt = 
   for (const arr of byAcct.values()) arr.sort((a, b) => a.ms - b.ms);
 
   const startMs = gameStartAt ? Date.parse(gameStartAt) : NaN;
+  // "Current" accounts are those present in the most recent pull. An account
+  // whose last record predates that was removed/stopped — it must NOT be carried
+  // forward, or the latest total would exceed real current debt (double-count).
+  const allMs = [...tsSet].map((ts) => Date.parse(ts)).filter(Number.isFinite);
+  const globalLatest = allMs.length ? Math.max(...allMs) : NaN;
   const stamps = [...tsSet]
     .filter((ts) => !Number.isFinite(startMs) || Date.parse(ts) >= startMs)
     .sort((a, b) => Date.parse(a) - Date.parse(b));
@@ -180,12 +185,24 @@ function buildCorrectedDebtSeries(historyRows, { originById = {}, gameStartAt = 
     const T = Date.parse(ts);
     let total = 0;
     for (const [id, arr] of byAcct) {
-      let val = null;
-      for (let i = arr.length - 1; i >= 0; i--) {
-        if (arr[i].ms <= T) { val = arr[i].bal; break; }
-      }
-      if (val == null) {
-        val = originById[id] === 'new' ? 0 : arr[0].bal;
+      const firstMs = arr[0].ms;
+      const lastMs = arr[arr.length - 1].ms;
+      let val;
+      if (T > lastMs) {
+        // After the account's final record → it's gone (removed / paid-off and
+        // dropped). Not part of debt anymore; contributes nothing.
+        val = 0;
+      } else if (T >= firstMs) {
+        // Within its tracked range → most recent balance at-or-before T.
+        val = arr[0].bal;
+        for (let i = arr.length - 1; i >= 0; i--) {
+          if (arr[i].ms <= T) { val = arr[i].bal; break; }
+        }
+      } else {
+        // Before it first appeared. Carry back only if it's a CURRENT account
+        // you always had (forgotten-debt fix); a genuinely-new loan stays 0.
+        const isCurrent = lastMs === globalLatest;
+        val = (isCurrent && originById[id] !== 'new') ? arr[0].bal : 0;
       }
       total += val;
     }

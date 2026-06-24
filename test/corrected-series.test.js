@@ -37,14 +37,15 @@ test('a genuinely-new loan (origin "new") shows as a rise when taken on', () => 
   assert.ok(series[2].debt > series[1].debt, 'real new debt is visible as a rise');
 });
 
-test('carry-forward: an account you stopped logging keeps its last balance', () => {
+test('removed account counts while active, then drops (no carry-forward double-count)', () => {
   const h = [
     { accountId: 'a', recordedAt: '2026-01-01T00:00:00Z', balance: 1000 },
     { accountId: 'b', recordedAt: '2026-01-01T00:00:00Z', balance: 800 },
-    { accountId: 'a', recordedAt: '2026-02-01T00:00:00Z', balance: 700 }, // b not re-logged
+    { accountId: 'a', recordedAt: '2026-02-01T00:00:00Z', balance: 700 }, // b removed
   ];
   const series = buildCorrectedDebtSeries(h, { gameStartAt: '2026-01-01T00:00:00Z' });
-  assert.equal(series[1].debt, 700 + 800, 'b carried forward at 800, not dropped');
+  assert.equal(series[0].debt, 1000 + 800, 'b counts while it was tracked');
+  assert.equal(series[1].debt, 700, 'b dropped after removal — latest total = real current debt');
 });
 
 test('gameStartAt filters pre-climb pulls', () => {

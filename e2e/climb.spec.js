@@ -53,7 +53,7 @@ test.describe('Climb lifecycle', () => {
     await reloadToDashboard(page);
 
     await expect(page.locator('#stat-net-worth-chart')).toContainText('$73,885');
-    await expect(page.locator('#chart-trend-delta')).toContainText(/\$5,000 since first snapshot/);
+    await expect(page.locator('#chart-trend-delta')).toContainText(/\$5,000 since you started/);
     await expect(page.locator('#networth-chart-svg')).toBeVisible();
     // The drawn line path should be non-empty now.
     const d = await page.locator('#nw-line').getAttribute('d');
