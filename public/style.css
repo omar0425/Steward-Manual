@@ -680,7 +680,8 @@ board-liquidity-pill
        row.innerHTML = `...`;
        debtAccountsList.appendChild(row);
      }
-.tc-section-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-bottom: 14px; }
+   ══════════════════════════════════════════════════════════════════════ */
+.tc-section-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-bottom: 14px; }
 
 /* Session card hero number */
 .session-card { position: relative; overflow: hidden; transition: border-color 400ms ease, box-shadow 400ms ease; }
@@ -1806,10 +1807,10 @@ body[data-theme-transitioning] .data-chip {
 
 /* ── Danger zone disclosure (destructive actions, collapsed by default) ── */
 .play-danger-zone {
-  margin: 24px auto 32px;
+  margin: 4px auto 32px;
   max-width: 480px;
   border-top: 1px solid var(--border);
-  padding: 18px 12px 4px;
+  padding: 14px 12px 4px;
   color: var(--text-3);
 }
 .play-danger-zone[open] {
@@ -2142,17 +2143,20 @@ body[data-setup-mode="first"] .setup-welcome {
    sitting a few rows above it. */
 .commitment-btn--ghost {
   background: transparent;
-  color: var(--gold);
-  border: 1px solid var(--gold-dim, rgba(212,175,55,0.4));
+  color: var(--text-2);
+  border: 1px solid var(--border-2);
+  padding: 11px;
+  font-size: 11px;
 }
-.commitment-btn--ghost:hover { background: rgba(212,175,55,0.08); color: var(--gold-2, var(--gold)); }
+.commitment-btn--ghost:hover { background: var(--gold-soft); color: var(--gold-2, var(--gold)); border-color: var(--gold); }
 /* ── Saved Debts List ─────────────────────────────────────────────────────── */
 .saved-debts-list { display: flex; flex-direction: column; gap: 0; }
 .saved-debt-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 0;
+  padding: 6px 0;
+  min-height: 46px;
   border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
 }
 .saved-debt-row:first-child { border-top: 1px solid var(--border, rgba(255,255,255,0.06)); }
@@ -2183,7 +2187,7 @@ body[data-setup-mode="first"] .setup-welcome {
   border-radius: var(--radius-sm, 6px);
   color: var(--text);
   font-size: 15px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   font-family: 'IBM Plex Mono', monospace;
   text-align: right;
   transition: border-color 0.15s;
@@ -2309,15 +2313,16 @@ body[data-setup-mode="first"] .setup-welcome {
 .reclassify-link:hover { text-decoration: underline; }
 .undo-last-btn {
   display: block;
-  margin-top: 10px;
+  align-self: flex-start;
+  margin: 8px 0;
   padding: 0;
   background: none;
   border: none;
   color: var(--text-3);
   font-size: 12px;
   cursor: pointer;
-  text-align: center;
-  width: 100%;
+  text-align: left;
+  width: auto;
 }
 .undo-last-btn:hover { color: var(--text-2); text-decoration: underline; }
 .reclassify-field { margin: 4px 0 14px; }
@@ -2691,3 +2696,126 @@ body[data-setup-mode="first"] .setup-welcome {
 [data-theme="light"] .debt-account-entry-row .debt-acct-balance { background: var(--bg); border-color: rgba(40,25,5,0.14); }
 [data-theme="light"] .saved-debt-balance-input { background: var(--bg); border-color: rgba(40,25,5,0.14); }
 [data-theme="light"] .manual-entry-panel { border-color: rgba(212,175,55,0.22); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   LAYOUT POLISH PASS — quiet, gold-accented, token-driven. Works in both
+   dark and light themes (no hardcoded hex; all colors via custom props).
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* #1 — Right info column shouldn't be top-heavy beside the taller card art.
+   Stretch the story column to the hero's full height and distribute its blocks
+   so the dead space at the bottom is absorbed. */
+.hero-section { align-items: stretch; }
+.hero-story { justify-content: space-between; }
+
+/* #3 — More air between the STAGE eyebrow and the big "Buried" heading. */
+.hero-stage-kicker { margin: 0 0 8px 0; }
+
+/* #4 — Keep the streak badge from crowding the STAGE eyebrow. */
+.hero-eyebrow-row { gap: 18px; }
+.streak-badge { margin-top: 2px; }
+
+/* #5 — "unlocks the next stage" subtext aligns with the CTA text column, not
+   under the left-border accent (no border of its own; matches CTA text inset). */
+.hero-cta-sub { border-left: 0; padding-left: 15px; }
+
+/* #6 — Distinguish the two near-identical hero bars: give the in-stage bar a
+   small eyebrow label and add vertical breathing room before the journey bar. */
+.stage-gap-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-3); margin: 0 0 6px 0;
+}
+.stage-gap-section { margin-bottom: 16px; }
+
+/* #2 — Full-width motivational quote strip (now a hero grid child). */
+.hero-section .tier-quote-card { grid-column: 1 / -1; margin-top: 4px; }
+
+/* #12 — Pay-this-next: vertical breathing room + gap between name and reason. */
+.pay-next-section { padding-block: 20px; }
+.pay-next-reason { margin-top: 12px; }
+
+/* #13 — Segmented/pill control for the Save most / Quick win toggle. */
+.pay-next-toggle {
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+}
+.pay-next-tab {
+  border-radius: 999px;
+  padding: 6px 14px;
+  transition: background 140ms ease, color 140ms ease;
+}
+.pay-next-tab + .pay-next-tab { border-left: none; }
+.pay-next-tab.active {
+  background: var(--gold-soft);
+  color: var(--gold-2);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+.pay-next-tab:not(.active):not(:disabled):hover { color: var(--text); }
+
+/* #15 — Separate the chart legend memo from the chart with a hairline + space. */
+.chart-memo {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* #17 — "Trend" column header above the sparkline column. */
+.debt-row--header {
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border-2);
+  margin-bottom: 2px;
+}
+.debt-row--header:hover { background: none; }
+.dr-col-head {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-3);
+}
+.dr-col-head--trend { text-align: right; }
+
+/* #19 — Make "Show all N accounts" read as a clear, clickable button. */
+.turn-show-all-btn {
+  border-style: solid;
+  border-color: var(--border-2);
+  color: var(--text-2);
+}
+.turn-show-all-btn:hover {
+  color: var(--gold-2);
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+
+/* #20 — TOTAL row reads as a summary footer (stronger separation). */
+.debt-total-row { margin-top: 8px; padding-top: 14px; }
+
+/* #21 — Set the data-sync footer apart from the panels above it. The base /
+   light-theme backgrounds are left intact; only a hairline top accent is added
+   so the footer reads as a distinct utility strip. */
+.data-strip { border-top: 1px solid var(--border-2); }
+
+/* #23 — Hierarchy: primary panels read slightly lighter / roomier; utility
+   panels (data sync, danger zone) feel muted and recede. */
+.hero-section,
+.manual-entry-panel { background: var(--surface-2); }
+.manual-entry-panel { padding: 30px 30px; }
+.data-strip { color: var(--text-2); }
+.data-strip .data-chip-v { color: var(--text-3); }
+
+/* #25 — Lift the sticky Update Balances FAB off the page in light theme too
+   (dark already has a strong shadow). A solid-ish surface + shadow in light. */
+[data-theme="light"] .fab-update-balances {
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
+  border-color: var(--gold);
+  box-shadow: 0 10px 28px rgba(40,25,5,0.22), 0 0 0 1px rgba(138,106,24,0.12) inset;
+}
+[data-theme="light"] .fab-update-balances:hover {
+  box-shadow: 0 14px 36px rgba(40,25,5,0.30), 0 0 0 1px rgba(138,106,24,0.22) inset;
+}
+
+@media (max-width: 560px) {
+  .manual-entry-panel { padding: 22px 18px; }
+}

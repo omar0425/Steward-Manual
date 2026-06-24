@@ -183,7 +183,10 @@ function renderSavedDebtsList(debtLines) {
   // button so users don't confuse it with saving their paydown.
   if (addSection) addSection.style.display = '';
   if (heading) heading.textContent = 'Add another account';
-  if (addBtn) { addBtn.textContent = 'Add account'; addBtn.classList.add('commitment-btn--ghost'); }
+  /* Bottom button commits the new rows. Labeled "Save account" (not "Add
+     account") so it reads distinctly from the "+ Add Account" row-adder above
+     it — otherwise the two stacked CTAs look like duplicates. */
+  if (addBtn) { addBtn.textContent = 'Save account'; addBtn.classList.add('commitment-btn--ghost'); }
 
   // Hide the financial snapshot block in the add form — user updates financials via UPDATE BALANCES
   const addFinancials = addSection && addSection.querySelector('.manual-entry-financials');

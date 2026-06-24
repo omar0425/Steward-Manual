@@ -173,10 +173,6 @@ function buildHeroSection() {
           </div>
         </div>
       </div>
-      <div class="tier-quote-card" id="tier-quote-card">
-        <p class="tier-quote-label" id="tier-quote-label">Buried</p>
-        <p class="tier-quote-text" id="tier-quote-text">Do not make this beautiful. Make it smaller.</p>
-      </div>
     </div>
 
     <!-- Hero story column: directive-first — what to do right now -->
@@ -203,6 +199,7 @@ function buildHeroSection() {
 
       <!-- In-stage position (secondary to the dollar headline; thin) -->
       <div class="stage-gap-section" title="In-stage progress — how far you are through the current stage. Resets when the next stage unlocks.">
+        <p class="stage-gap-eyebrow">This stage</p>
         <div class="progress-bar progress-bar--hero" id="command-progress-widget" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
           <div class="progress-fill" id="command-progress-bar-fill" style="width:0%"></div>
         </div>
@@ -220,6 +217,12 @@ function buildHeroSection() {
         </div>
       </div>
     </div>
+
+    <!-- Motivational quote — spans the full hero width as a footer strip -->
+    <div class="tier-quote-card" id="tier-quote-card">
+      <p class="tier-quote-label" id="tier-quote-label">Buried</p>
+      <p class="tier-quote-text" id="tier-quote-text">Do not make this beautiful. Make it smaller.</p>
+    </div>
   `;
   return section;
 }
@@ -230,7 +233,7 @@ function buildDebtReductionChart() {
   const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', open: '' });
   section.innerHTML = `
     <summary class="section-summary chart-header" title="Total debt still owed, plotted across your most recent snapshots.">
-      <span class="section-label">Debt Remaining</span>
+      <span class="tc-section-label" style="margin:0;">Debt Remaining</span>
       <span class="section-summary-meta">
         <span class="chart-current neg" id="stat-net-worth-chart">\u2014</span>
         <span class="chart-trend" id="chart-trend-delta" title="Change versus your locked starting debt (the dashed line). Down is paydown; up means debt grew."></span>
@@ -265,7 +268,7 @@ function buildDebtReductionChart() {
 function buildSessionPanel() {
   const section = el('section', { class: 'section-panel session-card dashboard-only-section', id: 'session-card' });
   section.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;padding-top:4px;">
       <p class="tc-section-label" style="margin:0;" title="This Turn — net change in your debt since the previous snapshot. Negative = you paid down; positive = balances grew.">This Turn</p>
       <span class="turn-since-label" id="turn-since-label"></span>
     </div>
@@ -397,7 +400,7 @@ function buildManualEntryForm() {
         <span>Start climb</span>
       </div>
     </div>
-    <p class="tc-section-label" style="margin-bottom:16px;">Your Debts</p>
+    <p class="tc-section-label" style="margin:0 0 16px;padding-top:4px;">Your Debts</p>
 
     <!-- Saved debts list (shown when debts exist) -->
     <div id="saved-debts-list" class="saved-debts-list" style="display:none;">
