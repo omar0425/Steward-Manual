@@ -21,7 +21,13 @@ test.describe('First-run setup', () => {
   test('saving with no accounts shows a validation message', async ({ page }) => {
     await register(page);
     await passGates(page);
-    // Click "Save Debts" with no rows added.
+    // With no account rows there is nothing to commit, so the "Save Debts"
+    // button stays hidden — an empty save can't be triggered and the button
+    // never reads as an orphaned, dead control.
+    await expect(page.locator('#save-snapshot-btn')).toBeHidden();
+    // Add an (empty) row → the Save button appears; saving it still validates.
+    await page.click('#add-debt-account-btn');
+    await expect(page.locator('#save-snapshot-btn')).toBeVisible();
     await page.click('#save-snapshot-btn');
     await expect(page.locator('#snapshot-save-msg, .manual-entry-validation').first())
       .toContainText(/add at least one/i);
