@@ -419,7 +419,9 @@ h1, h2, h3 {
 .locked-blur-layer {
   position: absolute; inset: 0;
   filter: blur(2px) saturate(0.65) brightness(0.75);
-  transform: scale(1.06); /* prevent fringe at edges */
+  /* No scale() here: the card already clips with overflow:hidden, and scaling
+     pushed this layer's box past the card edges. The dark .locked-card-overlay
+     sits on top and hides the faint 2px blur fringe at the borders. */
 }
 .locked-card-overlay {
   position: absolute; inset: 0; z-index: 15;
@@ -502,7 +504,10 @@ h1, h2, h3 {
 
 /* ── Hero story column — stat sheet attached to the card ── */
 .hero-story {
-  display: flex; flex-direction: column; gap: 0; padding-top: 0; min-width: 0; flex: 1;
+  /* gap is the MINIMUM spacing between blocks; justify-content:space-between
+     (set in the polish pass below) only adds more when there's extra height.
+     With gap:0 the blocks could collide when the column is short. */
+  display: flex; flex-direction: column; gap: 14px; padding-top: 0; min-width: 0; flex: 1;
   border-left: 1px solid var(--border);
   padding-left: 2px;
 }
@@ -837,6 +842,17 @@ board-liquidity-pill
    trend columns share one alignment down the whole table; only the name flexes. */
 .debt-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 104px 52px 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .debt-row:last-child { border-bottom: none; }
+/* Phones: the five fixed tracks (~380px) crowd a narrow panel and would force
+   horizontal overflow. Keep the same five columns (so the header still lines up)
+   but tighten every fixed track and the elements that carry hardcoded widths
+   (.dr-delta min-width, .dr-spark width). The name column keeps the remainder. */
+@media (max-width: 560px) {
+  .debt-row { grid-template-columns: minmax(0, 1fr) 70px 82px 38px 40px; gap: 6px; }
+  .debt-row .dr-delta { min-width: 38px; }
+  .debt-row .dr-spark { width: 40px; }
+  .dr-apr { font-size: 9px; }
+  .dr-balance { font-size: 16px; }
+}
 .dr-name  { min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dr-balance-cell { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
 .dr-balance { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
@@ -1827,8 +1843,8 @@ body[data-theme-transitioning] .data-chip {
      because of the auto cross-margins and shrinks to the collapsed <summary>'s
      content width (~206px), reading as crushed and off-centre. */
   width: 100%;
-  margin: 4px auto 32px;
-  max-width: 480px;
+  margin: 12px auto 32px;
+  max-width: 640px;
   border-top: 1px solid var(--border);
   padding: 14px 12px 4px;
   color: var(--text-3);
@@ -2157,6 +2173,11 @@ body[data-setup-mode="first"] .setup-welcome {
 .manual-entry-actions .commitment-btn {
   width: 100%;
   max-width: 320px;
+  /* align-items:center already centres these in the column flex, but make it
+     margin-explicit too so it reads as centred regardless of how the parent's
+     justify-content resolves. */
+  margin-left: auto;
+  margin-right: auto;
 }
 /* Ghost/secondary treatment — used for the additive "Add account" action so it
    doesn't compete with the primary gold button (Update Balances / Start Climb)
@@ -2344,7 +2365,7 @@ body[data-setup-mode="first"] .setup-welcome {
   color: var(--text-3);
   font-size: 12px;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   width: auto;
 }
 .undo-last-btn:hover { color: var(--text-2); text-decoration: underline; }
