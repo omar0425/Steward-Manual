@@ -281,7 +281,9 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   );
   const chartWrap = document.querySelector('.chart-wrap');
   if (chartSnaps.length >= 2) {
-    renderNetWorthChart(chartSnaps);
+    renderNetWorthChart(chartSnaps, {
+      baseline: Number(stats && (stats.climbBaselineDebt != null ? stats.climbBaselineDebt : stats.gameStartDebt)),
+    });
     const ph = document.getElementById('nw-empty-state');
     if (ph) ph.hidden = true;
     const svg = document.getElementById('networth-chart-svg');

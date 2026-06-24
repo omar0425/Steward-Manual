@@ -77,7 +77,7 @@ function syncWhatIfSection() {
   updateWhatIfReadout();
 }
 
-export function renderNetWorthChart(snapshots) {
+export function renderNetWorthChart(snapshots, opts = {}) {
   const svg     = document.getElementById('networth-chart-svg');
   const lineEl  = document.getElementById('nw-line');
   const areaEl  = document.getElementById('nw-area');
@@ -85,6 +85,11 @@ export function renderNetWorthChart(snapshots) {
   const deltaEl = document.getElementById('chart-trend-delta');
   const debtDisplay = document.getElementById('stat-net-worth-chart');
   if (!svg || !lineEl || !areaEl) return;
+  // The locked starting debt (climb baseline). It can sit ABOVE the first plotted
+  // snapshot when a forgotten debt was folded in later — so progress must be
+  // measured against it, not against the first point on the line.
+  const baselineDebt = Number(opts && opts.baseline);
+  const hasBaseline = Number.isFinite(baselineDebt) && baselineDebt > 0;
 
   const pts = snapshots
     .map(s => ({
@@ -142,7 +147,9 @@ export function renderNetWorthChart(snapshots) {
   const projDaysAtEdge = historyDays * (PROJ_FRAC / (1 - PROJ_FRAC));
 
   const minV = projecting ? 0 : Math.min(...values);
-  const maxV = Math.max(...values);
+  // Include the baseline in the domain so its reference line is always visible,
+  // even when it sits above every recorded balance.
+  const maxV = Math.max(Math.max(...values), hasBaseline ? baselineDebt : -Infinity);
   const range = maxV - minV || 1;
 
   function xPos(i) { return PX + (i / (pts.length - 1)) * historyW; }
@@ -159,6 +166,35 @@ export function renderNetWorthChart(snapshots) {
   }
 
   lineEl.setAttribute('d', lineD);
+
+  // Starting-line: a faint dashed rule at the locked baseline so progress reads
+  // against where you started (with all debts logged), not against the first
+  // point on the line. Created lazily and reused across renders.
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  let baseLine = svg.querySelector('#nw-baseline');
+  if (hasBaseline) {
+    const yB = yPos(baselineDebt);
+    if (!baseLine) {
+      baseLine = document.createElementNS(SVGNS, 'line');
+      baseLine.setAttribute('id', 'nw-baseline');
+      baseLine.setAttribute('class', 'nw-baseline');
+      baseLine.setAttribute('stroke', '#c8a84c');   // gold, matches projection
+      baseLine.setAttribute('stroke-width', '1');
+      baseLine.setAttribute('stroke-dasharray', '2 4');
+      baseLine.setAttribute('opacity', '0.5');
+      const t = document.createElementNS(SVGNS, 'title');
+      t.textContent = 'Starting debt (your locked baseline)';
+      baseLine.appendChild(t);
+      svg.insertBefore(baseLine, lineEl); // behind the debt line
+    }
+    baseLine.setAttribute('x1', PX);
+    baseLine.setAttribute('x2', (PX + plotW).toFixed(1));
+    baseLine.setAttribute('y1', yB.toFixed(1));
+    baseLine.setAttribute('y2', yB.toFixed(1));
+    baseLine.removeAttribute('hidden');
+  } else if (baseLine) {
+    baseLine.setAttribute('hidden', '');
+  }
 
   const last = coords[coords.length - 1];
   const areaD = lineD +
@@ -230,20 +266,22 @@ export function renderNetWorthChart(snapshots) {
   }
 
   if (deltaEl) {
-    /* `reduction > 0` means debt went down since the first snapshot in this
-       window. We render it with a directional arrow + an explicit reference
-       point so the chip is unambiguous regardless of which "direction is
-       good" the reader assumes. */
-    const reduction = values[0] - values[values.length - 1];
+    /* Measure progress against the locked baseline when we have it (so folding
+       in a forgotten debt reads as the correction it is, not as back-sliding);
+       otherwise fall back to the first plotted snapshot. `reduction > 0` = debt
+       went down. The reference word makes the chip unambiguous. */
+    const anchor = hasBaseline ? baselineDebt : values[0];
+    const ref = hasBaseline ? 'since you started' : 'since first snapshot';
+    const reduction = anchor - values[values.length - 1];
     const amt = '$' + Math.abs(Math.round(reduction)).toLocaleString();
     if (reduction > 0) {
-      deltaEl.textContent = `↓ ${amt} since first snapshot`;
+      deltaEl.textContent = `↓ ${amt} ${ref}`;
       deltaEl.className = 'chart-trend pos';
     } else if (reduction < 0) {
-      deltaEl.textContent = `↑ ${amt} since first snapshot`;
+      deltaEl.textContent = `↑ ${amt} ${ref}`;
       deltaEl.className = 'chart-trend neg';
     } else {
-      deltaEl.textContent = 'flat since first snapshot';
+      deltaEl.textContent = `flat ${ref}`;
       deltaEl.className = 'chart-trend';
     }
   }

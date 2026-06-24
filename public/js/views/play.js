@@ -233,7 +233,7 @@ function buildDebtReductionChart() {
       <span class="section-label">Debt Remaining</span>
       <span class="section-summary-meta">
         <span class="chart-current neg" id="stat-net-worth-chart">\u2014</span>
-        <span class="chart-trend" id="chart-trend-delta" title="Change since the first snapshot in this window. Down is paydown; up means debt grew."></span>
+        <span class="chart-trend" id="chart-trend-delta" title="Change versus your locked starting debt (the dashed line). Down is paydown; up means debt grew."></span>
       </span>
     </summary>
     <div class="chart-wrap">
