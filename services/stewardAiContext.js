@@ -40,7 +40,7 @@ const {
 } = require('./climbMetrics');
 const { refreshNicknames } = require('./stewardAiNicknames');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, DAYS_PER_MONTH } = require('./pace');
-const { buildPayoffPlan } = require('./payoffPlan');
+const { buildPayoffPlan, interestSavedSinceStart } = require('./payoffPlan');
 
 // ── Config keys used by this module ───────────────────────────────────────────
 const LAST_IF_DO_NOTHING_KEY    = 'steward_ai_last_if_do_nothing_at';
@@ -372,6 +372,11 @@ function buildContext() {
   const payoffPlan = buildPayoffPlan(
     currentAccounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance, apr: aprMap[String(a.id)] })),
   );
+  // How much less interest the balances cost per month now vs the starting
+  // balances — the "money kept from the bank" framing.
+  const interestSaved = interestSavedSinceStart(
+    annotatedAccounts.map((a) => ({ apr: a.apr, balance: a.balance, startBalance: Number(firstBalances.get(String(a.id))) })),
+  );
   const hasAnyApr = Object.values(aprMap).some(
     (v) => Number.isFinite(Number(v)) && Number(v) > 0,
   );
@@ -469,6 +474,10 @@ function buildContext() {
       },
       interest: {
         monthlyCost: monthlyInterest,
+        // Money the user's paydown is keeping from the bank each month vs their
+        // starting balances (positive = saved). Quote it as encouragement.
+        savedPerMonthVsStart: interestSaved.hasApr ? interestSaved.savedMonthly : null,
+        savedPerYearVsStart: interestSaved.hasApr ? interestSaved.savedAnnual : null,
         topAccount: topInterest && {
           name: safe(topInterest.name),
           monthlyCost: topInterest.monthlyCost,

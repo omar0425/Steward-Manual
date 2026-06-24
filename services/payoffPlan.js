@@ -58,4 +58,36 @@ function buildPayoffPlan(accounts) {
   };
 }
 
-module.exports = { buildPayoffPlan };
+/**
+ * "Interest saved" framing — how much LESS interest your balances cost per month
+ * now versus your starting balances, i.e. money paying down has rescued from the
+ * bank. Honest and derivable from data we already keep (each account's first-
+ * known balance, current balance, and APR).
+ *
+ *   monthlyInterest = Σ balance × (apr/100) / 12   (only accounts with a known APR)
+ *
+ * @param {Array<{apr:number|null, startBalance:number, balance:number}>} accounts
+ * @returns {{ startMonthly:number, currentMonthly:number, savedMonthly:number,
+ *             savedAnnual:number, hasApr:boolean }}
+ */
+function interestSavedSinceStart(accounts) {
+  let startMonthly = 0;
+  let currentMonthly = 0;
+  let hasApr = false;
+  for (const a of Array.isArray(accounts) ? accounts : []) {
+    const apr = Number(a && a.apr);
+    if (!Number.isFinite(apr) || apr <= 0) continue;
+    hasApr = true;
+    const rate = apr / 100 / 12;
+    const start = Number(a.startBalance);
+    const curr = Number(a.balance);
+    if (Number.isFinite(start) && start > 0) startMonthly += start * rate;
+    if (Number.isFinite(curr) && curr > 0) currentMonthly += curr * rate;
+  }
+  startMonthly = round2(startMonthly);
+  currentMonthly = round2(currentMonthly);
+  const savedMonthly = round2(startMonthly - currentMonthly);
+  return { startMonthly, currentMonthly, savedMonthly, savedAnnual: round2(savedMonthly * 12), hasApr };
+}
+
+module.exports = { buildPayoffPlan, interestSavedSinceStart };

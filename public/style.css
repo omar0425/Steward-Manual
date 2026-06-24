@@ -1284,6 +1284,7 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .trophy-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 .trophy-val { font-family: 'Cormorant Garamond', serif; font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: var(--emerald); }
 .trophy-sub { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--text-2); }
+.trophy-saved { margin-top: 6px; font-size: 12px; line-height: 1.4; color: var(--emerald); }
 .trophy-context { font-size: 14px; color: var(--text-2); line-height: 1.6; max-width: 440px; }
 
 /* ══════════════════════════════════════════════════════════════════════

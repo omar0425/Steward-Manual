@@ -380,6 +380,7 @@ function buildCumulativePaydownTrophy() {
         <p class="trophy-label" title="Total Cleared — every dollar paid against principal since tracking began. Never decreases, even if new debt is added.">Total Cleared</p>
         <p class="trophy-val" id="stat-cumulative-paydown">\u2014</p>
         <p class="trophy-sub" id="cumulative-pct"></p>
+        <p class="trophy-saved" id="trophy-interest-saved" title="How much less interest your balances cost each month now versus your starting balances \u2014 money your paydown is keeping from the bank." hidden></p>
       </div>
       <p class="trophy-context">This number only goes up. New debt doesn\u2019t reduce it \u2014 it tracks every dollar paid against the principal. Permanent record.</p>
     </div>

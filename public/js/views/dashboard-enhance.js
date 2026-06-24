@@ -230,6 +230,20 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
       // net position — the moment any new debt is added. One % on screen, not two.
       pctEl.textContent = 'of $' + Math.round(baseline).toLocaleString() + ' starting balance';
     }
+    // "Interest saved" — money your paydown is keeping from the bank each month
+    // versus your starting balances. Only shown when APRs make it real & positive.
+    const savedEl = document.getElementById('trophy-interest-saved');
+    if (savedEl) {
+      const is = stats.interestSaved;
+      const monthly = is && Number(is.savedMonthly);
+      if (is && is.hasApr && Number.isFinite(monthly) && monthly >= 1) {
+        const annual = Math.round(Number(is.savedAnnual));
+        savedEl.textContent = `↓ ~$${Math.round(monthly).toLocaleString()}/mo less interest than at the start (≈$${annual.toLocaleString()}/yr kept from the bank)`;
+        savedEl.hidden = false;
+      } else {
+        savedEl.hidden = true;
+      }
+    }
   }
 
   /* ── Locked next-tier card ── */
