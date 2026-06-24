@@ -246,6 +246,11 @@ export function fillProgressNarrative({
         } else if (m.type === 'account-paid-off') {
           row.innerHTML = `🎉 <strong>Paid off:</strong> ${escapeText(m.accountName || 'an account')}.`;
           queuePaidOffCelebration(m.accountName);
+          fireStageUpConfetti(); // a card hitting $0 deserves the gold rain too
+        } else if (m.type === 'paydown-milestone') {
+          const amt = '$' + Number(m.amount || 0).toLocaleString();
+          row.innerHTML = `🏆 <strong>${amt} cleared!</strong> That much out of the bank's hands for good.`;
+          fireStageUpConfetti();
         } else {
           rendered = false;
         }

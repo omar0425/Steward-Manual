@@ -804,6 +804,30 @@ test('forgot-a-debt: WITHOUT the flag, a new account counts as new debt (the spi
   });
 });
 
+test('paydown milestone fires when Total Cleared crosses $1,000', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Pay down $1,500 → crosses the $1,000 milestone.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 8500 }],
+    });
+    assert.equal(res.status, 200);
+
+    const status = await (await fetch(`${baseUrl}/api/status`)).json();
+    const ms = (status.recentMilestones || []).find((m) => m.type === 'paydown-milestone' && m.amount === 1000);
+    assert.ok(ms, '$1,000 paydown milestone present');
+    assert.equal(ms.id, 'paydown:1000');
+    // Not yet at $2,500 → that milestone should not appear.
+    assert.ok(!(status.recentMilestones || []).some((m) => m.amount === 2500));
+  });
+});
+
 test('origin tracking: setup→baseline, new account→new, forgotten→baseline', async () => {
   await withApp(async (baseUrl) => {
     let res = await postJson(baseUrl, '/api/snapshot', {
