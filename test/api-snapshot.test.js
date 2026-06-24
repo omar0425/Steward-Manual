@@ -804,6 +804,40 @@ test('forgot-a-debt: WITHOUT the flag, a new account counts as new debt (the spi
   });
 });
 
+test('origin tracking: setup→baseline, new account→new, forgotten→baseline', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // A genuinely-new loan, unclassified → 'new' (should show as a rise).
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }, { id: 'loan', name: 'Loan', balance: 2000 }],
+    });
+    assert.equal(res.status, 200);
+
+    // A forgotten account flagged pre-existing → 'baseline' (carried back).
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'visa', name: 'Visa', balance: 10000 },
+        { id: 'loan', name: 'Loan', balance: 2000 },
+        { id: 'old', name: 'Old', balance: 3000 },
+      ],
+      classifications: { old: 'preexisting' },
+    });
+    assert.equal(res.status, 200);
+
+    const exp = await (await fetch(`${baseUrl}/api/export`)).json();
+    const origin = JSON.parse(exp.settings.debt_account_origin);
+    assert.equal(origin.visa, 'baseline', 'setup inventory is baseline');
+    assert.equal(origin.loan, 'new', 'unflagged new account is new debt');
+    assert.equal(origin.old, 'baseline', 'forgotten/flagged account is baseline');
+  });
+});
+
 test('export: enriched JSON carries names/summary and still restores cleanly', async () => {
   await withApp(async (baseUrl) => {
     let res = await postJson(baseUrl, '/api/snapshot', {

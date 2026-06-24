@@ -73,7 +73,10 @@ export function render(status, snapshots) {
   fillThisTurnPanel(stats);
 
   if (typeof window.stewardVnextEnhance === 'function') {
-    window.stewardVnextEnhance({ tier, stats, nextTier, meta, stability: stab, snapshots, streak: status.streak });
+    window.stewardVnextEnhance({
+      tier, stats, nextTier, meta, stability: stab, snapshots,
+      streak: status.streak, correctedDebtSeries: status.correctedDebtSeries,
+    });
   }
 
   lastRenderedCumulativePaidDown = paidShown;
