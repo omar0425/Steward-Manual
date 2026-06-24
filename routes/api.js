@@ -23,7 +23,7 @@ const {
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
 } = require('../db');
-const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth } = require('../services/pace');
+const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown } = require('../services/pace');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 const {
   getClimbTier,
@@ -346,6 +346,8 @@ router.get('/status', (req, res) => {
   // Projected debt-free date + this-month progress, from the same real history.
   const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
   const netPaidThisMonth = paidThisMonth(snapshots);
+  // Lifetime average paid down per month (Total Cleared ÷ months since start).
+  const avgMonthlyPayment = averageMonthlyPaydown(climb.cumulativePaidDown, gameStartAt);
 
   // "Pay this next" — avalanche (highest APR) + snowball (smallest balance),
   // from authoritative balances joined with stored APRs and names.
@@ -383,6 +385,7 @@ router.get('/status', (req, res) => {
       monthlyPace:           monthlyPace || 0,
       debtFree:              debtFreeProjection,
       paidThisMonth:         netPaidThisMonth,
+      avgMonthlyPayment,
       payoffPlan,
       interestSaved,
       netImprovement:        climb.netImprovement,

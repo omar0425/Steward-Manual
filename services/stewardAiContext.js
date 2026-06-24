@@ -39,7 +39,7 @@ const {
   getLastDebtSyncDebugForStatus,
 } = require('./climbMetrics');
 const { refreshNicknames } = require('./stewardAiNicknames');
-const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, DAYS_PER_MONTH } = require('./pace');
+const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, DAYS_PER_MONTH } = require('./pace');
 const { buildPayoffPlan, interestSavedSinceStart } = require('./payoffPlan');
 
 // ── Config keys used by this module ───────────────────────────────────────────
@@ -298,6 +298,9 @@ function buildContext() {
   // can speak to current behavior and a real finish line, from the same history.
   const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
   const netPaidThisMonth = paidThisMonth(snapshots);
+  // Lifetime average paid down per month (Total Cleared ÷ months since start).
+  // Robust where the trailing snapshot pace bails (first balance below today's).
+  const avgMonthlyPayment = averageMonthlyPaydown(climb.cumulativePaidDown, gameStartAt);
 
   // True monthly paydown: total balance reduction across ALL cards over the
   // last ~30 days, from the snapshots table. This is the figure the Steward
@@ -465,6 +468,10 @@ function buildContext() {
         // negative = grew). The user's current-behavior signal — quote it when
         // they ask how they're doing "this month" / "lately".
         paidThisMonth: netPaidThisMonth != null ? dollars(netPaidThisMonth) : null,
+        // Lifetime average paydown per month (Total Cleared ÷ months since the
+        // climb began). Quote it when the user asks their "average monthly
+        // payment". Null until there's enough history to average honestly.
+        lifetimeAvgMonthlyPaydown: avgMonthlyPayment != null ? dollars(avgMonthlyPayment) : null,
         // Projected debt-free finish line at the current pace. onTrack is false
         // (with a reason) when there isn't enough progress to project honestly —
         // do NOT invent a date in that case.

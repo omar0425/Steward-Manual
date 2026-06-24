@@ -342,6 +342,7 @@ function buildStageProgressDetail() {
       <li id="progress-bullet-turn"></li>
       <li id="progress-bullet-newdebt"></li>
       <li id="progress-bullet-interest"></li>
+      <li id="progress-bullet-avgmonth"></li>
       <li id="progress-bullet-direction"></li>
     </ul>
     <button type="button" id="reclassify-debt-btn" class="reclassify-link" hidden>Some of that was interest or a debt you forgot to log? Reclassify it →</button>
