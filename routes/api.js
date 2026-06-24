@@ -319,6 +319,15 @@ router.get('/status', (req, res) => {
       });
     }
   }
+  // Paydown milestones — a small win each time Total Cleared crosses a threshold.
+  // Permanent achievements (no timestamp in the id): dedup fires each once, ever.
+  const PAYDOWN_MILESTONES = [1000, 2500, 5000, 10000, 25000, 50000, 100000];
+  const totalCleared = Number(climb.cumulativePaidDown) || 0;
+  for (const threshold of PAYDOWN_MILESTONES) {
+    if (totalCleared >= threshold) {
+      candidateMilestones.push({ id: `paydown:${threshold}`, type: 'paydown-milestone', amount: threshold });
+    }
+  }
   const recentMilestones = candidateMilestones.filter((m) => !seenIds.has(m.id));
 
   // monthsEstimate: average monthly paydown from recent snapshots, applied to
