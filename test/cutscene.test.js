@@ -46,7 +46,8 @@ test('pickCutsceneVideo: returns a clip from the pool; rng selects deterministic
   assert.equal(pickCutsceneVideo(() => 0.5, pool), 'b');
   assert.equal(pickCutsceneVideo(() => 0.999, pool), 'c');
   // Default pool: whatever it returns must be one of the configured clips.
-  assert.ok(DEFAULT_CUTSCENE_VIDEOS.includes(pickCutsceneVideo()));
+  // (Pass the pool explicitly so this doesn't depend on process env state.)
+  assert.ok(DEFAULT_CUTSCENE_VIDEOS.includes(pickCutsceneVideo(Math.random, DEFAULT_CUTSCENE_VIDEOS)));
 });
 
 test('pickCutsceneVideo: empty pool → null', () => {

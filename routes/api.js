@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router  = express.Router();
+const { Readable } = require('stream');
 
 const {
   latestSnapshot,
@@ -1002,14 +1003,40 @@ router.post('/config/cutscene-seen', express.json(), (req, res) => {
 // ── GET /api/cutscene/video ───────────────────────────────────────────────────
 // Private: only the cutscene user reaches a real video. The /api mount blocks
 // logged-out requests; any other authenticated account gets a 404. For the
-// cutscene user we 302-redirect to a RANDOM clip from the pool (large remote
-// MP4s) — Dropbox handles the streaming/range, so no bytes pass through us.
-router.get('/cutscene/video', (req, res) => {
+// cutscene user we PROXY a random remote clip (forwarding Range so seeking
+// works). Proxying — rather than a 302 redirect — keeps the <video> same-origin;
+// a cross-origin media redirect failed to load in the browser. Bytes stream
+// through, never buffered whole.
+router.get('/cutscene/video', async (req, res) => {
   if (!req.user || !isCutsceneUser(req.user.username)) return res.status(404).end();
   const url = pickCutsceneVideo();
   if (!url) return res.status(404).end();
+
+  const headers = {};
+  if (req.headers.range) headers.Range = req.headers.range;
+
+  let upstream;
+  try {
+    upstream = await fetch(url, { headers, redirect: 'follow' });
+  } catch (err) {
+    console.error('[cutscene] upstream fetch failed:', err && err.message);
+    return res.status(502).end();
+  }
+  if (upstream.status !== 200 && upstream.status !== 206) return res.status(502).end();
+
+  res.status(upstream.status); // 200 or 206 (range)
+  for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
+    const v = upstream.headers.get(h);
+    if (v) res.setHeader(h, v);
+  }
+  if (!upstream.headers.get('content-type')) res.setHeader('Content-Type', 'video/mp4');
   res.setHeader('Cache-Control', 'private, no-store');
-  return res.redirect(302, url);
+
+  if (!upstream.body) return res.end();
+  const node = Readable.fromWeb(upstream.body);
+  node.on('error', () => { try { res.destroy(); } catch (_) { /* ignore */ } });
+  res.on('close', () => { try { node.destroy(); } catch (_) { /* ignore */ } });
+  node.pipe(res);
 });
 
 router.get('/brokerage', (req, res) => {
