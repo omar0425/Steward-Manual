@@ -59,8 +59,17 @@ function injectStylesOnce() {
       padding: 6px 14px; cursor: pointer; transition: color .15s ease, border-color .15s ease;
     }
     .cutscene-skip:hover { color: var(--text, #f4efe4); border-color: var(--gold, #c8a84c); }
-    .cutscene-body { display: flex; background: #000; min-height: 0; }
+    .cutscene-body { position: relative; display: flex; background: #000; min-height: 0; }
     .cutscene-video { display: block; width: 100%; height: auto; max-height: 72vh; background: #000; }
+    .cutscene-unmute {
+      position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.06em;
+      color: #0a0c14; background: var(--gold, #c8a84c); border: none; border-radius: 999px;
+      padding: 9px 18px; cursor: pointer; box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+      transition: background .15s ease;
+    }
+    .cutscene-unmute:hover { background: var(--gold-2, #e3bd72); }
     .cutscene-footer {
       padding: 10px 16px; border-top: 1px solid var(--border, rgba(255,255,255,0.08));
       font-family: 'Cormorant Garamond', serif; font-size: 14px; font-style: italic;
@@ -121,12 +130,40 @@ function showCutscene() {
 
   const video = document.createElement('video');
   video.className = 'cutscene-video';
-  // Cache-buster so each trigger re-hits the route and gets a fresh random clip.
-  video.src = `${stewardApiUrl(VIDEO_SRC)}?t=${Date.now()}`;
+  // One random seed per play: the server resolves it to a single stable clip, so
+  // every range request in this playback hits the same file (a per-request random
+  // pick corrupts seeking). The seed is unique per play, so it also cache-busts.
+  const seed = Math.floor(Math.random() * 1e9);
+  video.src = `${stewardApiUrl(VIDEO_SRC)}?v=${seed}`;
   video.setAttribute('playsinline', '');
   video.controls = true;
   video.autoplay = true;
+  video.preload = 'auto'; // buffer immediately so it starts the moment it opens
+  // Muted autoplay is the only kind browsers allow without a prior user gesture.
+  // Without this the clip starts then halts after ~a second. We auto-start muted
+  // and offer a one-tap unmute for sound.
+  video.muted = true;
   body.appendChild(video);
+
+  // Kick playback as soon as there's enough buffered — a belt-and-suspenders
+  // retry on top of the autoplay attribute so nothing waits on a manual press.
+  const kick = () => { const pr = video.play(); if (pr && typeof pr.catch === 'function') pr.catch(() => {}); };
+  video.addEventListener('loadeddata', kick, { once: true });
+  video.addEventListener('canplay', kick, { once: true });
+
+  const unmute = document.createElement('button');
+  unmute.type = 'button';
+  unmute.className = 'cutscene-unmute';
+  unmute.textContent = '🔊 Tap for sound';
+  body.appendChild(unmute);
+  unmute.addEventListener('click', () => {
+    video.muted = false;
+    const pr = video.play();
+    if (pr && typeof pr.catch === 'function') pr.catch(() => {});
+    unmute.remove();
+  });
+  // If they unmute via the native controls instead, drop our prompt.
+  video.addEventListener('volumechange', () => { if (!video.muted) unmute.remove(); });
 
   overlay.appendChild(stage);
   document.body.appendChild(overlay);
@@ -139,6 +176,10 @@ function showCutscene() {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(overlay, onKey); });
   video.addEventListener('ended', () => dismiss(overlay, onKey));
   video.addEventListener('error', () => {
+    // A seek/abort cancelling an in-flight request fires error code 1
+    // (MEDIA_ERR_ABORTED) — that's benign, not a load failure, so don't tear the
+    // player down for it.
+    if (video.error && video.error.code === 1) return;
     // Keep the chrome; swap just the video area for a graceful card.
     body.innerHTML = `
       <div class="cutscene-fallback">

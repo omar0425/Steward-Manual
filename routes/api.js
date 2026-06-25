@@ -26,7 +26,7 @@ const {
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown } = require('../services/pace');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
-const { isCutsceneUser, paydownTriggersCutscene, pickCutsceneVideo } = require('../services/cutscene');
+const { isCutsceneUser, paydownTriggersCutscene, selectCutsceneVideo } = require('../services/cutscene');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -1009,7 +1009,10 @@ router.post('/config/cutscene-seen', express.json(), (req, res) => {
 // through, never buffered whole.
 router.get('/cutscene/video', async (req, res) => {
   if (!req.user || !isCutsceneUser(req.user.username)) return res.status(404).end();
-  const url = pickCutsceneVideo();
+  // Stable per-play selection from the client's seed so every range request in
+  // one playback resolves to the SAME clip (a per-request random pick corrupts
+  // seeking — the browser would fetch a byte range of one clip and get another).
+  const url = selectCutsceneVideo(req.query && req.query.v);
   if (!url) return res.status(404).end();
 
   const headers = {};
