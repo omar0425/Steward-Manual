@@ -276,14 +276,17 @@ h1, h2, h3 {
   display: flex; flex-direction: column; gap: 16px;
 }
 
-/* ── Ultrawide: two-column dashboard ──────────────────────────────────────
-   Above 1500px the single column wastes half the screen. Areas are assigned
-   by child order, which is fixed by mountPlayShell() in views/play.js:
+/* ── Wide screens: two-column dashboard ───────────────────────────────────
+   Above 1200px the single column wastes half the screen. 1200 (not 1500) is
+   deliberate: it sits below a typical ~1262px "side-panel open" width AND a
+   ~1500px "panel closed" width, so the layout stays two-column either way
+   instead of flipping whenever a side panel toggles. Areas are assigned by
+   child order, fixed by mountPlayShell() in views/play.js:
    1 hero · 2 entry · 3 chart · 4 This Turn · 5 debt accounts ·
    6 stage progress · 7 trophy · 8 data strip · 9 danger zone.
    Setup view (body[data-setup-mode]) keeps the single column — only the
    entry panel is visible there and a grid would leave the right half empty. */
-@media (min-width: 1500px) {
+@media (min-width: 1200px) {
   /* Match the id-specificity of the `#dashboard { display: flex }` rule below
      so the grid wins. Only once the app is ready and not in setup view. */
   body[data-app-mode="ready"]:not([data-setup-mode]) #dashboard {
