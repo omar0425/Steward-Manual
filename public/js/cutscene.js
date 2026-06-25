@@ -135,11 +135,18 @@ function showCutscene() {
   video.setAttribute('playsinline', '');
   video.controls = true;
   video.autoplay = true;
+  video.preload = 'auto'; // buffer immediately so it starts the moment it opens
   // Muted autoplay is the only kind browsers allow without a prior user gesture.
   // Without this the clip starts then halts after ~a second. We auto-start muted
   // and offer a one-tap unmute for sound.
   video.muted = true;
   body.appendChild(video);
+
+  // Kick playback as soon as there's enough buffered — a belt-and-suspenders
+  // retry on top of the autoplay attribute so nothing waits on a manual press.
+  const kick = () => { const pr = video.play(); if (pr && typeof pr.catch === 'function') pr.catch(() => {}); };
+  video.addEventListener('loadeddata', kick, { once: true });
+  video.addEventListener('canplay', kick, { once: true });
 
   const unmute = document.createElement('button');
   unmute.type = 'button';
