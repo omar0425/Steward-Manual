@@ -1,19 +1,18 @@
 'use strict';
 
 /* ── Milestone cutscene ─────────────────────────────────────────────────────
-   A personal easter egg for LoudFlipFlopz: every 75th login the server arms a
-   `cutsceneReady` flag (status payload). On the next dashboard render we play a
-   short fullscreen video once, then tell the server to clear the flag so it
-   never repeats.
+   A personal easter egg for LoudFlipFlopz: whenever a balance update clears
+   $500+ of debt, the server arms a `cutsceneReady` flag (status payload). On the
+   next dashboard render we play ONE random clip fullscreen, wrapped in Steward
+   chrome, then tell the server to clear the flag so it plays only once.
 
-   Drop the video at:  public/videos/cutscene.mp4   (served at /videos/cutscene.mp4)
-   If the file is missing we show a graceful themed card instead of a black void.
+   The clip is served by the auth-gated route GET /api/cutscene/video, which
+   302-redirects the cutscene user to a random video and 404s everyone else. If
+   playback fails we show a graceful themed card instead of a black void.
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { stewardApiUrl } from './api.js';
 
-// Auth-gated route: the server streams this only to the cutscene user and 404s
-// for everyone else, so the clip is never exposed at a public URL.
 const VIDEO_SRC = '/api/cutscene/video';
 let _played = false;          // once per page load, even if render() runs again
 let _isCutsceneUser = false;  // set from the status payload; gates the test trigger
@@ -31,24 +30,47 @@ function injectStylesOnce() {
     }
     .cutscene-overlay.cutscene-show { opacity: 1; }
     .cutscene-stage {
-      position: relative; width: min(92vw, 960px); max-height: 86vh;
+      position: relative; display: flex; flex-direction: column;
+      width: min(92vw, 960px); max-height: 92vh;
       border: 1px solid var(--gold, #c8a84c); border-radius: 14px;
-      box-shadow: 0 20px 80px rgba(0,0,0,0.6); overflow: hidden; background: #000;
+      background: var(--surface, #12161f);
+      box-shadow: 0 20px 80px rgba(0,0,0,0.6); overflow: hidden;
     }
-    .cutscene-video { display: block; width: 100%; height: auto; max-height: 86vh; background: #000; }
+    .cutscene-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+      background: linear-gradient(180deg, rgba(200,168,76,0.12), transparent);
+    }
+    .cutscene-emblem {
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 17px; line-height: 1;
+      background: var(--gold-soft, rgba(200,168,76,0.14)); border: 1px solid var(--gold, #c8a84c);
+    }
+    .cutscene-title {
+      font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600;
+      color: var(--gold-2, #e3bd72); letter-spacing: 0.01em; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     .cutscene-skip {
-      position: absolute; top: 12px; right: 12px; z-index: 2;
-      font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
-      color: rgba(255,255,255,0.9); background: rgba(0,0,0,0.55);
-      border: 1px solid rgba(255,255,255,0.3); border-radius: 999px;
-      padding: 6px 14px; cursor: pointer; transition: background .15s ease;
+      margin-left: auto; flex-shrink: 0;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text-2, #b9b3a6); background: transparent;
+      border: 1px solid var(--border-2, rgba(255,255,255,0.18)); border-radius: 999px;
+      padding: 6px 14px; cursor: pointer; transition: color .15s ease, border-color .15s ease;
     }
-    .cutscene-skip:hover { background: rgba(0,0,0,0.85); }
+    .cutscene-skip:hover { color: var(--text, #f4efe4); border-color: var(--gold, #c8a84c); }
+    .cutscene-body { display: flex; background: #000; min-height: 0; }
+    .cutscene-video { display: block; width: 100%; height: auto; max-height: 72vh; background: #000; }
+    .cutscene-footer {
+      padding: 10px 16px; border-top: 1px solid var(--border, rgba(255,255,255,0.08));
+      font-family: 'Cormorant Garamond', serif; font-size: 14px; font-style: italic;
+      color: var(--text-2, #b9b3a6); text-align: center;
+    }
     .cutscene-fallback {
-      padding: 48px 32px; text-align: center; color: var(--text, #f4efe4);
+      padding: 44px 28px; text-align: center; width: 100%;
       font-family: 'Cormorant Garamond', serif;
     }
-    .cutscene-fallback-title { font-size: 24px; font-weight: 600; color: var(--gold-2, #e3bd72); margin-bottom: 8px; }
+    .cutscene-fallback-title { font-size: 22px; font-weight: 600; color: var(--gold-2, #e3bd72); margin-bottom: 8px; }
     .cutscene-fallback-line { font-size: 14px; font-style: italic; color: var(--text-2, #b9b3a6); }
   `;
   document.head.appendChild(style);
@@ -71,20 +93,6 @@ function dismiss(overlay, onKey) {
   window.setTimeout(() => overlay.remove(), 400);
 }
 
-function showFallback(stage) {
-  stage.innerHTML = `
-    <div class="cutscene-fallback">
-      <div class="cutscene-fallback-title">🎩 The Steward prepared a moment for you…</div>
-      <div class="cutscene-fallback-line">…but the reel isn't loaded yet. Press Skip to carry on.</div>
-    </div>`;
-  const skip = document.createElement('button');
-  skip.type = 'button';
-  skip.className = 'cutscene-skip';
-  skip.textContent = 'Skip ▸';
-  stage.appendChild(skip);
-  return skip;
-}
-
 function showCutscene() {
   // Never stack overlays (rapid re-fires of the test trigger, or test + real).
   if (document.querySelector('.cutscene-overlay')) return;
@@ -93,25 +101,33 @@ function showCutscene() {
   const overlay = document.createElement('div');
   overlay.className = 'cutscene-overlay';
   overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-label', 'Cutscene');
+  overlay.setAttribute('aria-label', 'A moment from the Steward');
 
+  // Steward chrome: header (emblem + title + skip) · body (video) · footer line.
   const stage = document.createElement('div');
   stage.className = 'cutscene-stage';
+  stage.innerHTML = `
+    <div class="cutscene-header">
+      <span class="cutscene-emblem" aria-hidden="true">🧐</span>
+      <span class="cutscene-title">A moment, well earned.</span>
+      <button type="button" class="cutscene-skip">Skip ▸</button>
+    </div>
+    <div class="cutscene-body"></div>
+    <div class="cutscene-footer">Another $500 cleared. The climb continues.</div>
+  `;
+
+  const body = stage.querySelector('.cutscene-body');
+  const skip = stage.querySelector('.cutscene-skip');
 
   const video = document.createElement('video');
   video.className = 'cutscene-video';
-  video.src = stewardApiUrl(VIDEO_SRC);
+  // Cache-buster so each trigger re-hits the route and gets a fresh random clip.
+  video.src = `${stewardApiUrl(VIDEO_SRC)}?t=${Date.now()}`;
   video.setAttribute('playsinline', '');
   video.controls = true;
   video.autoplay = true;
+  body.appendChild(video);
 
-  const skip = document.createElement('button');
-  skip.type = 'button';
-  skip.className = 'cutscene-skip';
-  skip.textContent = 'Skip ▸';
-
-  stage.appendChild(video);
-  stage.appendChild(skip);
   overlay.appendChild(stage);
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('cutscene-show'));
@@ -123,8 +139,12 @@ function showCutscene() {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(overlay, onKey); });
   video.addEventListener('ended', () => dismiss(overlay, onKey));
   video.addEventListener('error', () => {
-    const fallbackSkip = showFallback(stage);
-    fallbackSkip.addEventListener('click', () => dismiss(overlay, onKey));
+    // Keep the chrome; swap just the video area for a graceful card.
+    body.innerHTML = `
+      <div class="cutscene-fallback">
+        <div class="cutscene-fallback-title">🎩 The Steward prepared a moment for you…</div>
+        <div class="cutscene-fallback-line">…but the reel couldn't load just now. Press Skip to carry on.</div>
+      </div>`;
   });
 
   // Autoplay-with-sound is often blocked on load; the controls let the user
@@ -134,8 +154,8 @@ function showCutscene() {
 }
 
 /**
- * Called from render() with the status payload. Plays the cutscene once when the
- * server has armed it (every 75th login for the cutscene user).
+ * Called from render() with the status payload. Plays one random cutscene when
+ * the server has armed it (a $500+ debt drop, cutscene user only).
  */
 export function maybePlayCutscene(status) {
   if (status && status.cutsceneUser === true) _isCutsceneUser = true;
@@ -148,8 +168,8 @@ export function maybePlayCutscene(status) {
 }
 
 /* ── Manual test trigger (cutscene user only) ────────────────────────────────
-   Verify the overlay/video without logging in 75 times — neither path touches
-   the real login counter or the 75-login flag:
+   Preview the cutscene without clearing $500 — neither path touches the real
+   trigger flag:
      • run  stewardPlayCutscene()  in the browser console (re-fireable), or
      • load the dashboard with  ?cutscene=test
    Gated to the cutscene account; and even if bypassed, the video route 404s for
