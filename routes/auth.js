@@ -22,7 +22,8 @@ const {
   PASSWORD_RESET_TTL_MS,
   SESSION_TTL_MS,
 } = require('../db-auth');
-const { withUser, resetAllGameState } = require('../db');
+const { withUser, resetAllGameState, getConfig, setConfig } = require('../db');
+const { shouldFireCutscene } = require('../services/cutscene');
 const {
   sendEmail,
   buildPasswordResetEmail,
@@ -39,6 +40,25 @@ function setSessionCookie(res, session) {
     maxAge: SESSION_TTL_MS,
     path: '/',
   });
+}
+
+/**
+ * Count a successful login per-user and, for the cutscene user, arm the
+ * every-75-logins cutscene. The dashboard reads `pending_cutscene` on its next
+ * load, plays it, then clears the flag. Best-effort: a counting failure must
+ * never block the login itself.
+ */
+function recordLoginAndMaybeArmCutscene(user) {
+  if (!user || user.id == null) return;
+  try {
+    withUser(user.id, () => {
+      const n = (Number(getConfig('login_count')) || 0) + 1;
+      setConfig('login_count', String(n));
+      if (shouldFireCutscene(user.username, n)) setConfig('pending_cutscene', '1');
+    });
+  } catch (err) {
+    console.error('[auth] login-count', err);
+  }
 }
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
@@ -258,6 +278,7 @@ router.post('/login', (req, res) => {
     _clearLoginAttempts(attemptKey);
     const session = createSession(user.id);
     setSessionCookie(res, session);
+    recordLoginAndMaybeArmCutscene(user);
 
     // Structured login log → live signup/login feed in Railway logs.
     console.log(
@@ -652,6 +673,7 @@ router.get('/google/callback', async (req, res) => {
     const user = findOrCreateGoogleUser(profile.email, profile.name);
     const session = createSession(user.id);
     setSessionCookie(res, session);
+    recordLoginAndMaybeArmCutscene(user);
 
     // Structured login log (Google path) → same feed as local register/login.
     console.log(
