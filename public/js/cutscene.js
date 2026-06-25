@@ -83,6 +83,8 @@ function showFallback(stage) {
 }
 
 function showCutscene() {
+  // Never stack overlays (rapid re-fires of the test trigger, or test + real).
+  if (document.querySelector('.cutscene-overlay')) return;
   injectStylesOnce();
 
   const overlay = document.createElement('div');
@@ -133,9 +135,30 @@ function showCutscene() {
  * server has armed it (every 75th login for the cutscene user).
  */
 export function maybePlayCutscene(status) {
+  maybePlayTestCutscene();
   if (_played) return;
   if (!status || status.cutsceneReady !== true) return;
   _played = true;
   clearFlag();
   showCutscene();
+}
+
+/* ── Manual test trigger ─────────────────────────────────────────────────────
+   Verify the overlay (and, once dropped in, the video) without logging in 75
+   times — neither path touches the real login counter or the 75-login flag:
+     • run  stewardPlayCutscene()  in the browser console (re-fireable), or
+     • load the dashboard with  ?cutscene=test
+   Safe to leave in production: it only opens a local, dismissible overlay. */
+let _testParamChecked = false;
+function maybePlayTestCutscene() {
+  if (_testParamChecked) return;
+  _testParamChecked = true;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('cutscene') === 'test') showCutscene();
+  } catch (_) { /* ignore */ }
+}
+
+if (typeof window !== 'undefined') {
+  window.stewardPlayCutscene = showCutscene;
 }
