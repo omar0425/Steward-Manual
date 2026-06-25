@@ -16,6 +16,7 @@ import { fillProgressNarrative, renderNetWorthClimb } from './render-progress.js
 import {
   refreshDebtPanelData, setDebtSortMode, toggleAprForm, fillDebtAccountsList, renderPayThisNext,
 } from './render-debts.js';
+import { maybePlayCutscene } from './cutscene.js';
 
 export { refreshDebtPanelData, setDebtSortMode, toggleAprForm };
 
@@ -71,6 +72,9 @@ export function render(status, snapshots) {
   fillDebtAccountsList(stats);
   renderPayThisNext(stats);
   fillThisTurnPanel(stats);
+
+  // Personal easter egg: plays once when the server arms it (every 75th login).
+  maybePlayCutscene(status);
 
   if (typeof window.stewardVnextEnhance === 'function') {
     window.stewardVnextEnhance({

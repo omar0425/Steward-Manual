@@ -37,3 +37,4 @@ require('./payoff-plan.test');
 require('./corrected-series.test');
 require('./zzz-climb-metrics-apply.test');
 require('./admin-restore.test');
+require('./cutscene.test');

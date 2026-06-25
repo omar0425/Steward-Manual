@@ -373,6 +373,9 @@ router.get('/status', (req, res) => {
     streak,
     recentMilestones,
     aiEnabled: stewardAi.isConfigured(),
+    // Personal easter egg: armed by the login route every 75th login for the
+    // cutscene user. The dashboard plays it once, then POSTs cutscene-seen.
+    cutsceneReady: getConfig('pending_cutscene') === '1',
     stats: {
       debtRemaining:    snap.debt_remaining,
       debtDirection,
@@ -966,6 +969,14 @@ router.post('/config/notifications-sent', express.json(), (req, res) => {
     setConfig(NOTIFICATIONS_SENT_KEY, JSON.stringify(sent));
   }
   res.json({ ok: true, sent });
+});
+
+// ── POST /api/config/cutscene-seen ────────────────────────────────────────────
+// Clears the armed cutscene so it plays exactly once per trigger.
+
+router.post('/config/cutscene-seen', express.json(), (req, res) => {
+  setConfig('pending_cutscene', '0');
+  res.json({ ok: true });
 });
 
 router.get('/brokerage', (req, res) => {
