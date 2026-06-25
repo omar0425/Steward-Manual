@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  isCutsceneUser, paydownTriggersCutscene, pickCutsceneVideo,
+  isCutsceneUser, paydownTriggersCutscene, pickCutsceneVideo, selectCutsceneVideo,
   BALANCE_DROP_TRIGGER, DEFAULT_CUTSCENE_VIDEOS,
 } = require('../services/cutscene');
 
@@ -52,4 +52,21 @@ test('pickCutsceneVideo: returns a clip from the pool; rng selects deterministic
 
 test('pickCutsceneVideo: empty pool → null', () => {
   assert.equal(pickCutsceneVideo(Math.random, []), null);
+});
+
+test('selectCutsceneVideo: same seed → same clip (stable across range requests)', () => {
+  const pool = ['a', 'b', 'c'];
+  // A fixed seed must always resolve to the same clip — this is what keeps every
+  // range request in one playback pointed at the same file.
+  assert.equal(selectCutsceneVideo(7, pool), selectCutsceneVideo(7, pool));
+  assert.equal(selectCutsceneVideo(7, pool), pool[7 % 3]);
+  assert.equal(selectCutsceneVideo(0, pool), 'a');
+  assert.equal(selectCutsceneVideo(4, pool), pool[1]);
+});
+
+test('selectCutsceneVideo: non-numeric seed falls back to a pool member; empty → null', () => {
+  const pool = ['a', 'b', 'c'];
+  assert.ok(pool.includes(selectCutsceneVideo(undefined, pool)));
+  assert.ok(pool.includes(selectCutsceneVideo('xyz', pool)));
+  assert.equal(selectCutsceneVideo(7, []), null);
 });

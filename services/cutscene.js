@@ -66,6 +66,19 @@ function pickCutsceneVideo(rng = Math.random, videos = cutsceneVideos()) {
   return videos[i];
 }
 
+/**
+ * Resolve a STABLE clip for a given client seed, so every range request in one
+ * playback hits the same file (a per-request random pick corrupts seeking — the
+ * browser asks for a byte range of clip A and gets clip B). The client sends one
+ * random seed per play; without a usable seed we fall back to a random pick.
+ */
+function selectCutsceneVideo(seed, videos = cutsceneVideos()) {
+  if (!Array.isArray(videos) || videos.length === 0) return null;
+  const n = Number(seed);
+  if (Number.isFinite(n)) return videos[Math.abs(Math.trunc(n)) % videos.length];
+  return pickCutsceneVideo(Math.random, videos);
+}
+
 module.exports = {
   CUTSCENE_USERNAME,
   BALANCE_DROP_TRIGGER,
@@ -74,4 +87,5 @@ module.exports = {
   isCutsceneUser,
   paydownTriggersCutscene,
   pickCutsceneVideo,
+  selectCutsceneVideo,
 };

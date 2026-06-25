@@ -130,8 +130,11 @@ function showCutscene() {
 
   const video = document.createElement('video');
   video.className = 'cutscene-video';
-  // Cache-buster so each trigger re-hits the route and gets a fresh random clip.
-  video.src = `${stewardApiUrl(VIDEO_SRC)}?t=${Date.now()}`;
+  // One random seed per play: the server resolves it to a single stable clip, so
+  // every range request in this playback hits the same file (a per-request random
+  // pick corrupts seeking). The seed is unique per play, so it also cache-busts.
+  const seed = Math.floor(Math.random() * 1e9);
+  video.src = `${stewardApiUrl(VIDEO_SRC)}?v=${seed}`;
   video.setAttribute('playsinline', '');
   video.controls = true;
   video.autoplay = true;
@@ -173,6 +176,10 @@ function showCutscene() {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(overlay, onKey); });
   video.addEventListener('ended', () => dismiss(overlay, onKey));
   video.addEventListener('error', () => {
+    // A seek/abort cancelling an in-flight request fires error code 1
+    // (MEDIA_ERR_ABORTED) — that's benign, not a load failure, so don't tear the
+    // player down for it.
+    if (video.error && video.error.code === 1) return;
     // Keep the chrome; swap just the video area for a graceful card.
     body.innerHTML = `
       <div class="cutscene-fallback">
