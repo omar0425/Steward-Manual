@@ -15,7 +15,6 @@ import { stewardApiUrl } from './api.js';
 
 const VIDEO_SRC = '/api/cutscene/video';
 let _played = false;          // once per page load, even if render() runs again
-let _isCutsceneUser = false;  // set from the status payload; gates the test trigger
 
 function injectStylesOnce() {
   if (document.getElementById('cutscene-style')) return;
@@ -199,32 +198,9 @@ function showCutscene() {
  * the server has armed it (a $500+ debt drop, cutscene user only).
  */
 export function maybePlayCutscene(status) {
-  if (status && status.cutsceneUser === true) _isCutsceneUser = true;
-  maybePlayTestCutscene();
   if (_played) return;
   if (!status || status.cutsceneReady !== true) return;
   _played = true;
   clearFlag();
   showCutscene();
-}
-
-/* ── Manual test trigger (cutscene user only) ────────────────────────────────
-   Preview the cutscene without clearing $500 — neither path touches the real
-   trigger flag:
-     • run  stewardPlayCutscene()  in the browser console (re-fireable), or
-     • load the dashboard with  ?cutscene=test
-   Gated to the cutscene account; and even if bypassed, the video route 404s for
-   anyone else, so they'd only ever see the empty fallback card. */
-let _testParamChecked = false;
-function maybePlayTestCutscene() {
-  if (_testParamChecked || !_isCutsceneUser) return;
-  _testParamChecked = true;
-  try {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('cutscene') === 'test') showCutscene();
-  } catch (_) { /* ignore */ }
-}
-
-if (typeof window !== 'undefined') {
-  window.stewardPlayCutscene = () => { if (_isCutsceneUser) showCutscene(); };
 }
