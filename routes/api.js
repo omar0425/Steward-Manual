@@ -375,12 +375,9 @@ router.get('/status', (req, res) => {
     streak,
     recentMilestones,
     aiEnabled: stewardAi.isConfigured(),
-    // Personal easter egg: armed by the login route every 75th login for the
-    // cutscene user. The dashboard plays it once, then POSTs cutscene-seen.
+    // Personal easter egg: armed by the snapshot route on a $500+ debt drop for
+    // the cutscene user. The dashboard plays it once, then POSTs cutscene-seen.
     cutsceneReady: getConfig('pending_cutscene') === '1',
-    // Whether THIS account is the cutscene user — gates the manual test trigger
-    // client-side. (The video route below is the real guard; this is polish.)
-    cutsceneUser: isCutsceneUser(req.user && req.user.username),
     stats: {
       debtRemaining:    snap.debt_remaining,
       debtDirection,
