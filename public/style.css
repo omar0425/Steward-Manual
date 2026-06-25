@@ -1838,10 +1838,10 @@ body[data-theme-transitioning] .data-chip {
 
 /* ── Danger zone disclosure (destructive actions, collapsed by default) ── */
 .play-danger-zone {
-  /* width:100% so the auto side-margins center a full 480px box. Without an
-     explicit width this flex item (column-flex parent) skips align-items:stretch
-     because of the auto cross-margins and shrinks to the collapsed <summary>'s
-     content width (~206px), reading as crushed and off-centre. */
+  /* width:100% + auto side-margins centre a contained 640px box at any viewport.
+     Without an explicit width this flex item (column-flex parent) skips
+     align-items:stretch because of the auto cross-margins and shrinks to the
+     collapsed <summary>'s content width (~206px), reading as crushed. */
   width: 100%;
   margin: 12px auto 32px;
   max-width: 640px;
@@ -2341,7 +2341,10 @@ body[data-setup-mode="first"] .setup-welcome {
 
 /* Reclassify control + dialog */
 .reclassify-link {
-  display: inline-block;
+  /* Full-width block so its left edge lines up with the stat grid above it
+     instead of shrink-wrapping to the text mid-panel. */
+  display: block;
+  width: 100%;
   margin-top: 12px;
   padding: 0;
   background: none;
