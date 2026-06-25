@@ -2,8 +2,6 @@
 
 const express = require('express');
 const router  = express.Router();
-const fs   = require('fs');
-const path = require('path');
 
 const {
   latestSnapshot,
@@ -27,7 +25,7 @@ const {
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown } = require('../services/pace');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
-const { isCutsceneUser } = require('../services/cutscene');
+const { isCutsceneUser, paydownTriggersCutscene, pickCutsceneVideo } = require('../services/cutscene');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -688,10 +686,16 @@ router.post('/snapshot', (req, res) => {
       safety_liquid:    safetyLiquid,
     });
 
+    // Previous total debt, captured before any mutation, so we can tell if this
+    // update cleared $500+ (the cutscene trigger).
+    let prevTotalDebtForCutscene = null;
+
     // Update per-account debt tracking. During setup this is inventory only;
     // climb metrics begin after POST /api/start-game locks the baseline.
     if (debtBalanceMap.size > 0) {
       const prevBalances = getAllDebtAccountBalances();
+      prevTotalDebtForCutscene = 0;
+      for (const v of prevBalances.values()) prevTotalDebtForCutscene += Number(v) || 0;
 
       // Snapshot the pre-pull state so a wrong entry can be undone exactly.
       // Captured before any mutation, only while the climb is running.
@@ -727,6 +731,7 @@ router.post('/snapshot', (req, res) => {
       captureUndoState(snapshotId, getAllDebtAccountBalances());
       const climb = getClimbStatsFromConfig();
       const lastDebt = climb.lastAggregateDebt;
+      if (Number.isFinite(lastDebt)) prevTotalDebtForCutscene = lastDebt;
       if (Number.isFinite(lastDebt) && lastDebt > 0) {
         const delta = roundMoney(debtRemaining - lastDebt);
         if (delta < 0) {
@@ -738,6 +743,15 @@ router.post('/snapshot', (req, res) => {
         }
       }
       setConfig('last_aggregate_debt_for_climb', String(debtRemaining));
+    }
+
+    // Cutscene trigger: this update cleared $500+ of total debt. Arms a flag the
+    // dashboard plays once on its next load (cutscene user only).
+    if (gameActive && Number.isFinite(prevTotalDebtForCutscene)) {
+      const drop = roundMoney(prevTotalDebtForCutscene - debtRemaining);
+      if (paydownTriggersCutscene(req.user && req.user.username, drop)) {
+        setConfig('pending_cutscene', '1');
+      }
     }
 
     const response = {
@@ -986,54 +1000,16 @@ router.post('/config/cutscene-seen', express.json(), (req, res) => {
 });
 
 // ── GET /api/cutscene/video ───────────────────────────────────────────────────
-// Private clip, served ONLY to the cutscene user. The /api mount already blocks
-// logged-out requests; any other authenticated account gets a 404 that's
-// indistinguishable from "no such file", so the video is never exposed. Supports
-// HTTP range requests so the <video> element can seek/stream normally.
-
-// Read lazily (not at module load) so it can be pointed at a volume path or a
-// test fixture via STEWARD_CUTSCENE_VIDEO.
-function cutsceneVideoPath() {
-  return process.env.STEWARD_CUTSCENE_VIDEO || path.join(__dirname, '..', 'media', 'cutscene.mp4');
-}
-
+// Private: only the cutscene user reaches a real video. The /api mount blocks
+// logged-out requests; any other authenticated account gets a 404. For the
+// cutscene user we 302-redirect to a RANDOM clip from the pool (large remote
+// MP4s) — Dropbox handles the streaming/range, so no bytes pass through us.
 router.get('/cutscene/video', (req, res) => {
   if (!req.user || !isCutsceneUser(req.user.username)) return res.status(404).end();
-
-  const videoPath = cutsceneVideoPath();
-  let stat;
-  try { stat = fs.statSync(videoPath); }
-  catch (_) { return res.status(404).end(); }
-
-  const total = stat.size;
-  res.setHeader('Content-Type', 'video/mp4');
-  res.setHeader('Accept-Ranges', 'bytes');
+  const url = pickCutsceneVideo();
+  if (!url) return res.status(404).end();
   res.setHeader('Cache-Control', 'private, no-store');
-
-  const range = req.headers.range;
-  if (!range) {
-    res.setHeader('Content-Length', total);
-    return fs.createReadStream(videoPath).pipe(res);
-  }
-
-  const m = /^bytes=(\d*)-(\d*)$/.exec(range);
-  if (!m) { res.setHeader('Content-Range', `bytes */${total}`); return res.status(416).end(); }
-  let start = m[1] === '' ? null : parseInt(m[1], 10);
-  let end   = m[2] === '' ? null : parseInt(m[2], 10);
-  if (start === null) {            // suffix range: final N bytes
-    start = Math.max(0, total - (end || 0));
-    end = total - 1;
-  } else if (end === null || end >= total) {
-    end = total - 1;
-  }
-  if (!Number.isFinite(start) || start > end || start >= total) {
-    res.setHeader('Content-Range', `bytes */${total}`);
-    return res.status(416).end();
-  }
-  res.status(206);
-  res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
-  res.setHeader('Content-Length', end - start + 1);
-  fs.createReadStream(videoPath, { start, end }).pipe(res);
+  return res.redirect(302, url);
 });
 
 router.get('/brokerage', (req, res) => {

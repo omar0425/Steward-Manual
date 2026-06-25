@@ -2,7 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { shouldFireCutscene, isCutsceneUser, CUTSCENE_EVERY } = require('../services/cutscene');
+const {
+  isCutsceneUser, paydownTriggersCutscene, pickCutsceneVideo,
+  BALANCE_DROP_TRIGGER, DEFAULT_CUTSCENE_VIDEOS,
+} = require('../services/cutscene');
 
 test('isCutsceneUser: matches the cutscene account case-insensitively, with trim', () => {
   assert.equal(isCutsceneUser('LoudFlipFlopz'), true);
@@ -13,29 +16,39 @@ test('isCutsceneUser: matches the cutscene account case-insensitively, with trim
   assert.equal(isCutsceneUser(null), false);
 });
 
-test('shouldFireCutscene: fires on exact multiples of 75 for the cutscene user', () => {
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 75), true);
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 150), true);
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 225), true);
-  assert.equal(CUTSCENE_EVERY, 75);
+test('paydownTriggersCutscene: fires on a $500+ drop for the cutscene user', () => {
+  assert.equal(BALANCE_DROP_TRIGGER, 500);
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', 500), true);
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', 1200), true);
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', 500.01), true);
 });
 
-test('shouldFireCutscene: does NOT fire on non-multiples', () => {
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 1), false);
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 74), false);
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 76), false);
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 0), false);
+test('paydownTriggersCutscene: does NOT fire below $500 or on a debt increase', () => {
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', 499.99), false);
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', 0), false);
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', -800), false); // debt grew
 });
 
-test('shouldFireCutscene: never fires for other users, even on a multiple of 75', () => {
-  assert.equal(shouldFireCutscene('SomeoneElse', 75), false);
-  assert.equal(shouldFireCutscene('', 150), false);
-  assert.equal(shouldFireCutscene(null, 75), false);
+test('paydownTriggersCutscene: never fires for other users, even on a big drop', () => {
+  assert.equal(paydownTriggersCutscene('SomeoneElse', 5000), false);
+  assert.equal(paydownTriggersCutscene(null, 5000), false);
 });
 
-test('shouldFireCutscene: tolerates bad counts', () => {
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', '75'), true); // numeric string ok
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', 75.5), false);
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', NaN), false);
-  assert.equal(shouldFireCutscene('LoudFlipFlopz', undefined), false);
+test('paydownTriggersCutscene: tolerates bad amounts', () => {
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', NaN), false);
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', undefined), false);
+  assert.equal(paydownTriggersCutscene('LoudFlipFlopz', '750'), true); // numeric string ok
+});
+
+test('pickCutsceneVideo: returns a clip from the pool; rng selects deterministically', () => {
+  const pool = ['a', 'b', 'c'];
+  assert.equal(pickCutsceneVideo(() => 0, pool), 'a');
+  assert.equal(pickCutsceneVideo(() => 0.5, pool), 'b');
+  assert.equal(pickCutsceneVideo(() => 0.999, pool), 'c');
+  // Default pool: whatever it returns must be one of the configured clips.
+  assert.ok(DEFAULT_CUTSCENE_VIDEOS.includes(pickCutsceneVideo()));
+});
+
+test('pickCutsceneVideo: empty pool → null', () => {
+  assert.equal(pickCutsceneVideo(Math.random, []), null);
 });
