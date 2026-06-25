@@ -12,8 +12,11 @@
 
 import { stewardApiUrl } from './api.js';
 
-const VIDEO_SRC = '/videos/cutscene.mp4';
-let _played = false; // once per page load, even if render() runs again
+// Auth-gated route: the server streams this only to the cutscene user and 404s
+// for everyone else, so the clip is never exposed at a public URL.
+const VIDEO_SRC = '/api/cutscene/video';
+let _played = false;          // once per page load, even if render() runs again
+let _isCutsceneUser = false;  // set from the status payload; gates the test trigger
 
 function injectStylesOnce() {
   if (document.getElementById('cutscene-style')) return;
@@ -97,7 +100,7 @@ function showCutscene() {
 
   const video = document.createElement('video');
   video.className = 'cutscene-video';
-  video.src = VIDEO_SRC;
+  video.src = stewardApiUrl(VIDEO_SRC);
   video.setAttribute('playsinline', '');
   video.controls = true;
   video.autoplay = true;
@@ -135,6 +138,7 @@ function showCutscene() {
  * server has armed it (every 75th login for the cutscene user).
  */
 export function maybePlayCutscene(status) {
+  if (status && status.cutsceneUser === true) _isCutsceneUser = true;
   maybePlayTestCutscene();
   if (_played) return;
   if (!status || status.cutsceneReady !== true) return;
@@ -143,15 +147,16 @@ export function maybePlayCutscene(status) {
   showCutscene();
 }
 
-/* ── Manual test trigger ─────────────────────────────────────────────────────
-   Verify the overlay (and, once dropped in, the video) without logging in 75
-   times — neither path touches the real login counter or the 75-login flag:
+/* ── Manual test trigger (cutscene user only) ────────────────────────────────
+   Verify the overlay/video without logging in 75 times — neither path touches
+   the real login counter or the 75-login flag:
      • run  stewardPlayCutscene()  in the browser console (re-fireable), or
      • load the dashboard with  ?cutscene=test
-   Safe to leave in production: it only opens a local, dismissible overlay. */
+   Gated to the cutscene account; and even if bypassed, the video route 404s for
+   anyone else, so they'd only ever see the empty fallback card. */
 let _testParamChecked = false;
 function maybePlayTestCutscene() {
-  if (_testParamChecked) return;
+  if (_testParamChecked || !_isCutsceneUser) return;
   _testParamChecked = true;
   try {
     const params = new URLSearchParams(window.location.search);
@@ -160,5 +165,5 @@ function maybePlayTestCutscene() {
 }
 
 if (typeof window !== 'undefined') {
-  window.stewardPlayCutscene = showCutscene;
+  window.stewardPlayCutscene = () => { if (_isCutsceneUser) showCutscene(); };
 }

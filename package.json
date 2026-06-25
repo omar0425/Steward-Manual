@@ -1,6 +1,6 @@
 {
   "name": "steward-manual",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "description": "Manual debt payoff dashboard — enter your own numbers, same gamified climb system",
   "main": "server.js",
   "scripts": {

@@ -2,6 +2,8 @@
 
 const express = require('express');
 const router  = express.Router();
+const fs   = require('fs');
+const path = require('path');
 
 const {
   latestSnapshot,
@@ -25,6 +27,7 @@ const {
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown } = require('../services/pace');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
+const { isCutsceneUser } = require('../services/cutscene');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -376,6 +379,9 @@ router.get('/status', (req, res) => {
     // Personal easter egg: armed by the login route every 75th login for the
     // cutscene user. The dashboard plays it once, then POSTs cutscene-seen.
     cutsceneReady: getConfig('pending_cutscene') === '1',
+    // Whether THIS account is the cutscene user — gates the manual test trigger
+    // client-side. (The video route below is the real guard; this is polish.)
+    cutsceneUser: isCutsceneUser(req.user && req.user.username),
     stats: {
       debtRemaining:    snap.debt_remaining,
       debtDirection,
@@ -977,6 +983,57 @@ router.post('/config/notifications-sent', express.json(), (req, res) => {
 router.post('/config/cutscene-seen', express.json(), (req, res) => {
   setConfig('pending_cutscene', '0');
   res.json({ ok: true });
+});
+
+// ── GET /api/cutscene/video ───────────────────────────────────────────────────
+// Private clip, served ONLY to the cutscene user. The /api mount already blocks
+// logged-out requests; any other authenticated account gets a 404 that's
+// indistinguishable from "no such file", so the video is never exposed. Supports
+// HTTP range requests so the <video> element can seek/stream normally.
+
+// Read lazily (not at module load) so it can be pointed at a volume path or a
+// test fixture via STEWARD_CUTSCENE_VIDEO.
+function cutsceneVideoPath() {
+  return process.env.STEWARD_CUTSCENE_VIDEO || path.join(__dirname, '..', 'media', 'cutscene.mp4');
+}
+
+router.get('/cutscene/video', (req, res) => {
+  if (!req.user || !isCutsceneUser(req.user.username)) return res.status(404).end();
+
+  const videoPath = cutsceneVideoPath();
+  let stat;
+  try { stat = fs.statSync(videoPath); }
+  catch (_) { return res.status(404).end(); }
+
+  const total = stat.size;
+  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'private, no-store');
+
+  const range = req.headers.range;
+  if (!range) {
+    res.setHeader('Content-Length', total);
+    return fs.createReadStream(videoPath).pipe(res);
+  }
+
+  const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+  if (!m) { res.setHeader('Content-Range', `bytes */${total}`); return res.status(416).end(); }
+  let start = m[1] === '' ? null : parseInt(m[1], 10);
+  let end   = m[2] === '' ? null : parseInt(m[2], 10);
+  if (start === null) {            // suffix range: final N bytes
+    start = Math.max(0, total - (end || 0));
+    end = total - 1;
+  } else if (end === null || end >= total) {
+    end = total - 1;
+  }
+  if (!Number.isFinite(start) || start > end || start >= total) {
+    res.setHeader('Content-Range', `bytes */${total}`);
+    return res.status(416).end();
+  }
+  res.status(206);
+  res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+  res.setHeader('Content-Length', end - start + 1);
+  fs.createReadStream(videoPath, { start, end }).pipe(res);
 });
 
 router.get('/brokerage', (req, res) => {
