@@ -190,6 +190,8 @@ function fillDebtFreeBanner(stats) {
   if (df && df.alreadyFree) {
     if (dateEl) dateEl.textContent = 'Debt-free 🎉';
     if (subEl) subEl.textContent = 'You made it. The climb is complete.';
+    const pf = document.getElementById('payoff-forecast');
+    if (pf) pf.hidden = true;
     banner.hidden = false;
     return;
   }
@@ -199,6 +201,7 @@ function fillDebtFreeBanner(stats) {
     const paceBit = Number.isFinite(pace) && pace > 0 ? `at ~${fmtDollar(Math.round(pace))}/mo` : '';
     if (subEl) subEl.textContent = [paceBit, thisMonthBit].filter(Boolean).join(' · ');
     banner.hidden = false;
+    fillPayoffForecast(stats);
     return;
   }
   // No honest date yet. Still show the month's progress if there is any.
@@ -206,9 +209,38 @@ function fillDebtFreeBanner(stats) {
     if (dateEl) dateEl.textContent = 'Building your forecast…';
     if (subEl) subEl.textContent = `${thisMonthBit} · keep logging to set a finish line.`;
     banner.hidden = false;
+    fillPayoffForecast(stats);
     return;
   }
   banner.hidden = true;
+}
+
+/* Probabilistic payoff band (Monte Carlo over the user's own paydown history).
+   Shown under the deterministic date as an honest range + odds. Hidden until the
+   simulation has enough positive-trending history. */
+function fillPayoffForecast(stats) {
+  const el = document.getElementById('payoff-forecast');
+  if (!el) return;
+  const f = stats && stats.payoffForecast;
+  if (!f || !f.ready || f.alreadyFree || !f.medianDate) { el.hidden = true; return; }
+
+  const median = formatMonthYear(f.medianDate);
+  const optimistic = f.optimisticDate ? formatMonthYear(f.optimisticDate) : null;
+  const conservative = f.conservativeDate ? formatMonthYear(f.conservativeDate) : null;
+  const range = optimistic && conservative ? `${optimistic} – ${conservative}` : (conservative || optimistic || '—');
+
+  // Pick the most meaningful "X% chance within N" line.
+  let odds = '';
+  if (Number.isFinite(f.prob1yr) && f.prob1yr >= 50) odds = `${f.prob1yr}% chance within 1 year`;
+  else if (Number.isFinite(f.prob2yr) && f.prob2yr >= 40) odds = `${f.prob2yr}% chance within 2 years`;
+  else if (Number.isFinite(f.prob3yr)) odds = `${f.prob3yr}% chance within 3 years`;
+
+  el.innerHTML =
+    `<span class="pf-label">Forecast</span>` +
+    `<span class="pf-line">Most likely <b>${median}</b> · likely range ${range}</span>` +
+    (odds ? `<span class="pf-odds">${odds}</span>` : '');
+  el.title = `Monte Carlo simulation: ${f.runs.toLocaleString()} runs resampled from your own ${f.samples} logged paydown periods. The range is the 10th–90th percentile of simulated payoff dates.`;
+  el.hidden = false;
 }
 
 export function fillProgressNarrative({
