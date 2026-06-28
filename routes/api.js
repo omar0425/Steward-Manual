@@ -24,7 +24,7 @@ const {
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
 } = require('../db');
-const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown } = require('../services/pace');
+const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
 const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 const { isCutsceneUser, paydownTriggersCutscene, selectCutsceneVideo } = require('../services/cutscene');
@@ -409,6 +409,7 @@ router.get('/status', (req, res) => {
       debtFree:              debtFreeProjection,
       paidThisMonth:         netPaidThisMonth,
       avgMonthlyPayment,
+      suggestedMonthly: suggestedMonthlyTarget(snap.debt_remaining),
       payoffForecast,
       interestSavedToDate,
       payoffPlan,

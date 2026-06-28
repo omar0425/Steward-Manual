@@ -155,20 +155,36 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   /* ── Monthly target ── */
   // This is a monthly check-in app, so the directive is the whole gap to the
   // next stage (what clearing this month unlocks), not a per-day bite.
-  const monthlyTarget = document.getElementById('stat-monthly-target');
+  // A stage gap is a whole slice of the debt, not a one-month sprint. Frame it by
+  // the user's actual pace (months to escape this stage); fall back to a
+  // debt-scaled suggested monthly when there's no pace yet. Never demand the full
+  // gap "this month" \u2014 unrealistic on large balances.
+  const ctaLine = document.getElementById('hero-primary-cta');
   const monthlyTargetSub = document.getElementById('hero-cta-sub');
-  if (monthlyTarget) {
-    if (nextTier && nextTier.gapDollars > 0) {
-      const gap = Math.round(Number(nextTier.gapDollars));
-      monthlyTarget.textContent = '$' + gap.toLocaleString();
-      monthlyTarget.title = `Clearing $${gap.toLocaleString()} this month unlocks the next stage.`;
-      if (monthlyTargetSub) {
-        monthlyTargetSub.textContent = 'unlocks the next stage';
-        monthlyTargetSub.hidden = false;
+  if (ctaLine) {
+    const gap = nextTier && nextTier.gapDollars > 0 ? Math.round(Number(nextTier.gapDollars)) : 0;
+    const pace = Number(stats && (stats.monthlyPace || stats.avgMonthlyPayment)) || 0;
+    const stageLabel = (tier && tier.label) ? tier.label : 'this stage';
+
+    if (gap > 0 && pace > 0) {
+      const months = Math.max(1, Math.ceil(gap / pace));
+      const moWord = months === 1 ? 'month' : 'months';
+      ctaLine.innerHTML = `~<span class="val" id="stat-monthly-target">${months}</span> ${moWord} to escape ${stageLabel}`;
+      ctaLine.title = `At your ~$${Math.round(pace).toLocaleString()}/mo pace, escaping ${stageLabel} ($${gap.toLocaleString()} to go) takes about ${months} ${moWord}.`;
+      if (monthlyTargetSub) { monthlyTargetSub.textContent = `at your ~$${Math.round(pace).toLocaleString()}/mo pace`; monthlyTargetSub.hidden = false; }
+    } else if (gap > 0) {
+      const suggested = Number(stats && stats.suggestedMonthly) || 0;
+      if (suggested > 0) {
+        ctaLine.innerHTML = `Aim ~<span class="val" id="stat-monthly-target">$${suggested.toLocaleString()}</span>/mo to start the climb`;
+        ctaLine.title = 'A realistic starting target (~2% of your balance). Log a few months and the Steward swaps this for your real pace and timeline.';
+        if (monthlyTargetSub) { monthlyTargetSub.textContent = 'log to set your real timeline'; monthlyTargetSub.hidden = false; }
+      } else {
+        ctaLine.innerHTML = `<span class="val" id="stat-monthly-target">$${gap.toLocaleString()}</span> to escape ${stageLabel}`;
+        if (monthlyTargetSub) { monthlyTargetSub.textContent = 'log your balances to set a timeline'; monthlyTargetSub.hidden = false; }
       }
     } else {
-      monthlyTarget.textContent = '\u2014';
-      monthlyTarget.removeAttribute('title');
+      ctaLine.innerHTML = `<span class="val" id="stat-monthly-target">\u2014</span>`;
+      ctaLine.removeAttribute('title');
       if (monthlyTargetSub) { monthlyTargetSub.textContent = ''; monthlyTargetSub.hidden = true; }
     }
   }

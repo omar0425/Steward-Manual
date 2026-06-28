@@ -63,7 +63,17 @@ test('paidThisMonth: no snapshots → null', () => {
   assert.equal(paidThisMonth([], { now: NOW }), null);
 });
 
-const { averageMonthlyPaydown } = require('../services/pace');
+const { averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
+
+test('suggestedMonthlyTarget: ~2% of balance, rounded, scales with debt', () => {
+  assert.equal(suggestedMonthlyTarget(77000), 1550); // 2% = 1540 → round to $25
+  assert.equal(suggestedMonthlyTarget(10000), 200);  // 2% = 200
+  assert.equal(suggestedMonthlyTarget(1000), 50);    // 2% = 20 → floored at 50
+  assert.equal(suggestedMonthlyTarget(0), null);
+  assert.equal(suggestedMonthlyTarget(-5), null);
+  // Bigger debt → bigger suggested monthly (so it scales / extends with debt).
+  assert.ok(suggestedMonthlyTarget(150000) > suggestedMonthlyTarget(50000));
+});
 
 test('averageMonthlyPaydown: total cleared / months since start', () => {
   // $1,713 cleared, started 32 days before NOW → ~1.05 months → ~$1,629/mo.

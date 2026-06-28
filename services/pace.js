@@ -115,11 +115,29 @@ function averageMonthlyPaydown(cumulativePaidDown, gameStartAt, { now = Date.now
   return Math.round((paid / months) * 100) / 100;
 }
 
+/**
+ * A realistic suggested monthly paydown for when we don't yet have the user's
+ * own pace: a small fraction of the current balance, so the target scales with
+ * the debt (bigger balance → bigger but still-sane monthly, and proportionally
+ * longer to clear). Rounded to a tidy increment with a small floor. This is a
+ * starting aim, NOT a promise — and crucially never the whole tier gap "this
+ * month", which is what made the old CTA unrealistic.
+ *
+ * @param {number} currentDebt current total debt
+ */
+function suggestedMonthlyTarget(currentDebt, { pctOfBalance = 0.02, floor = 50, roundTo = 25 } = {}) {
+  const d = Number(currentDebt);
+  if (!Number.isFinite(d) || d <= 0) return null;
+  const raw = Math.max(floor, d * pctOfBalance);
+  return Math.round(raw / roundTo) * roundTo;
+}
+
 module.exports = {
   monthlyPaceFromSnapshots,
   projectDebtFree,
   paidThisMonth,
   averageMonthlyPaydown,
+  suggestedMonthlyTarget,
   DAYS_PER_MONTH,
   MIN_SPAN_DAYS,
 };
