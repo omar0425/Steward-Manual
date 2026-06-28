@@ -24,10 +24,16 @@ async function scan(page) {
     .disableRules(['color-contrast'])
     .analyze();
   const blocking = results.violations.filter((v) => BLOCKING.includes(v.impact));
-  // Surface details in the CI log so failures are actionable at a glance.
+  // Surface details in the CI log so failures are actionable at a glance —
+  // including the exact element target/HTML for each violating node.
   if (blocking.length) {
     console.log('axe violations:', JSON.stringify(
-      blocking.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length })),
+      blocking.map((v) => ({
+        id: v.id,
+        impact: v.impact,
+        help: v.help,
+        nodes: v.nodes.map((n) => ({ target: n.target, html: n.html })),
+      })),
       null, 2,
     ));
   }
