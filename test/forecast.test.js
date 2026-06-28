@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { monthlyPaydownSamples, monteCarloPayoff, DAYS_PER_MONTH } = require('../services/forecast');
+const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct, DAYS_PER_MONTH } = require('../services/forecast');
 
 const NOW = new Date('2026-06-20T12:00:00Z').getTime();
 
@@ -44,6 +44,39 @@ test('monteCarloPayoff: steady payer → ordered band, future dates, high odds',
   assert.ok(r.medianMonths <= (r.conservativeMonths ?? Infinity));
   assert.equal(r.prob1yr, 100); // 10 months < 12
   assert.ok(r.medianDate > new Date(NOW).toISOString().slice(0, 10));
+});
+
+test('effectiveAnnualAprPct: balance-weighted average; 0 when no APRs', () => {
+  // $1,000 @ 10% and $3,000 @ 30% → weighted 25%.
+  assert.equal(effectiveAnnualAprPct([
+    { balance: 1000, apr: 10 },
+    { balance: 3000, apr: 30 },
+  ]), 25);
+  assert.equal(effectiveAnnualAprPct([{ balance: 5000, apr: 0 }]), 0);
+  assert.equal(effectiveAnnualAprPct([]), 0);
+});
+
+test('monteCarloPayoff: with an APR, returns a remaining-interest band', () => {
+  // $5,000 paid at a steady $500/mo over 10 months at 24% APR.
+  const r = monteCarloPayoff(5000, [500, 500, 500], {
+    now: NOW, runs: 300, rng: () => 0, annualAprPct: 24,
+  });
+  assert.equal(r.ready, true);
+  assert.ok(r.remainingInterest);
+  // Steady run → all sims identical, so low == median == high, and > 0.
+  assert.ok(r.remainingInterest.median > 0);
+  assert.equal(r.remainingInterest.low, r.remainingInterest.median);
+  assert.equal(r.remainingInterest.high, r.remainingInterest.median);
+  // "Tread water" baseline pays interest on the full balance the whole time, so
+  // it must exceed the shrinking-balance path → positive projected savings.
+  assert.ok(r.interestIfStatic > r.remainingInterest.median);
+  assert.ok(r.interestSavedVsStatic > 0);
+});
+
+test('monteCarloPayoff: no APR → no interest band (back-compat)', () => {
+  const r = monteCarloPayoff(5000, [500, 500, 500], { now: NOW, runs: 100, rng: () => 0 });
+  assert.equal(r.ready, true);
+  assert.equal(r.remainingInterest, undefined);
 });
 
 test('monteCarloPayoff: erratic payer can leave the conservative case open-ended', () => {

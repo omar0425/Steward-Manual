@@ -2952,3 +2952,4 @@ textarea:focus {
 .im-label { font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rose); }
 .im-val { font-size: 13px; font-weight: 600; color: var(--rose); font-variant-numeric: tabular-nums; }
 .im-since { font-size: 10px; color: var(--text-3); letter-spacing: 0.02em; }
+.pf-saved { color: var(--emerald); }

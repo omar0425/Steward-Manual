@@ -25,7 +25,7 @@ const {
   getDebtAccountFirstBalances,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown } = require('../services/pace');
-const { monthlyPaydownSamples, monteCarloPayoff } = require('../services/forecast');
+const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 const { isCutsceneUser, paydownTriggersCutscene, selectCutsceneVideo } = require('../services/cutscene');
 const {
@@ -349,8 +349,6 @@ router.get('/status', (req, res) => {
   // Projected debt-free date + this-month progress, from the same real history.
   const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
   const netPaidThisMonth = paidThisMonth(snapshots);
-  // Probabilistic payoff: Monte Carlo over the user's own logged paydown history.
-  const payoffForecast = monteCarloPayoff(snap.debt_remaining, monthlyPaydownSamples(snapshots));
   // Lifetime average paid down per month (Total Cleared ÷ months since start).
   const avgMonthlyPayment = averageMonthlyPaydown(climb.cumulativePaidDown, gameStartAt);
 
@@ -370,6 +368,23 @@ router.get('/status', (req, res) => {
   // "Interest saved" — how much less interest your balances cost per month now
   // versus your starting balances (money paydown has kept from the bank).
   const interestSaved = interestSavedSinceStart(planAccounts);
+
+  // Probabilistic payoff (Monte Carlo over the user's own logged paydown), now
+  // also carrying the effective APR so it returns a remaining-interest band and
+  // the interest the paydown is projected to save vs treading water.
+  const payoffForecast = monteCarloPayoff(snap.debt_remaining, monthlyPaydownSamples(snapshots), {
+    annualAprPct: effectiveAnnualAprPct(planAccounts),
+  });
+  // Interest kept from the bank SO FAR — savings rate vs starting balances,
+  // applied across the months since the climb started. Deterministic, honest.
+  let monthsSinceStart = 0;
+  if (gameStartAt) {
+    const ms = Date.now() - Date.parse(gameStartAt);
+    if (Number.isFinite(ms) && ms > 0) monthsSinceStart = ms / 86400000 / 30.44;
+  }
+  const interestSavedToDate = interestSaved.hasApr && interestSaved.savedMonthly > 0
+    ? Math.round(interestSaved.savedMonthly * monthsSinceStart)
+    : 0;
 
   const payload = {
     ready: true,
@@ -395,6 +410,7 @@ router.get('/status', (req, res) => {
       paidThisMonth:         netPaidThisMonth,
       avgMonthlyPayment,
       payoffForecast,
+      interestSavedToDate,
       payoffPlan,
       interestSaved,
       netImprovement:        climb.netImprovement,

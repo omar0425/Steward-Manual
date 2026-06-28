@@ -49,6 +49,12 @@ function monthlyPaydownSamples(snapshots, { minDays = 2 } = {}) {
 function monteCarloPayoff(currentDebt, samples, opts = {}) {
   const { runs = 2000, maxMonths = 600, now = Date.now(), rng = Math.random } = opts;
   const debt0 = Number(currentDebt);
+  // When an effective APR is supplied, also accumulate the interest paid along
+  // each simulated path (interest on the running balance each month). This is
+  // observational — it doesn't change the paydown model, so it can't double-count.
+  const aprPct = Number(opts.annualAprPct);
+  const trackInterest = Number.isFinite(aprPct) && aprPct > 0;
+  const monthlyRate = trackInterest ? aprPct / 100 / 12 : 0;
 
   if (Number.isFinite(debt0) && debt0 <= 0) return { ready: true, alreadyFree: true };
   if (!Number.isFinite(debt0) || !Array.isArray(samples) || samples.length < 3) {
@@ -58,15 +64,19 @@ function monteCarloPayoff(currentDebt, samples, opts = {}) {
   if (!(mean > 0)) return { ready: false, reason: 'no_progress' };
 
   const months = new Array(runs);
+  const interestPaid = []; // only for runs that reach payoff (finite interest)
   let reached = 0;
   for (let r = 0; r < runs; r++) {
     let debt = debt0;
     let m = 0;
+    let interest = 0;
     while (debt > 0 && m < maxMonths) {
+      if (trackInterest) interest += debt * monthlyRate;
       debt -= samples[(rng() * samples.length) | 0];
       m++;
     }
-    if (debt <= 0) { months[r] = m; reached++; } else { months[r] = Infinity; }
+    if (debt <= 0) { months[r] = m; reached++; if (trackInterest) interestPaid.push(interest); }
+    else { months[r] = Infinity; }
   }
   months.sort((a, b) => a - b);
 
@@ -77,7 +87,7 @@ function monteCarloPayoff(currentDebt, samples, opts = {}) {
   const medianM = at(50);
   if (!Number.isFinite(medianM)) return { ready: false, reason: 'no_progress' };
 
-  return {
+  const result = {
     ready: true,
     runs,
     samples: samples.length,
@@ -89,6 +99,34 @@ function monteCarloPayoff(currentDebt, samples, opts = {}) {
     prob2yr: probWithin(24),
     prob3yr: probWithin(36),
   };
+
+  // Remaining-interest band (conditional on reaching payoff). Also a "tread
+  // water" baseline: interest if the balance never dropped over the median
+  // horizon — the difference is interest your paydown is projected to save.
+  if (trackInterest && interestPaid.length) {
+    interestPaid.sort((a, b) => a - b);
+    const ipAt = (p) => Math.round(interestPaid[Math.min(interestPaid.length - 1, Math.max(0, Math.round((p / 100) * (interestPaid.length - 1))))]);
+    const staticInterest = Math.round(debt0 * monthlyRate * medianM);
+    result.remainingInterest = { low: ipAt(10), median: ipAt(50), high: ipAt(90) };
+    result.interestIfStatic = staticInterest;
+    result.interestSavedVsStatic = Math.max(0, staticInterest - ipAt(50));
+  }
+
+  return result;
 }
 
-module.exports = { monthlyPaydownSamples, monteCarloPayoff, DAYS_PER_MONTH };
+/** Balance-weighted average APR (%) across accounts that have one. 0 if none. */
+function effectiveAnnualAprPct(accounts) {
+  let wsum = 0;
+  let bsum = 0;
+  for (const a of Array.isArray(accounts) ? accounts : []) {
+    const apr = Number(a && a.apr);
+    const bal = Number(a && a.balance);
+    if (!Number.isFinite(apr) || apr <= 0 || !Number.isFinite(bal) || bal <= 0) continue;
+    wsum += apr * bal;
+    bsum += bal;
+  }
+  return bsum > 0 ? wsum / bsum : 0;
+}
+
+module.exports = { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct, DAYS_PER_MONTH };
