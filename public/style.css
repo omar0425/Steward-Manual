@@ -2869,3 +2869,65 @@ body[data-setup-mode="first"] .setup-welcome {
 @media (max-width: 560px) {
   .manual-entry-panel { padding: 22px 18px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   POLISH PASS — curated visual wins (cherry-picked from the "premium"
+   experiment). Cosmetic only, built on existing tokens so it fits the
+   current identity. Deliberately omits the glassy translucent panels,
+   gradient-clipped text, and per-panel entrance animation that hurt
+   legibility on a data-dense dashboard.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 1 — Accessible keyboard focus ring (the app had none). */
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+
+/* 2 — Clear focus state on text inputs. */
+.login-input,
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="email"],
+textarea {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.login-input:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(200, 168, 76, 0.16);
+}
+
+/* 3 — Slim, themed scrollbars. */
+* { scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-2); border-radius: 8px;
+  border: 2px solid transparent; background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--gold); background-clip: content-box; }
+
+/* 4 — Debt rows read as interactive (gold tint matches the live-edit row; works
+   in both themes). */
+.debt-row:not(.debt-row--header) { transition: background 140ms ease; border-radius: 8px; }
+.debt-row:not(.debt-row--header):hover { background: rgba(200, 168, 76, 0.05); }
+
+/* 5 — Primary gold buttons: subtle gradient + lift (no gimmicky sheen sweep). */
+.start-btn,
+.commitment-btn {
+  background: linear-gradient(160deg, var(--gold-2) 0%, var(--gold) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px -14px var(--gold);
+  transition: transform 160ms ease, box-shadow 200ms ease, filter 160ms ease, background 140ms ease;
+}
+.start-btn:hover,
+.commitment-btn:hover {
+  background: linear-gradient(160deg, var(--gold-2) 0%, var(--gold) 100%);
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 14px 30px -14px var(--gold);
+}
+.start-btn:active,
+.commitment-btn:active { transform: translateY(0); filter: none; }
