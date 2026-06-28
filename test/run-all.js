@@ -34,6 +34,8 @@ require('./steward-ai-pace.test');
 require('./classify-debt.test');
 require('./pace-projection.test');
 require('./forecast.test');
+require('./invariants.test');
+require('./contrast.test');
 require('./payoff-plan.test');
 require('./corrected-series.test');
 require('./zzz-climb-metrics-apply.test');
