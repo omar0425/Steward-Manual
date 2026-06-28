@@ -18,8 +18,10 @@
 
 const fs = require('fs');
 
+const WANT_AI = process.argv.includes('--ai');
+
 function readInput() {
-  const arg = process.argv[2];
+  const arg = process.argv.slice(2).find((a) => !a.startsWith('--'));
   const raw = arg ? fs.readFileSync(arg, 'utf8') : fs.readFileSync(0, 'utf8');
   return JSON.parse(raw);
 }
@@ -88,10 +90,27 @@ let status;
 try { status = readInput(); }
 catch (e) { console.error('Could not read/parse status JSON:', e.message); process.exit(2); }
 
-audit(status);
+async function maybeAiAudit() {
+  if (!WANT_AI) return;
+  let ai;
+  try { ai = require('../services/stewardAi'); } catch { return; }
+  if (!ai.isConfigured()) {
+    console.log('\nAI audit skipped — no API key configured (set the Steward AI key to enable --ai).');
+    return;
+  }
+  console.log('\n— AI sense-check —');
+  const res = await ai.generateMetricsAudit({ payload: status });
+  if (!res.ok) { console.log(`AI audit unavailable (${res.error}).`); return; }
+  if (!res.findings.length) { console.log('✓ AI found nothing unrealistic.'); return; }
+  for (const f of res.findings) console.log(`⚠ ${f.severity.toUpperCase()}  ${f.note}`);
+}
 
-for (const f of findings) console.log(`${f.level === 'FAIL' ? '✗' : f.level === 'WARN' ? '⚠' : '✓'} ${f.level}  ${f.msg}`);
-const fails = findings.filter((f) => f.level === 'FAIL').length;
-const warns = findings.filter((f) => f.level === 'WARN').length;
-console.log(`\n${fails} fail · ${warns} warn · ${findings.filter((f) => f.level === 'OK').length} ok`);
-process.exit(fails ? 1 : 0);
+(async () => {
+  audit(status);
+  for (const f of findings) console.log(`${f.level === 'FAIL' ? '✗' : f.level === 'WARN' ? '⚠' : '✓'} ${f.level}  ${f.msg}`);
+  const fails = findings.filter((f) => f.level === 'FAIL').length;
+  const warns = findings.filter((f) => f.level === 'WARN').length;
+  console.log(`\n${fails} fail · ${warns} warn · ${findings.filter((f) => f.level === 'OK').length} ok`);
+  await maybeAiAudit();
+  process.exit(fails ? 1 : 0);
+})();
