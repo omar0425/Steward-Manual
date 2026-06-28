@@ -2,6 +2,7 @@
 
 import { fmtDollar, fmtSignedDollar } from './format.js';
 import { stewardApiUrl } from './api.js';
+import { updateInterestMeter } from './interest-meter.js';
 
 let _aprRates = {};
 let _debtHistory = {};
@@ -608,6 +609,9 @@ export function fillDebtAccountsList(stats) {
       ticker.textContent = '';
     }
   }
+
+  // Live interest meter — ticks the accruing interest in real time.
+  updateInterestMeter(totalMonthlyInterest);
 
   // Avalanche summary — what the debt costs per month, and where extra
   // dollars do the most damage. Hidden until APRs are entered.

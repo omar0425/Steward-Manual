@@ -193,6 +193,7 @@ function buildHeroSection() {
       <p class="hero-cta-line" id="hero-primary-cta">Clear <span class="val" id="stat-monthly-target">\u2014</span> this month</p>
       <p class="hero-cta-sub" id="hero-cta-sub" hidden></p>
       <p class="hero-interest-ticker" id="hero-interest-ticker" hidden></p>
+      <p class="interest-meter" id="interest-meter" hidden aria-live="off"></p>
 
       <span class="stat-sentinel" id="stat-debt-remaining" hidden></span>
       <span class="stat-sentinel" id="stat-net-worth" hidden></span>
@@ -336,6 +337,7 @@ function buildStageProgressDetail() {
         </div>
       </div>
       <div class="debt-free-sub" id="debt-free-sub"></div>
+      <div class="payoff-forecast" id="payoff-forecast" hidden></div>
     </div>
     <ul class="sp-grid" id="progress-detail-bullets" aria-label="Session progress">
       <li id="progress-bullet-paid"></li>

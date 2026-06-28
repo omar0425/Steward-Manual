@@ -25,6 +25,7 @@ const {
   getDebtAccountFirstBalances,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown } = require('../services/pace');
+const { monthlyPaydownSamples, monteCarloPayoff } = require('../services/forecast');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 const { isCutsceneUser, paydownTriggersCutscene, selectCutsceneVideo } = require('../services/cutscene');
 const {
@@ -348,6 +349,8 @@ router.get('/status', (req, res) => {
   // Projected debt-free date + this-month progress, from the same real history.
   const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
   const netPaidThisMonth = paidThisMonth(snapshots);
+  // Probabilistic payoff: Monte Carlo over the user's own logged paydown history.
+  const payoffForecast = monteCarloPayoff(snap.debt_remaining, monthlyPaydownSamples(snapshots));
   // Lifetime average paid down per month (Total Cleared ÷ months since start).
   const avgMonthlyPayment = averageMonthlyPaydown(climb.cumulativePaidDown, gameStartAt);
 
@@ -391,6 +394,7 @@ router.get('/status', (req, res) => {
       debtFree:              debtFreeProjection,
       paidThisMonth:         netPaidThisMonth,
       avgMonthlyPayment,
+      payoffForecast,
       payoffPlan,
       interestSaved,
       netImprovement:        climb.netImprovement,
