@@ -1,0 +1,44 @@
+name: Visual snapshots
+
+# On-demand only — NOT part of the merge-gating CI, so it can never turn a PR
+# red or block a merge. Run it from the Actions tab ("Run workflow"), or ask
+# Claude to trigger it. It generates/refreshes the reference screenshots and
+# commits them, so visual comparison can be run afterward.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  baselines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Generate baseline screenshots
+        env:
+          VISUAL: '1'
+        run: npx playwright test e2e/visual.spec.js --update-snapshots
+      - name: Commit baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No baseline changes."
+          else
+            git commit -m "chore: refresh visual snapshot baselines [skip ci]"
+            git push
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-snapshots
+          path: e2e/visual.spec.js-snapshots/
+          if-no-files-found: warn
