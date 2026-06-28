@@ -222,24 +222,40 @@ function fillPayoffForecast(stats) {
   const el = document.getElementById('payoff-forecast');
   if (!el) return;
   const f = stats && stats.payoffForecast;
-  if (!f || !f.ready || f.alreadyFree || !f.medianDate) { el.hidden = true; return; }
+  const savedToDate = Number(stats && stats.interestSavedToDate);
+  const parts = [];
 
-  const median = formatMonthYear(f.medianDate);
-  const optimistic = f.optimisticDate ? formatMonthYear(f.optimisticDate) : null;
-  const conservative = f.conservativeDate ? formatMonthYear(f.conservativeDate) : null;
-  const range = optimistic && conservative ? `${optimistic} – ${conservative}` : (conservative || optimistic || '—');
+  if (f && f.ready && !f.alreadyFree && f.medianDate) {
+    const median = formatMonthYear(f.medianDate);
+    const optimistic = f.optimisticDate ? formatMonthYear(f.optimisticDate) : null;
+    const conservative = f.conservativeDate ? formatMonthYear(f.conservativeDate) : null;
+    const range = optimistic && conservative ? `${optimistic} – ${conservative}` : (conservative || optimistic || '—');
 
-  // Pick the most meaningful "X% chance within N" line.
-  let odds = '';
-  if (Number.isFinite(f.prob1yr) && f.prob1yr >= 50) odds = `${f.prob1yr}% chance within 1 year`;
-  else if (Number.isFinite(f.prob2yr) && f.prob2yr >= 40) odds = `${f.prob2yr}% chance within 2 years`;
-  else if (Number.isFinite(f.prob3yr)) odds = `${f.prob3yr}% chance within 3 years`;
+    let odds = '';
+    if (Number.isFinite(f.prob1yr) && f.prob1yr >= 50) odds = `${f.prob1yr}% chance within 1 year`;
+    else if (Number.isFinite(f.prob2yr) && f.prob2yr >= 40) odds = `${f.prob2yr}% chance within 2 years`;
+    else if (Number.isFinite(f.prob3yr)) odds = `${f.prob3yr}% chance within 3 years`;
 
-  el.innerHTML =
-    `<span class="pf-label">Forecast</span>` +
-    `<span class="pf-line">Most likely <b>${median}</b> · likely range ${range}</span>` +
-    (odds ? `<span class="pf-odds">${odds}</span>` : '');
-  el.title = `Monte Carlo simulation: ${f.runs.toLocaleString()} runs resampled from your own ${f.samples} logged paydown periods. The range is the 10th–90th percentile of simulated payoff dates.`;
+    parts.push(`<span class="pf-line">Most likely <b>${median}</b> · likely range ${range}</span>`);
+    if (odds) parts.push(`<span class="pf-odds">${odds}</span>`);
+
+    // Remaining-interest band — interest you'll still pay before you're free.
+    const ri = f.remainingInterest;
+    if (ri && Number.isFinite(ri.median)) {
+      parts.push(`<span class="pf-odds">~${fmtDollar(ri.median)} more in interest to clear (range ${fmtDollar(ri.low)}–${fmtDollar(ri.high)})</span>`);
+    }
+  }
+
+  // Interest already kept from the bank (deterministic, vs starting balances).
+  if (Number.isFinite(savedToDate) && savedToDate > 0) {
+    parts.push(`<span class="pf-odds pf-saved">💰 Interest kept from the bank so far: ~${fmtDollar(savedToDate)}</span>`);
+  }
+
+  if (!parts.length) { el.hidden = true; return; }
+  el.innerHTML = `<span class="pf-label">Forecast</span>` + parts.join('');
+  el.title = f && f.ready
+    ? `Monte Carlo: ${f.runs.toLocaleString()} runs resampled from your ${f.samples} logged paydown periods. Range = 10th–90th percentile; interest is accrued on the running balance along each simulated path.`
+    : '';
   el.hidden = false;
 }
 
