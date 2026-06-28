@@ -375,6 +375,38 @@ function hasDailyFraming(text) {
   );
 }
 
+/**
+ * Freeform "do these numbers make sense?" audit. Sends the computed metrics to
+ * the model and asks it to flag values that are unrealistic, contradictory, or
+ * misleading for a debt-paydown user — the class of bug rule-checks can't
+ * anticipate. Returns { ok, findings: [{severity, note}] } or { ok:false, error }.
+ * Used by scripts/audit-metrics.js --ai; never runs in CI (needs an API key).
+ */
+async function generateMetricsAudit({ payload, maxTokens = 800 } = {}) {
+  if (!isConfigured()) return { ok: false, error: 'no_api_key' };
+  const system =
+    'You are a meticulous QA reviewer for a personal debt-paydown app. You are given a JSON '
+    + 'snapshot of the metrics its dashboard shows a user. Find values that are unrealistic, '
+    + 'internally contradictory, or that would mislead someone managing debt — for example: a '
+    + 'monthly payment target that is an unrealistic share of the balance, a payoff date sooner '
+    + 'than the optimistic case, a probability outside 0-100, negative interest, or a "this month" '
+    + 'target equal to a whole payoff tier. Do NOT restate values that are fine. '
+    + 'Reply with ONLY JSON: {"findings":[{"severity":"high|medium|low","note":"..."}]}. '
+    + 'An empty findings array means everything looks sane.';
+  const userContent = 'Metrics JSON:\n' + JSON.stringify(payload).slice(0, 12000);
+  const res = await callAnthropic({ system, userContent, maxTokens });
+  if (!res.ok) return res;
+  const parsed = tryParseJson(res.text);
+  if (!parsed || !Array.isArray(parsed.findings)) return { ok: true, findings: [], raw: res.text };
+  const findings = parsed.findings
+    .filter((f) => f && typeof f.note === 'string')
+    .map((f) => ({
+      severity: ['high', 'medium', 'low'].includes(f.severity) ? f.severity : 'medium',
+      note: asString(f.note, 300),
+    }));
+  return { ok: true, findings };
+}
+
 module.exports = {
   isConfigured,
   generateModeDialog,
@@ -382,6 +414,7 @@ module.exports = {
   generateQuarterlyLetter,
   generateTierQuote,
   generateAnswer,
+  generateMetricsAudit,
   hasDailyFraming,
   MODEL,
 };
