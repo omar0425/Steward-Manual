@@ -190,7 +190,7 @@ function buildHeroSection() {
       <p class="sr-only" id="hero-tier-label" aria-live="polite">Buried</p>
 
       <p class="hero-escape-primary" id="hero-escape-primary" aria-live="polite" title="Escape gap \u2014 dollars left to unlock the next payoff stage. Not your total debt; the next threshold.">\u2014</p>
-      <p class="hero-cta-line" id="hero-primary-cta">Clear <span class="val" id="stat-monthly-target">\u2014</span> this month</p>
+      <p class="hero-cta-line" id="hero-primary-cta"><span class="val" id="stat-monthly-target">\u2014</span></p>
       <p class="hero-cta-sub" id="hero-cta-sub" hidden></p>
       <p class="hero-interest-ticker" id="hero-interest-ticker" hidden></p>
       <p class="interest-meter" id="interest-meter" hidden aria-live="off"></p>
