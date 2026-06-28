@@ -542,8 +542,9 @@ export function fillDebtAccountsList(stats) {
     const latestDelta = latestDebtHistoryDelta(acct.id);
     deltaEl.className = 'dr-delta';
     if (latestDelta == null || latestDelta === 0) {
+      // Empty + decorative: a bare <span> can't carry aria-label (ARIA prohibits
+      // it on generic roles), and there's nothing to announce, so leave it bare.
       deltaEl.textContent = '';
-      deltaEl.setAttribute('aria-label', 'No recent account balance change');
     } else {
       deltaEl.textContent = fmtSignedDollar(latestDelta);
       deltaEl.classList.add(latestDelta < 0 ? 'down' : 'up');

@@ -171,6 +171,8 @@ function renderSavedDebtsList(debtLines) {
 
     // Live total update on input
     const input = row.querySelector('.saved-debt-balance-input');
+    // Label the input for screen readers (no visible <label> in the row layout).
+    input.setAttribute('aria-label', `${acct.name || 'Account'} balance`);
     input.addEventListener('input', () => updateSavedTotal());
 
     // Remove debt row
