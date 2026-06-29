@@ -98,9 +98,18 @@ export function fillThisTurnPanel(stats) {
       name.className = 'turn-row-name';
       name.textContent = r.name || 'Account';
       name.title = r.name || 'Account';
+      // Bug #5 — when an account's balance GREW this turn, the payment (if any)
+      // didn't keep up with interest. Flag it so a rise never reads as progress.
+      const d = Number(r.delta) || 0;
+      if (d > 0) {
+        const warn = document.createElement('span');
+        warn.className = 'turn-row-warn';
+        warn.textContent = ' ⚠ grew';
+        warn.title = 'This balance rose this turn — interest and new charges outpaced any payment.';
+        name.appendChild(warn);
+      }
 
       const delta = document.createElement('span');
-      const d = Number(r.delta) || 0;
       delta.className = 'turn-row-delta ' + (d < 0 ? 'neg' : d > 0 ? 'pos' : '');
       delta.textContent = fmtSignedDollar(d);
 

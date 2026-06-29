@@ -457,8 +457,9 @@ h1, h2, h3 {
 }
 .locked-card-overlay {
   position: absolute; inset: 0; z-index: 15;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
   gap: 10px;
+  padding: 44px 16px;
   background: rgba(0,0,0,0.38);
 }
 .locked-stage-tag {
@@ -1021,12 +1022,15 @@ board-liquidity-pill
   line-height: 1.4;
 }
 
-/* APR chip — display only, not interactive */
+/* APR chip — display only, not interactive. Right-aligned + tabular so the rate
+   column lines up its decimals down the table (Bug #8). */
 .dr-apr {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   color: var(--text-3);
   white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* APR edit form panel */
@@ -1369,9 +1373,11 @@ board-liquidity-pill
   .debt-row--celebrate .dr-paid-badge { animation: none; }
 }
 .turn-net-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
-.turn-row-delta { flex-shrink: 0; }
+.turn-row-delta { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .turn-row-delta.neg { color: var(--emerald); }
 .turn-row-delta.pos { color: var(--rose); }
+/* Bug #5 — amber "grew" flag inline with an account that rose this turn. */
+.turn-row-warn { color: var(--amber, #d4a030); font-size: 10px; letter-spacing: 0.04em; white-space: nowrap; }
 
 /* /play: Stage progress (short facts) */
 .progress-detail-bullets {
@@ -1415,7 +1421,9 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .trophy-val { font-family: 'Cormorant Garamond', serif; font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: var(--emerald); }
 .trophy-sub { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--text-2); }
 .trophy-saved { margin-top: 6px; font-size: 12px; line-height: 1.4; color: var(--emerald); }
-.trophy-context { font-size: 14px; color: var(--text-2); line-height: 1.6; max-width: 440px; }
+/* Bug #10 — let the description grow to share the row and stay vertically
+   centered so the card doesn't leave a dead zone on the right. */
+.trophy-context { flex: 1 1 0; align-self: center; font-size: 14px; color: var(--text-2); line-height: 1.6; max-width: 52ch; }
 
 /* ══════════════════════════════════════════════════════════════════════
    DATA SYNC STRIP
