@@ -238,7 +238,20 @@ function runDailyBackupRotation() {
     const dest = path.join(BACKUP_DIR, `steward-${today}.db`);
     if (!fs.existsSync(dest)) {
       vacuumInto(dest);
-      console.log(`[backup] daily snapshot written: ${dest}`);
+      // Self-verify the snapshot we just wrote — a silently-corrupt backup is
+      // worse than none (false confidence). Log loudly if it fails to verify.
+      let verified = false;
+      try {
+        const { DatabaseSync } = require('node:sqlite');
+        const check = new DatabaseSync(dest);
+        const integ = check.prepare('PRAGMA integrity_check').get();
+        verified = !!integ && (integ.integrity_check || Object.values(integ)[0]) === 'ok';
+        check.close();
+      } catch (err) {
+        console.error('[backup] integrity check threw:', err && err.message);
+      }
+      if (verified) console.log(`[backup] daily snapshot written + verified: ${dest}`);
+      else console.error(`[backup] WARNING: daily snapshot FAILED integrity check — do NOT rely on it: ${dest}`);
     }
     const old = fs.readdirSync(BACKUP_DIR)
       .filter((f) => /^steward-\d{4}-\d{2}-\d{2}\.db$/.test(f))

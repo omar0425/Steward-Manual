@@ -13,6 +13,7 @@
     "test:e2e:report": "playwright show-report",
     "reset-local-data": "node -e \"require('./db').resetAllGameState(); console.log('All game state cleared.');\"",
     "audit:metrics": "node scripts/audit-metrics.js",
+    "backup:drill": "node scripts/restore-drill.js",
     "test:visual": "VISUAL=1 playwright test e2e/visual.spec.js",
     "test:visual:update": "VISUAL=1 playwright test e2e/visual.spec.js --update-snapshots"
   },
