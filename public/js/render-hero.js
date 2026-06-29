@@ -13,6 +13,8 @@ import {
 } from './format.js';
 import { renderTierRail } from './layout.js';
 import { mountHeroCharacter } from './character.js';
+import { animateNumber } from './anim-number.js';
+import { initHeroTilt } from './tilt.js';
 
 /**
  * Renders the upper hero region: badge/copy/stats, tier card with bar fill,
@@ -173,10 +175,14 @@ export function renderHeroBlock({
   const cardFooterDebtEl = document.getElementById('card-footer-debt');
   if (cardFooterDebtEl) {
     const cleared = Number(stats.debtRemaining) <= 0.005;
-    cardFooterDebtEl.textContent = cleared
-      ? 'Debt free'
-      : `${fmtDollar(stats.debtRemaining)} debt remaining`;
     cardFooterDebtEl.classList.toggle('is-debt-clear', cleared);
+    if (cleared) {
+      delete cardFooterDebtEl.dataset.animVal;
+      cardFooterDebtEl.textContent = 'Debt free';
+    } else {
+      // Roll the headline debt number up/down on change (reduced-motion safe).
+      animateNumber(cardFooterDebtEl, Number(stats.debtRemaining), (v) => `${fmtDollar(Math.round(v))} debt remaining`);
+    }
   }
 
   // ── Locked next-tier card + secondary board gap label ──
@@ -189,4 +195,8 @@ export function renderHeroBlock({
   if (tierTarget) {
     tierTarget.textContent = nextTier ? `${nextTier.badge} · ${nextTier.label}` : 'Final payoff stage';
   }
+
+  // Subtle pointer-driven 3D lean on the hero card (idempotent; no-ops on
+  // touch/reduced-motion). Safe to call every render — it binds once.
+  initHeroTilt();
 }

@@ -52,7 +52,7 @@ function initTheme() {
   update();
   /* Tracks the transient transition state so rapid clicks don't pile up timers. */
   let transitionTimer = null;
-  btn.addEventListener('click', () => {
+  const applyThemeFlip = () => {
     const isDark = document.body.dataset.theme === 'dark';
     document.body.dataset.themeTransitioning = '1';
     document.body.dataset.theme = isDark ? 'light' : 'dark';
@@ -63,6 +63,16 @@ function initTheme() {
       delete document.body.dataset.themeTransitioning;
       transitionTimer = null;
     }, 260);
+  };
+  btn.addEventListener('click', () => {
+    // View Transitions API: a smooth full-page crossfade between dark/light.
+    // Falls back to an instant flip where unsupported or for reduced-motion users.
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce && typeof document.startViewTransition === 'function') {
+      document.startViewTransition(applyThemeFlip);
+    } else {
+      applyThemeFlip();
+    }
   });
 }
 
