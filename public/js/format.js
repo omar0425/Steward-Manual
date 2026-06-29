@@ -454,6 +454,20 @@ export function cumulativePaidDownFromStats(stats) {
 }
 
 /**
+ * True PRINCIPAL paid down: gross balance decreases minus interest that grew
+ * balances. cumulativePaidDown only sums the down-periods, so on its own it
+ * overstates real progress whenever interest pushed balances up in other
+ * periods. Subtracting the logged interest gives the honest net principal the
+ * "Principal paid down" card and the trophy report (floored at 0).
+ */
+export function principalPaidDownFromStats(stats) {
+  const gross = cumulativePaidDownFromStats(stats);
+  const interest = Number(stats && stats.cumulativeInterestAccrued);
+  const net = gross - (Number.isFinite(interest) && interest > 0 ? interest : 0);
+  return Math.max(0, Math.round(net * 100) / 100);
+}
+
+/**
  * Lifetime progress % for display only: cumulativePaidDown / climbBaselineDebt.
  * Does not use current debt remaining or (baseline − current), so adding new debt does not reduce this %.
  */

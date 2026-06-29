@@ -2,7 +2,7 @@
 
 import {
   fmtDollar, fmtSignedDollar,
-  cumulativePaidDownFromStats, lifetimeProgressPctFromCumulative,
+  cumulativePaidDownFromStats, principalPaidDownFromStats, lifetimeProgressPctFromCumulative,
   formatLastPullAccountRow, formatNetThisTurnLine, lastPullAccountRowsFromStats,
   snapshotPaydownWindow, snapshotPaceIsNoisy, snapshotDeltaSinceOldest,
   paceQualitative, formatApproxDurationFromMonths, timeAgo,
@@ -102,14 +102,17 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     playNm.textContent = '';
     playNm.hidden = true;
   }
-  const paidVal = paid != null && Number.isFinite(paid) ? fmtDollar(Math.round(paid)) : '—';
+  // Bug #3 — show NET principal: gross balance decreases minus interest that
+  // grew balances in other periods. The gross figure alone overstates progress.
+  const principal = principalPaidDownFromStats(stats);
+  const principalVal = Number.isFinite(principal) ? fmtDollar(Math.round(principal)) : '—';
   if (elPaid) {
-    // Bug #3 — this figure is the sum of balance DECREASES, which is principal
-    // reduction (a balance drop is net of any interest that accrued that period).
-    // Label it "Principal paid down" so it's unambiguous and the trophy copy
-    // ("every dollar paid against the principal") is exactly true.
-    elPaid.innerHTML = `<span class="sp-label">Principal paid down</span><span class="sp-val sp-val--good">${paidVal}</span>`;
-    elPaid.title = 'Principal you’ve cleared — the total your balances have dropped since you started. A balance drop is already net of interest, so this is real principal, not payments that went to interest.';
+    elPaid.innerHTML = `<span class="sp-label">Principal paid down</span><span class="sp-val sp-val--good">${principalVal}</span>`;
+    const grossR = Math.round(paid);
+    const interestR = Math.round(Number(stats && stats.cumulativeInterestAccrued) || 0);
+    elPaid.title = interestR > 0
+      ? `Real principal progress: ${fmtDollar(grossR)} of payments reduced your balances, minus ${fmtDollar(interestR)} of interest that grew them = ${fmtDollar(Math.round(principal))} net.`
+      : 'Principal you’ve cleared — how much your balances have dropped since you started.';
   }
   const { accountLines, ndVal, pdVal } = lastPullAccountRowsFromStats(stats);
   const netThisTurn = accountLines.length > 0
