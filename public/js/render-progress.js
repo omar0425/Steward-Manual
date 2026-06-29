@@ -127,8 +127,8 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     // Interest is the cost of carrying the debt — shown in a neutral tone, not
     // the red of "new debt", since it doesn't count against the user's effort.
     const iaStr = Number.isFinite(ia) && ia > 0 ? '+' + fmtDollar(Math.round(ia)) : '$0';
-    elInterest.innerHTML = `<span class="sp-label">Interest accrued</span><span class="sp-val">${iaStr}</span>`;
-    elInterest.title = 'Balance growth from interest and fees — the cost of carrying the debt, tracked apart from new spending.';
+    elInterest.innerHTML = `<span class="sp-label">Interest logged</span><span class="sp-val">${iaStr}</span>`;
+    elInterest.title = 'Balance growth you’ve tagged as interest or fees. This is only what you’ve marked — not a full APR estimate. Your forward monthly interest cost (from APRs) is shown in the Debt Accounts panel.';
   }
   const elAvg = document.getElementById('progress-bullet-avgmonth');
   if (elAvg) {

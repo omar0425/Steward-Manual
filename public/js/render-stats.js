@@ -251,7 +251,7 @@ export function renderStatsBlock({
   const progressPctLabel = document.getElementById('progress-pct-label');
   if (progressPctLabel) {
     const v = inBandBarDisplayPct;
-    progressPctLabel.textContent = Number.isFinite(v) && v > 0 ? `${v.toFixed(1)}% in this stage` : '';
+    progressPctLabel.textContent = Number.isFinite(v) && v > 0 ? `${Math.round(v)}% in this stage` : '';
   }
 
   const nextMoveEl = document.getElementById('progress-next-move');

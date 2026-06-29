@@ -365,7 +365,7 @@ export function fillDebtAccountsList(stats) {
         ? new Date(ga).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
         : '';
       const paidDown = gd - (stats.debtRemaining || 0);
-      const pct = gd > 0 ? Math.round((paidDown / gd) * 1000) / 10 : null;
+      const pct = gd > 0 ? Math.round((paidDown / gd) * 100) : null;
       gsMeta.textContent = (pct != null && pct > 0)
         ? `${dateLabel} · ${pct}% paid down`
         : dateLabel;
@@ -436,10 +436,19 @@ export function fillDebtAccountsList(stats) {
   let payFirstApr = -Infinity;
   let totalMonthlyInterest = 0;
   let ratedCount = 0;
+  // Track open balances with no APR set: their interest is invisible to every
+  // estimate (cost, payoff, avalanche), so we warn when they're a real share.
+  let missingAprCount = 0;
+  let missingAprBalance = 0;
   for (const acct of accounts) {
     const bal = Number(acct.balance);
     const apr = _aprRates[acct.id];
-    if (!Number.isFinite(bal) || bal <= 0 || apr == null || !Number.isFinite(apr) || apr <= 0) continue;
+    const hasApr = Number.isFinite(apr) && apr > 0;
+    if (Number.isFinite(bal) && bal > 0 && !hasApr) {
+      missingAprCount += 1;
+      missingAprBalance += bal;
+    }
+    if (!Number.isFinite(bal) || bal <= 0 || !hasApr) continue;
     ratedCount += 1;
     totalMonthlyInterest += (bal * apr) / 100 / 12;
     if (apr > payFirstApr) { payFirstApr = apr; payFirstId = acct.id; }
@@ -530,11 +539,27 @@ export function fillDebtAccountsList(stats) {
     // that used to omit it for 0% read as uneven). Paid-off rows show 100%.
     const pctPaidRaw = Number(acct.pctPaid);
     const pctPaidVal = isPaidOff ? 100 : (Number.isFinite(pctPaidRaw) && pctPaidRaw > 0 ? pctPaidRaw : 0);
+    const startBal = Number(acct.startBalance);
+    const hasStart = acct.startBalance != null && Number.isFinite(startBal);
+    // An account can grow above its starting balance (new charges). The "% paid"
+    // line and its tooltip must reflect direction: claiming "Down from $X / N% paid"
+    // when the balance actually rose is the DATA-1 bug. Show "grew" + "Up from $X"
+    // in that case so the row never contradicts itself.
+    const grew = hasStart && balance > startBal + 0.005;
     const pctEl = document.createElement('span');
     pctEl.className = 'dr-paid-pct';
-    pctEl.textContent = `${pctPaidVal}% paid`;
-    if (acct.startBalance != null && Number.isFinite(Number(acct.startBalance))) {
-      pctEl.title = `Down from ${fmtDollar(Number(acct.startBalance))} since you started tracking it.`;
+    if (grew) {
+      pctEl.classList.add('grew');
+      const up = balance - startBal;
+      pctEl.textContent = `↑ ${fmtDollar(Math.round(up))} since start`;
+      pctEl.title = `Up from ${fmtDollar(Math.round(startBal))} when you started tracking it — this balance grew.`;
+    } else {
+      pctEl.textContent = `${pctPaidVal}% paid`;
+      if (hasStart) {
+        pctEl.title = pctPaidVal > 0
+          ? `Down from ${fmtDollar(Math.round(startBal))} since you started tracking it.`
+          : `Unchanged from ${fmtDollar(Math.round(startBal))} since you started tracking it.`;
+      }
     }
     amountCell.appendChild(pctEl);
 
@@ -630,6 +655,26 @@ export function fillDebtAccountsList(stats) {
     } else {
       interestLine.hidden = true;
       interestLine.textContent = '';
+    }
+  }
+
+  // DA-03 — warn when open balances have no APR. Their interest is missing from
+  // every estimate (monthly cost, payoff forecast, avalanche order), so the
+  // numbers above understate the truth until the user fills them in.
+  const aprWarn = document.getElementById('debt-apr-warning');
+  if (aprWarn) {
+    const totalDebt = Number(stats.debtRemaining) || 0;
+    if (missingAprCount > 0 && missingAprBalance > 0) {
+      const sharePct = totalDebt > 0 ? Math.round((missingAprBalance / totalDebt) * 100) : 0;
+      const acctWord = missingAprCount === 1 ? 'account' : 'accounts';
+      aprWarn.textContent =
+        `⚠️ ${missingAprCount} ${acctWord} missing an APR (${fmtDollar(Math.round(missingAprBalance))}` +
+        (sharePct > 0 ? `, ${sharePct}% of your debt` : '') +
+        `). Interest cost and payoff estimates are understated until you add them — tap “Edit APRs” above.`;
+      aprWarn.hidden = false;
+    } else {
+      aprWarn.hidden = true;
+      aprWarn.textContent = '';
     }
   }
 }
