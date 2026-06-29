@@ -662,6 +662,21 @@ i) => {
 .progress-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--state-progress-start), var(--state-progress-end)); transition: width 800ms ease; }
 .progress-pct { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-2); letter-spacing: 0.08em; margin-bottom: 0; padding-bottom: 4px; opacity: 1; }
 
+/* Paydown ↔ percentage calculator */
+.calc-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.calc-field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 150px; min-width: 130px; }
+.calc-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.calc-input-wrap { position: relative; display: flex; align-items: center; }
+.calc-affix { position: absolute; left: 11px; color: var(--text-3); font-family: 'IBM Plex Mono', monospace; font-size: 13px; pointer-events: none; }
+.calc-affix--suffix { left: auto; right: 11px; }
+.calc-input { width: 100%; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 15px; }
+#calc-dollars { padding-left: 22px; }
+#calc-percent { padding-right: 26px; }
+.calc-input:focus { outline: none; border-color: var(--gold, #c8a84c); }
+.calc-eq { align-self: center; color: var(--text-3); font-size: 18px; padding-bottom: 8px; }
+.calc-avg-apr-row { margin-top: 14px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: var(--text-2); }
+.calc-avg-apr { font-family: 'IBM Plex Mono', monospace; color: var(--text); font-weight: 600; }
+
 /* Light-mode: swap white-alpha tracks for dark-alpha so they're visible */
 [data-theme="light"] .progress-bar,
 [data-theme="light"] .progress-bar--hero { background: rgba(0,0,0,0.10); border-color: rgba(0,0,0,0.06); }

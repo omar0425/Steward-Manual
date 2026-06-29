@@ -17,6 +17,7 @@ import {
   refreshDebtPanelData, setDebtSortMode, toggleAprForm, fillDebtAccountsList, renderPayThisNext,
 } from './render-debts.js';
 import { maybePlayCutscene } from './cutscene.js';
+import { renderCalculator } from './render-calculator.js';
 
 export { refreshDebtPanelData, setDebtSortMode, toggleAprForm };
 
@@ -72,6 +73,7 @@ export function render(status, snapshots) {
   fillDebtAccountsList(stats);
   renderPayThisNext(stats);
   fillThisTurnPanel(stats);
+  renderCalculator(stats);
 
   // Personal easter egg: plays once when the server arms it (every 75th login).
   maybePlayCutscene(status);
