@@ -383,8 +383,12 @@ router.get('/status', (req, res) => {
   // Probabilistic payoff (Monte Carlo over the user's own logged paydown), now
   // also carrying the effective APR so it returns a remaining-interest band and
   // the interest the paydown is projected to save vs treading water.
+  // Balance-weighted average APR across debts that have a rate set (0 if none).
+  // Surfaced on the dashboard and reused as the forecast's effective APR so the
+  // two never disagree.
+  const avgApr = effectiveAnnualAprPct(planAccounts);
   const payoffForecast = monteCarloPayoff(snap.debt_remaining, monthlyPaydownSamples(snapshots), {
-    annualAprPct: effectiveAnnualAprPct(planAccounts),
+    annualAprPct: avgApr,
   });
   // Interest kept from the bank SO FAR — savings rate vs starting balances,
   // applied across the months since the climb started. Deterministic, honest.
@@ -446,6 +450,11 @@ router.get('/status', (req, res) => {
       interestSavedToDate,
       payoffPlan,
       interestSaved,
+      // Balance-weighted average APR across debts with a rate set (0 = none set).
+      // avgAprMissing flags that at least one positive balance has no APR, so the
+      // average is computed over only the rated balances.
+      avgApr,
+      avgAprMissing: anyAprMissing,
       netImprovement:        climb.netImprovement,
       debtPaid:              climb.cumulativePaidDown,
       debtStart:             climb.climbBaselineDebt,
