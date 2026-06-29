@@ -14,6 +14,7 @@ const {
   replaceDebtAccountBalances,
   deleteSnapshotById,
   deleteDebtAccountHistoryAt,
+  debtAccountHistoryRows,
   exportUserData,
 } = require('../db');
 
@@ -209,6 +210,55 @@ function buildCorrectedDebtSeries(historyRows, { originById = {}, gameStartAt = 
     }
     return { date: ts, debt: Math.round(total * 100) / 100 };
   });
+}
+
+/**
+ * The corrected debt series reshaped as newest-first snapshot rows
+ * ({ pulled_at, debt_remaining }) so the pace/forecast helpers (services/pace.js,
+ * services/forecast.js) can consume the SAME correction-aware history the chart
+ * uses. Setup-time account additions — forgotten debts the user enters during
+ * onboarding — are carried back in the corrected series, so they no longer read
+ * as debt *growth* that poisons the payoff projection (the old behavior fit the
+ * trend to raw aggregate debt and could push the forecast decades out).
+ * Genuinely-new loans (origin 'new') still register as a real rise.
+ *
+ * @param {Array<{accountId:string,recordedAt:string,balance:number}>} historyRows
+ * @param {{originById?:Object<string,string>, gameStartAt?:string}} [opts]
+ * @returns {Array<{pulled_at:string, debt_remaining:number}>} newest-first
+ */
+function correctedDebtSnapshots(historyRows, opts = {}) {
+  const series = buildCorrectedDebtSeries(historyRows, opts);
+  const out = series.map((p) => ({ pulled_at: p.date, debt_remaining: p.debt }));
+  out.reverse(); // buildCorrectedDebtSeries is ascending; snapshots are newest-first
+  return out;
+}
+
+function safeParseObject(raw) {
+  if (raw == null || raw === '') return {};
+  try {
+    const o = JSON.parse(raw);
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Correction-aware, newest-first snapshots for the CURRENT user — the input the
+ * pace and Monte-Carlo forecast should read so they agree with the chart and the
+ * climb line. Reads per-account history + the stored origin map and scopes to the
+ * climb window (gameStartAt). Falls back to `fallback` (the raw aggregate
+ * snapshots) for legacy users who have no per-account history yet, so nothing
+ * regresses for them.
+ *
+ * @param {{ gameStartAt?:string|null, fallback?:Array }} [opts]
+ * @returns {Array<{pulled_at:string, debt_remaining:number}>} newest-first
+ */
+function recentCorrectedSnapshots({ gameStartAt = null, fallback = [] } = {}) {
+  const rows = debtAccountHistoryRows();
+  const originById = safeParseObject(getConfig('debt_account_origin'));
+  const snaps = correctedDebtSnapshots(rows, { originById, gameStartAt });
+  return snaps.length >= 2 ? snaps : (Array.isArray(fallback) ? fallback : []);
 }
 
 /** @returns {{ paydownSum: number, newDebtSum: number }} */
@@ -923,6 +973,8 @@ module.exports = {
   applyDeltaToTotals,
   analyzePerAccountDebtDiff,
   buildCorrectedDebtSeries,
+  correctedDebtSnapshots,
+  recentCorrectedSnapshots,
   summarizePerAccountDebtDeltas,
   perAccountDebtDeltaDisplayRows,
   getLastDebtSyncDebug,
