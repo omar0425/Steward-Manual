@@ -227,9 +227,11 @@ export function renderNetWorthChart(snapshots, opts = {}) {
       }
     }
     if (projLabel) {
-      const payoff = new Date(lastDate.getTime() + daysToZero * 86400000);
-      const when = payoff.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-      projLabel.textContent = `At this pace, debt-free around ${when}`;
+      // The dashed line is a best-case straight-line extrapolation of recent
+      // pace; it ignores the bad months the Monte Carlo forecast accounts for, so
+      // stating a single optimistic date here contradicted the forecast panel
+      // (DA-05). Frame it as best-case and defer the actual date to the forecast.
+      projLabel.textContent = 'Dashed line: best-case at your recent pace. See the forecast below for the likely range.';
       projLabel.hidden = false;
     }
     _projState = { latest, dailyPace, lastDateMs: lastDate.getTime(), daysToZero };

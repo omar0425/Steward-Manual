@@ -299,6 +299,7 @@ function buildDebtAccountsPanel() {
       </div>
     </div>
     <div id="apr-form-panel" hidden></div>
+    <p class="debt-apr-warning" id="debt-apr-warning" role="status" hidden></p>
     <div id="debt-accounts-list"></div>
     <div class="debt-total-row">
       <span class="debt-total-label">Total</span>

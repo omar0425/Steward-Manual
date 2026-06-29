@@ -1375,6 +1375,11 @@ router.get('/export', (req, res) => {
   });
 
   const pace = monthlyPaceFromSnapshots(recentSnapshots(60));
+  // DA-06 — the dashboard's "Avg / month" is the lifetime average (Total Cleared ÷
+  // months since game start), not the snapshot pace. Export the SAME figure so the
+  // API matches the UI instead of returning null when the snapshot pace is unset.
+  const exportGameStartAt = getConfig('game_start_at');
+  const lifetimeAvgPaydown = averageMonthlyPaydown(climb.cumulativePaidDown, exportGameStartAt);
   const proj = latestDebt != null ? projectDebtFree(recentSnapshots(60), latestDebt, { monthlyPace: pace }) : null;
   const plan = buildPayoffPlan(accounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance, apr: a.apr })));
   const payTarget = plan
@@ -1394,7 +1399,7 @@ router.get('/export', (req, res) => {
       interestAccrued: climb.cumulativeInterestAccrued,
       pctPaid: climb.pctPaid,
       netImprovement: climb.netImprovement,
-      avgMonthlyPaydown: pace || null,
+      avgMonthlyPaydown: (lifetimeAvgPaydown != null ? lifetimeAvgPaydown : (pace || null)),
       projectedDebtFree: proj && proj.onTrack ? proj.debtFreeDate : null,
       payThisNext: payTarget ? { name: payTarget.name, balance: payTarget.balance, apr: payTarget.apr || null, strategy: plan.recommended } : null,
     },

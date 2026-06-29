@@ -852,7 +852,7 @@ board-liquidity-pill
   gap: 12px; flex-wrap: wrap;
 }
 .pay-next-name { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: var(--text); }
-.pay-next-bal { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: var(--gold-2); }
+.pay-next-bal { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: var(--gold-2); white-space: nowrap; }
 .pay-next-reason { margin-top: 8px; font-size: 13px; color: var(--text-2); line-height: 1.5; }
 .sp-label {
   font-family: 'IBM Plex Mono', monospace;
@@ -932,6 +932,19 @@ board-liquidity-pill
   color: var(--text-2);
 }
 .debt-interest-line[hidden] { display: none; }
+/* DA-03 missing-APR warning: amber call-out above the accounts list. */
+.debt-apr-warning {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--amber, #d4a030);
+  background: var(--amber-soft, rgba(212,160,48,0.10));
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.debt-apr-warning[hidden] { display: none; }
 .debt-row--paid-off { opacity: 0.88; }
 .dr-paid-badge {
   display: inline-block;
@@ -1123,7 +1136,7 @@ board-liquidity-pill
   text-transform: none;
 }
 
-.game-start-row { display: flex; align-items: baseline; gap: 8px; padding-top: 7px; }
+.game-start-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding-top: 7px; }
 .game-start-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-3); flex-shrink: 0; }
 .game-start-meta  { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); flex: 1; }
 .game-start-val   { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); flex-shrink: 0; }
