@@ -9,6 +9,7 @@ import {
 } from './format.js';
 import { TIER_FLOW, TIER_META } from './tiers.js';
 import { queuePaidOffCelebration } from './render-debts.js';
+import { stewardApiUrl } from './api.js';
 
 /* Full-viewport confetti burst for a climbed stage. Dependency-free: ~90
    absolutely-positioned pieces, randomized drift/spin/delay via CSS custom
@@ -341,7 +342,7 @@ export function fillProgressNarrative({
       // Fire-and-forget; failure just means the banner reappears on next load,
       // which is better than blocking the render.
       for (const id of idsToMark) {
-        fetch('/api/config/notifications-sent', {
+        fetch(stewardApiUrl('/api/config/notifications-sent'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ milestone: id }),

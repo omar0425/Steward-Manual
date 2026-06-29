@@ -109,6 +109,7 @@ function showCutscene() {
   const overlay = document.createElement('div');
   overlay.className = 'cutscene-overlay';
   overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'A moment from the Steward');
 
   // Steward chrome: header (emblem + title + skip) · body (video) · footer line.
@@ -166,6 +167,9 @@ function showCutscene() {
 
   overlay.appendChild(stage);
   document.body.appendChild(overlay);
+  // Move focus into the modal so keyboard/SR users land inside it (Skip is the
+  // safe default target) rather than staying on the page behind the overlay.
+  try { skip.focus(); } catch { /* ignore */ }
   requestAnimationFrame(() => overlay.classList.add('cutscene-show'));
 
   function onKey(e) { if (e.key === 'Escape') dismiss(overlay, onKey); }
