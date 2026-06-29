@@ -103,7 +103,14 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     playNm.hidden = true;
   }
   const paidVal = paid != null && Number.isFinite(paid) ? fmtDollar(Math.round(paid)) : '—';
-  if (elPaid) elPaid.innerHTML = `<span class="sp-label">Total paid down</span><span class="sp-val sp-val--good">${paidVal}</span>`;
+  if (elPaid) {
+    // Bug #3 — this figure is the sum of balance DECREASES, which is principal
+    // reduction (a balance drop is net of any interest that accrued that period).
+    // Label it "Principal paid down" so it's unambiguous and the trophy copy
+    // ("every dollar paid against the principal") is exactly true.
+    elPaid.innerHTML = `<span class="sp-label">Principal paid down</span><span class="sp-val sp-val--good">${paidVal}</span>`;
+    elPaid.title = 'Principal you’ve cleared — the total your balances have dropped since you started. A balance drop is already net of interest, so this is real principal, not payments that went to interest.';
+  }
   const { accountLines, ndVal, pdVal } = lastPullAccountRowsFromStats(stats);
   const netThisTurn = accountLines.length > 0
     ? accountLines.reduce((s, r) => s + Number(r.delta), 0)
@@ -127,8 +134,18 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     // Interest is the cost of carrying the debt — shown in a neutral tone, not
     // the red of "new debt", since it doesn't count against the user's effort.
     const iaStr = Number.isFinite(ia) && ia > 0 ? '+' + fmtDollar(Math.round(ia)) : '$0';
-    elInterest.innerHTML = `<span class="sp-label">Interest logged</span><span class="sp-val">${iaStr}</span>`;
-    elInterest.title = 'Balance growth you’ve tagged as interest or fees. This is only what you’ve marked — not a full APR estimate. Your forward monthly interest cost (from APRs) is shown in the Debt Accounts panel.';
+    // Bug #1 — alongside the logged figure, show an APR-computed estimate of
+    // interest accrued since start (server-computed). It's approximate and may be
+    // understated while any APR is missing, so it's labeled "est." with a caret.
+    const est = Number(stats && stats.estimatedInterestAccrued);
+    const hasEst = Number.isFinite(est) && est > 0;
+    const understated = stats && stats.estimatedInterestUnderstated;
+    const estLine = hasEst
+      ? `<span class="sp-sub">≈ ${fmtDollar(Math.round(est))}${understated ? '+' : ''} est. from APRs</span>`
+      : '';
+    elInterest.innerHTML = `<span class="sp-label">Interest logged</span><span class="sp-val">${iaStr}</span>${estLine}`;
+    elInterest.title = 'Two views of interest. "Interest logged" is only what you’ve tagged as interest/fees. The "est. from APRs" line below estimates the real interest accrued since you started, from your APRs and balances'
+      + (understated ? ' — understated, because some accounts have no APR set.' : '.');
   }
   const elAvg = document.getElementById('progress-bullet-avgmonth');
   if (elAvg) {
@@ -156,11 +173,11 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
 
   fillDebtFreeBanner(stats);
   if (elDir) {
-    let d = 'flat'; let dirClass = '';
-    if (stats && stats.debtDirection === 'increasing') { d = 'backward'; dirClass = 'sp-val--bad'; }
-    else if (netThisTurn > 0) { d = 'backward'; dirClass = 'sp-val--bad'; }
-    else if (netThisTurn < 0) { d = 'forward'; dirClass = 'sp-val--good'; }
-    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val sp-val--word ${dirClass}">${d}</span>`;
+    let d = 'flat'; let dirClass = ''; let arrow = '→';
+    if (stats && stats.debtDirection === 'increasing') { d = 'backward'; dirClass = 'sp-val--bad'; arrow = '↘'; }
+    else if (netThisTurn > 0) { d = 'backward'; dirClass = 'sp-val--bad'; arrow = '↘'; }
+    else if (netThisTurn < 0) { d = 'forward'; dirClass = 'sp-val--good'; arrow = '↗'; }
+    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val sp-val--word ${dirClass}">${arrow} ${d}</span>`;
   }
 }
 

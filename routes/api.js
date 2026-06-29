@@ -386,6 +386,25 @@ router.get('/status', (req, res) => {
     ? Math.round(interestSaved.savedMonthly * monthsSinceStart)
     : 0;
 
+  // Bug #1 — an APR-COMPUTED estimate of interest accrued since the climb began,
+  // shown alongside the user-logged figure. interestAccrued only counts interest
+  // the user tagged; this estimates the real cost from current APRs × balances ×
+  // months elapsed. It's approximate (current balances, and understated while any
+  // APR is missing), so the client labels it "est." and flags missing APRs.
+  let currentMonthlyInterest = 0;
+  let anyAprMissing = false;
+  for (const a of planAccounts) {
+    const apr = Number(a.apr);
+    const bal = Number(a.balance);
+    // 0% is a valid, set rate (promo financing); "missing" = never entered.
+    const aprSet = a.apr != null && a.apr !== '' && Number.isFinite(apr) && apr >= 0;
+    if (Number.isFinite(bal) && bal > 0 && !aprSet) anyAprMissing = true;
+    if (aprSet && apr > 0 && Number.isFinite(bal) && bal > 0) currentMonthlyInterest += (bal * apr) / 100 / 12;
+  }
+  const estimatedInterestAccrued = currentMonthlyInterest > 0
+    ? Math.round(currentMonthlyInterest * monthsSinceStart)
+    : 0;
+
   const payload = {
     ready: true,
     tier: tierObj,
@@ -403,6 +422,8 @@ router.get('/status', (req, res) => {
       cumulativePaidDown:    climb.cumulativePaidDown,
       cumulativeNewDebtAdded: climb.cumulativeNewDebtAdded,
       cumulativeInterestAccrued: climb.cumulativeInterestAccrued,
+      estimatedInterestAccrued,
+      estimatedInterestUnderstated: anyAprMissing,
       canUndo:               hasUndoState(),
       undoLabel:             peekUndoLabel(),
       monthlyPace:           monthlyPace || 0,
@@ -1381,6 +1402,15 @@ router.get('/export', (req, res) => {
   const exportGameStartAt = getConfig('game_start_at');
   const lifetimeAvgPaydown = averageMonthlyPaydown(climb.cumulativePaidDown, exportGameStartAt);
   const proj = latestDebt != null ? projectDebtFree(recentSnapshots(60), latestDebt, { monthlyPace: pace }) : null;
+  // Bug #4 — the dashboard's debt-free date comes from the Monte Carlo forecast,
+  // not the linear projection, so export THAT (with its confidence band) instead
+  // of leaving projectedDebtFree null. Anyone exporting their data then has the
+  // same projection the UI shows.
+  const exportForecast = latestDebt != null
+    ? monteCarloPayoff(latestDebt, monthlyPaydownSamples(recentSnapshots(60)), {
+        annualAprPct: effectiveAnnualAprPct(accounts),
+      })
+    : null;
   const plan = buildPayoffPlan(accounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance, apr: a.apr })));
   const payTarget = plan
     ? (plan.recommended === 'avalanche' && plan.avalanche ? plan.avalanche.target : plan.snowball.target)
@@ -1400,7 +1430,13 @@ router.get('/export', (req, res) => {
       pctPaid: climb.pctPaid,
       netImprovement: climb.netImprovement,
       avgMonthlyPaydown: (lifetimeAvgPaydown != null ? lifetimeAvgPaydown : (pace || null)),
-      projectedDebtFree: proj && proj.onTrack ? proj.debtFreeDate : null,
+      projectedDebtFree: exportForecast && exportForecast.ready ? exportForecast.medianDate : null,
+      projectedDebtFreeRange: exportForecast && exportForecast.ready
+        ? { low: exportForecast.optimisticDate || null, high: exportForecast.conservativeDate || null }
+        : null,
+      projectedDebtFreeConfidence: exportForecast && exportForecast.ready
+        ? { within1yr: exportForecast.prob1yr, within2yr: exportForecast.prob2yr, within3yr: exportForecast.prob3yr }
+        : null,
       payThisNext: payTarget ? { name: payTarget.name, balance: payTarget.balance, apr: payTarget.apr || null, strategy: plan.recommended } : null,
     },
     accounts,

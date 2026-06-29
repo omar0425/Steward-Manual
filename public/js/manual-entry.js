@@ -369,10 +369,10 @@ function mirrorLiveDebtState(rows, liveTotal) {
   }
   const elDir = document.getElementById('progress-bullet-direction');
   if (elDir) {
-    let d = 'flat', cls = '';
-    if (liveNet > 0.005) { d = 'backward'; cls = 'sp-val--bad'; }
-    else if (liveNet < -0.005) { d = 'forward'; cls = 'sp-val--good'; }
-    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val sp-val--word ${cls}">${d}</span>`;
+    let d = 'flat', cls = '', arrow = '→';
+    if (liveNet > 0.005) { d = 'backward'; cls = 'sp-val--bad'; arrow = '↘'; }
+    else if (liveNet < -0.005) { d = 'forward'; cls = 'sp-val--good'; arrow = '↗'; }
+    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val sp-val--word ${cls}">${arrow} ${d}</span>`;
   }
   /* "This Turn" big number in the session card. */
   const sessionNet = document.getElementById('this-turn-net');

@@ -799,13 +799,25 @@ board-liquidity-pill
 .sp-grid li {
   display: flex;
   flex-direction: column;
+  justify-content: center;   /* Bug #9 — center sparse cells so they don't read as unfinished */
   gap: 6px;
+  min-height: 76px;          /* Bug #9 — equal visual weight across all six cells */
   padding: 14px 16px;
   background: var(--surface);
 }
 /* With an odd number of cells the last one spans both columns so the grid never
    shows a dangling empty cell (e.g. 5 items: the bottom row is full-width). */
 .sp-grid li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+/* Bug #1 — APR-estimate sub-line under the "Interest logged" value. */
+.sp-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+/* Bug #8 — tabular figures so numbers in the stats grid and debt table line up. */
+.sp-val, .dr-apr, .dr-interest, .dr-balance, .dr-delta, .dr-paid-pct, .pay-next-bal {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Projected debt-free finish line. */
 .debt-free-banner {
@@ -932,10 +944,10 @@ board-liquidity-pill
   color: var(--text-2);
 }
 .debt-interest-line[hidden] { display: none; }
-/* DA-03 missing-APR warning: amber call-out above the accounts list. */
+/* DA-03 / Bug #2 missing-APR warning: amber call-out + prominent action button. */
 .debt-apr-warning {
   margin: 0 0 12px;
-  padding: 9px 12px;
+  padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid var(--amber, #d4a030);
   background: var(--amber-soft, rgba(212,160,48,0.10));
@@ -943,8 +955,26 @@ board-liquidity-pill
   font-size: 12px;
   line-height: 1.45;
   color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .debt-apr-warning[hidden] { display: none; }
+.debt-apr-warning-text { flex: 1; min-width: 180px; }
+.debt-apr-warning-btn {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: none;
+  background: var(--amber, #d4a030);
+  color: #1a1400;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 130ms;
+}
+.debt-apr-warning-btn:hover { filter: brightness(1.08); }
 .debt-row--paid-off { opacity: 0.88; }
 .dr-paid-badge {
   display: inline-block;
@@ -1136,10 +1166,17 @@ board-liquidity-pill
   text-transform: none;
 }
 
-.game-start-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding-top: 7px; }
-.game-start-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-3); flex-shrink: 0; }
-.game-start-meta  { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-3); flex: 1; }
-.game-start-val   { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+/* Bug #12 — Game Start as labeled value pairs (label | value), wraps cleanly. */
+.game-start-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 14px;
+  align-items: baseline;
+  padding-top: 7px;
+}
+.gs-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-3); }
+.gs-value { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.gs-label[hidden], .gs-value[hidden] { display: none; }
 
 /* Commitment reason — shown below game-start row in debt panel */
 .commitment-reason-wrap {
