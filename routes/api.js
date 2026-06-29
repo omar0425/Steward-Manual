@@ -11,7 +11,9 @@ const {
   importUserData,
   getConfig,
   withUser,
+  transaction,
   setConfig,
+  deleteConfigByPrefix,
   getDebtAccountHistory,
   getGameStart,
   resetAllGameState,
@@ -263,12 +265,21 @@ router.get('/status', (req, res) => {
   }
   lastPullPaydownSum = Math.round(lastPullPaydownSum * 100) / 100;
   lastPullNewDebtSum = Math.round(lastPullNewDebtSum * 100) / 100;
-  // If we have aggregate paydown since game start but no per-pull lines yet
-  // (e.g. an aggregate-only pull after restart, or the very first pull),
-  // surface the aggregate so the user sees their progress instead of zero.
-  if (lastPullPaydownSum === 0 && lastPullNewDebtSum === 0 && aggregatePaydownSinceGameStart > 0
-      && lastPullAccountLines.length === 0) {
-    lastPullPaydownSum = aggregatePaydownSinceGameStart;
+  // No per-account lines this pull (aggregate-mode entry). Derive the real
+  // THIS-TURN delta from the prior snapshot rather than overwriting it with the
+  // cumulative-since-game-start figure, which made every status load misreport a
+  // single turn as the whole climb's progress.
+  if (lastPullPaydownSum === 0 && lastPullNewDebtSum === 0 && lastPullAccountLines.length === 0) {
+    if (snapshots.length >= 2
+        && Number.isFinite(Number(snapshots[0].debt_remaining))
+        && Number.isFinite(Number(snapshots[1].debt_remaining))) {
+      const turnDelta = Math.round((Number(snapshots[1].debt_remaining) - Number(snapshots[0].debt_remaining)) * 100) / 100;
+      if (turnDelta > 0) lastPullPaydownSum = turnDelta;       // paid down this turn
+      else if (turnDelta < 0) lastPullNewDebtSum = Math.abs(turnDelta); // added this turn
+    } else if (aggregatePaydownSinceGameStart > 0) {
+      // Genuine first pull (only one snapshot exists) — show progress vs game start.
+      lastPullPaydownSum = aggregatePaydownSinceGameStart;
+    }
   }
   const lastPullAccountChanges = lastPullAccountLines;
   const turnStartAt =
@@ -711,6 +722,9 @@ router.post('/snapshot', (req, res) => {
     // for both total_debt and debt_remaining so the two columns stay consistent.
     const effectiveTotalDebt = debtBalanceMap.size > 0 ? debtRemaining : debt;
     const netWorth = roundMoney(assets + invest - effectiveTotalDebt);
+    // All writes for this pull are atomic: a crash mid-pull can't leave half-written
+    // climb state (snapshot without balances, balances without metrics, etc.).
+    transaction(() => {
     const snapshotId = insertSnapshot({
       source:           'manual',
       pulled_at:        now,
@@ -739,10 +753,10 @@ router.post('/snapshot', (req, res) => {
 
       // Snapshot the pre-pull state so a wrong entry can be undone exactly.
       // Captured before any mutation, only while the climb is running.
-      if (gameActive) captureUndoState(snapshotId, prevBalances);
+      if (gameActive) captureUndoState(snapshotId, prevBalances, 'update', now);
 
       replaceDebtAccountBalances(debtBalanceMap);
-      appendDebtAccountHistory(debtBalanceMap);
+      appendDebtAccountHistory(debtBalanceMap, now);
 
       if (gameActive) {
         // Per-account classifications route this pull's increases to new debt,
@@ -793,6 +807,7 @@ router.post('/snapshot', (req, res) => {
         setConfig('pending_cutscene', '1');
       }
     }
+    }); // end transaction — snapshot + balances + history + climb metrics commit together
 
     const response = {
       ok: true,
@@ -945,6 +960,10 @@ router.post('/climb/reclassify-added-debt', express.json(), (req, res) => {
         error: 'Nothing to reclassify — there is no "new debt added" to move.',
       });
     }
+    // The correction changed the numbers without a new snapshot — drop any cached
+    // AI dialog/quote so the Steward re-reads the corrected figures next time.
+    deleteConfigByPrefix('steward_ai_dialog_at:');
+    deleteConfigByPrefix('steward_ai_quote_at:');
     return res.json({ ok: true, moved: result.moved, kind: result.kind, stats: getClimbStatsFromConfig() });
   } catch (err) {
     console.error('[api] reclassify-added-debt', err);
@@ -966,6 +985,10 @@ router.post('/climb/undo-last', express.json(), (req, res) => {
     if (!result.undone) {
       return res.status(200).json({ ok: false, error: 'Nothing to undo.' });
     }
+    // Undo changed the numbers without a new snapshot — drop any cached AI
+    // dialog/quote so stale commentary about the reverted pull can't resurface.
+    deleteConfigByPrefix('steward_ai_dialog_at:');
+    deleteConfigByPrefix('steward_ai_quote_at:');
     return res.json({ ok: true, ...result, stats: getClimbStatsFromConfig() });
   } catch (err) {
     console.error('[api] undo-last', err);
@@ -1460,10 +1483,22 @@ router.post('/restore', express.json({ limit: '8mb' }), (req, res) => {
   const { isValidImportPayload } = require('../db');
   const check = isValidImportPayload(req.body);
   if (!check.ok) return res.status(400).json({ ok: false, error: check.error });
+  const force = req.body.force === true || req.query.force === '1' || req.query.force === 'true';
   try {
-    const restored = importUserData(req.body);
-    return res.json({ ok: true, restored });
+    const restored = importUserData(req.body, { force });
+    const skipped = restored.skipped || {};
+    const skippedTotal = Object.values(skipped).reduce((a, b) => a + (Number(b) || 0), 0);
+    return res.json({
+      ok: true,
+      restored,
+      // Surface partial restores so a truncated/old file can't look fully successful.
+      warning: skippedTotal > 0 ? `Restored, but skipped ${skippedTotal} unusable row(s).` : undefined,
+    });
   } catch (err) {
+    if (err && err.code === 'EMPTY_RESTORE_GUARD') {
+      // Refused on purpose — committing would have wiped existing data. Not a 500.
+      return res.status(409).json({ ok: false, error: err.message, needsForce: true });
+    }
     console.error('[api] restore', err);
     return res.status(500).json({ ok: false, error: 'Restore failed.' });
   }

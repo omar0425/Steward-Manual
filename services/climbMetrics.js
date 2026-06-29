@@ -13,6 +13,7 @@ const {
   currentUserId,
   replaceDebtAccountBalances,
   deleteSnapshotById,
+  deleteDebtAccountHistoryAt,
   exportUserData,
 } = require('../db');
 
@@ -431,6 +432,27 @@ function recomputeClimbTotalsFromHistory({ apply = false } = {}) {
     cumulativeNewDebtAdded: result.cumulativeNewDebtAdded,
     cumulativeInterestAccrued: 0,
   };
+  // Data-loss guard: when there is NO usable balance history (anchorAt == null),
+  // the recompute is all-zeros. Applying that would irreversibly wipe real
+  // cumulative totals that came from pulls whose history is gone (reset/pruned).
+  // Refuse to apply in that case if there is anything to lose; a fresh user with
+  // zero totals is unaffected. (A single-pull history HAS an anchor, so the
+  // legitimate "no deltas → 0" recompute still applies.)
+  const hasTotalsToLose =
+    before.cumulativePaidDown > 0 ||
+    before.cumulativeNewDebtAdded > 0 ||
+    before.cumulativeInterestAccrued > 0;
+  if (apply && result.anchorAt == null && hasTotalsToLose) {
+    return {
+      applied: false,
+      refused: 'no_history',
+      reason: 'No usable balance history to recompute from; refusing to zero existing totals.',
+      anchorAt: result.anchorAt,
+      pullsReplayed: result.pullsReplayed,
+      before,
+      after,
+    };
+  }
   if (apply) {
     setConfig(KEY_PAID, String(after.cumulativePaidDown));
     setConfig(KEY_NEW, String(after.cumulativeNewDebtAdded));
@@ -470,11 +492,14 @@ function mapToObj(map) {
  * @param {string} [label]  what kind of action this entry reverses ('update' |
  *        'correction'), surfaced so the UI can describe the undo accurately
  */
-function captureUndoState(snapshotId, prevBalances, label = 'update') {
+function captureUndoState(snapshotId, prevBalances, label = 'update', appendedAt = null) {
   const entry = {
     ts: new Date().toISOString(),
     snapshotId: snapshotId == null ? null : Number(snapshotId),
     label: typeof label === 'string' ? label : 'update',
+    // Exact recorded_at of the history rows this pull appended, so undo can delete
+    // precisely those rows (null for aggregate pulls / corrections that append none).
+    appendedAt: appendedAt == null ? null : String(appendedAt),
     prev: {
       paid: getConfig(KEY_PAID),
       newD: getConfig(KEY_NEW),
@@ -542,6 +567,13 @@ function undoLastPull() {
     snapshotDeleted = deleteSnapshotById(entry.snapshotId);
   }
 
+  // Remove the per-account history rows this pull appended, or a later recompute /
+  // the corrected-debt chart would replay the reversed (often mistyped) balance.
+  let historyDeleted = 0;
+  if (entry && entry.appendedAt) {
+    historyDeleted = deleteDebtAccountHistoryAt(entry.appendedAt);
+  }
+
   // The "This Turn" panel (and its per-account +/- lines and net direction) is
   // driven by a SEPARATELY persisted debt-sync debug snapshot, not the climb
   // totals. Clear it too, or the reverted pull's deltas keep showing and undo
@@ -553,6 +585,7 @@ function undoLastPull() {
   return {
     undone: true,
     snapshotDeleted,
+    historyDeleted,
     remaining: stack.length,
     restoredAt: entry ? entry.ts : null,
   };
@@ -698,7 +731,28 @@ function applyClimbMetricsOnPull(debtRemaining, previousByAccountId, currentByAc
     if (aggregateDelta < 0) {
       setConfig(KEY_PAID, String(roundMoney(paid + Math.abs(aggregateDelta))));
     } else if (aggregateDelta > 0) {
-      setConfig(KEY_NEW, String(roundMoney(newD + aggregateDelta)));
+      // Honor this pull's per-account classifications during the aggregate→
+      // per-account handoff instead of dumping the whole increase into new debt.
+      // prev is empty, so route the current balances by classification, then split
+      // the ACTUAL aggregate increase across the buckets in proportion — so the
+      // interest/preexisting tags are respected and the totals still reconcile.
+      // With no classifications everything routes to new debt (identical to before).
+      const routed = routeDeltasByClassification(new Map(), curr, classifications);
+      const routedTotal = roundMoney(routed.newDebtSum + routed.interestSum + routed.baselineBump);
+      if (routedTotal > 0) {
+        const f = aggregateDelta / routedTotal;
+        const newPart = roundMoney(routed.newDebtSum * f);
+        const interestPart = roundMoney(routed.interestSum * f);
+        const baselinePart = roundMoney(routed.baselineBump * f);
+        if (newPart > 0) setConfig(KEY_NEW, String(roundMoney(newD + newPart)));
+        if (interestPart > 0) {
+          const interest = parseConfigNum(getConfig(KEY_INTEREST), 0);
+          setConfig(KEY_INTEREST, String(roundMoney(interest + interestPart)));
+        }
+        if (baselinePart > 0) bumpBaselineAndStart(baselinePart);
+      } else {
+        setConfig(KEY_NEW, String(roundMoney(newD + aggregateDelta)));
+      }
     }
     setConfig(KEY_LAST, String(debt));
     return {
@@ -794,55 +848,43 @@ function computeStreak(snapshots) {
     };
   }
 
-  // Walk from newest to oldest, comparing each pair
-  let current = 0;
-  let best = 0;
-  let lastBrokenAt = null;
-  let streakBroken = false;
-  let lastBroken = 0;
-  let breakIndex = -1;
-
-  for (let i = 0; i < snapshots.length - 1; i++) {
+  const decreased = (i) => {
     const newer = Number(snapshots[i].debt_remaining);
     const older = Number(snapshots[i + 1].debt_remaining);
-    if (Number.isFinite(newer) && Number.isFinite(older) && newer < older) {
-      if (!streakBroken) current++;
-      best = Math.max(best, streakBroken ? 0 : current);
+    return Number.isFinite(newer) && Number.isFinite(older) && newer < older;
+  };
+
+  // Current streak: consecutive decreases from the newest snapshot, until the
+  // first break. breakIndex marks that break (-1 if the whole history decreases).
+  let current = 0;
+  let breakIndex = -1;
+  for (let i = 0; i < snapshots.length - 1; i++) {
+    if (decreased(i)) {
+      current++;
     } else {
-      if (!streakBroken) {
-        lastBroken = current;
-        lastBrokenAt = snapshots[i].pulled_at || null;
-        breakIndex = i;
-      }
-      streakBroken = true;
+      breakIndex = i;
+      break;
     }
   }
 
-  // If the break happened at i=0 (current was 0), scan forward to find
-  // the length of the streak that was just broken.
-  if (streakBroken && lastBroken === 0 && breakIndex === 0) {
-    let prevStreak = 0;
-    for (let j = 1; j < snapshots.length - 1; j++) {
-      const newer = Number(snapshots[j].debt_remaining);
-      const older = Number(snapshots[j + 1].debt_remaining);
-      if (Number.isFinite(newer) && Number.isFinite(older) && newer < older) {
-        prevStreak++;
-      } else {
-        break;
-      }
-    }
-    if (prevStreak > 0) {
-      lastBroken = prevStreak;
-      lastBrokenAt = snapshots[0].pulled_at || null;
+  // Previous streak: the next run of decreases AFTER the break (older in time).
+  // This is independent of `current` — the old code mistakenly reported the
+  // current streak's length here whenever the break wasn't at index 0.
+  let previousStreakLength = 0;
+  let previousStreakEndedAt = null;
+  if (breakIndex !== -1) {
+    previousStreakEndedAt = snapshots[breakIndex].pulled_at || null;
+    for (let j = breakIndex + 1; j < snapshots.length - 1; j++) {
+      if (decreased(j)) previousStreakLength++;
+      else break;
     }
   }
 
-  // Walk entire history for best streak
+  // Best streak: longest run of decreases anywhere in history.
+  let best = 0;
   let runLen = 0;
   for (let i = 0; i < snapshots.length - 1; i++) {
-    const newer = Number(snapshots[i].debt_remaining);
-    const older = Number(snapshots[i + 1].debt_remaining);
-    if (Number.isFinite(newer) && Number.isFinite(older) && newer < older) {
+    if (decreased(i)) {
       runLen++;
       best = Math.max(best, runLen);
     } else {
@@ -853,10 +895,10 @@ function computeStreak(snapshots) {
   return {
     current,
     best,
-    previousStreakLength: lastBroken,
-    previousStreakEndedAt: lastBrokenAt,
-    lastBroken,    // deprecated alias
-    lastBrokenAt,  // deprecated alias
+    previousStreakLength,
+    previousStreakEndedAt,
+    lastBroken: previousStreakLength,    // deprecated alias
+    lastBrokenAt: previousStreakEndedAt, // deprecated alias
   };
 }
 

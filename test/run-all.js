@@ -42,3 +42,6 @@ require('./zzz-climb-metrics-apply.test');
 require('./admin-restore.test');
 require('./cutscene.test');
 require('./cutscene-route.test');
+// Kept last: rebinds the DB to its own isolated file (like admin-restore), so it
+// must not run before suites that share the runner's DB.
+require('./audit-fixes.test');

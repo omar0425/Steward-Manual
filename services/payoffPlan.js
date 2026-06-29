@@ -25,7 +25,10 @@ function buildPayoffPlan(accounts) {
     .map((a) => ({
       id: String(a && a.id != null ? a.id : ''),
       name: a && typeof a.name === 'string' && a.name.trim() ? a.name.trim() : 'Account',
-      balance: Math.round(Number(a && a.balance)),
+      // Keep full precision: filter on the real balance BEFORE rounding so a
+      // genuine sub-$1 balance isn't rounded to 0 and dropped (which could leave
+      // "pay this next" with no target at all). Round only for display, not here.
+      balance: Number(a && a.balance),
       apr: Number.isFinite(Number(a && a.apr)) && Number(a.apr) > 0 ? Number(a.apr) : null,
     }))
     .filter((a) => Number.isFinite(a.balance) && a.balance > 0);

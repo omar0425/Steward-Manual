@@ -150,6 +150,34 @@ function paydownOverWindow(snapshots, days) {
 }
 
 /**
+ * 30-day paydown computed PER ACCOUNT from history, so removing/renaming an
+ * account (which simply stops appearing — there is no $0 row) cannot masquerade
+ * as a payment the way a raw snapshot-aggregate drop would. Sums each account's
+ * (earliest-in-window − latest-in-window) balance; net positive = paid down,
+ * negative = grew. With no structural changes this equals the snapshot-aggregate
+ * figure exactly. Returns { paydown, fromDate } or null when there is no history.
+ *
+ * @param {Object<string, Array<{date:string, balance:number}>>} historyByAccount
+ */
+function paydownLast30FromHistory(historyByAccount) {
+  let total = 0;
+  let earliest = null;
+  let any = false;
+  for (const arr of Object.values(historyByAccount || {})) {
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const first = Number(arr[0].balance);
+    const last = Number(arr[arr.length - 1].balance);
+    if (!Number.isFinite(first) || !Number.isFinite(last)) continue;
+    any = true;
+    total += first - last;
+    const d = arr[0].date;
+    if (d && (earliest == null || d < earliest)) earliest = d;
+  }
+  if (!any) return null;
+  return { paydown: round2(total), fromDate: earliest ? String(earliest).slice(0, 10) : null };
+}
+
+/**
  * Forecast calendar dates for the next 1–3 climb tiers from a MONTHLY paydown
  * pace (dollars/month). Returns [] when pace is null/non-positive or the
  * projected horizon exceeds ~2 years. Using the span-gated monthly pace (see
@@ -264,6 +292,10 @@ function buildContext() {
   let lastPullPaydown = 0;
   let lastPullAdded = 0;
   for (const l of lastPullAccountLines) {
+    // Removing/renaming an account is data cleanup, not a payment — its line
+    // carries a large negative delta (-prevBalance). Counting it would make the
+    // Steward claim a phantom paydown. Mirror the dashboard, which skips removals.
+    if (l && l.kind === 'removed') continue;
     const d = Number(l && l.delta);
     if (Number.isFinite(d)) {
       if (d < 0) lastPullPaydown += Math.abs(d);
@@ -302,10 +334,11 @@ function buildContext() {
   // Robust where the trailing snapshot pace bails (first balance below today's).
   const avgMonthlyPayment = averageMonthlyPaydown(climb.cumulativePaidDown, gameStartAt);
 
-  // True monthly paydown: total balance reduction across ALL cards over the
-  // last ~30 days, from the snapshots table. This is the figure the Steward
-  // should quote for "last month" — never a single entry's per-card delta.
-  const last30 = paydownOverWindow(snapshots, 30);
+  // True monthly paydown: total balance reduction across ALL cards over the last
+  // ~30 days. Computed from per-account history (below, once it's fetched) so a
+  // REMOVED account — a structural change, not a payment — is not counted as
+  // paydown the way a raw snapshot-aggregate drop would be.
+  let last30 = null;
 
   // Recent paydown sum (last 4 deltas, in dollars)
   let recentPaydownSum = 0;
@@ -350,6 +383,9 @@ function buildContext() {
 
   // Per-account history (last 30d), for nickname detection + pace context
   const historyByAccount = getDebtAccountHistory(30);
+  // Now that per-account history is in hand, compute the 30-day paydown from it
+  // (removal-safe — see paydownLast30FromHistory).
+  last30 = paydownLast30FromHistory(historyByAccount);
   // Each account's original balance (full history) → percent paid down so far.
   const firstBalances = getDebtAccountFirstBalances();
 
@@ -413,12 +449,14 @@ function buildContext() {
     pctPaid: a.pctPaid, // percent paid down from this card's starting balance
   }));
   const turnDeltas = lastPullAccountLines
-    .filter((l) => l && Number.isFinite(Number(l.delta)) && Math.abs(Number(l.delta)) >= 1)
+    // Drop 'removed' rows: their negative delta (-prevBalance) sitting next to real
+    // 'decreased' payments would invite the model to sum them as paydown.
+    .filter((l) => l && l.kind !== 'removed' && Number.isFinite(Number(l.delta)) && Math.abs(Number(l.delta)) >= 1)
     .slice(0, 8)
     .map((l) => ({
       name: safe(l.name || ''),
       delta: dollars(l.delta),
-      kind: l.kind, // 'decreased' | 'increased' | 'new' | 'paid_off' | 'removed'
+      kind: l.kind, // 'decreased' | 'increased' | 'new' | 'paid_off'
     }));
 
   const snapshotTrail = snapshots
@@ -510,5 +548,6 @@ module.exports = {
   highestInterestAccount,
   avgDailyPaydown,
   paydownOverWindow,
+  paydownLast30FromHistory,
   forecastTierDates,
 };
