@@ -90,6 +90,21 @@ export function fillThisTurnPanel(stats) {
   }
 
   if (accountLines.length > 0) {
+    // Bug #5 — map each account's growth SINCE START (current balance vs starting
+    // balance) so the This Turn panel can flag an account that's up overall even
+    // when it dropped this single turn (e.g. paid -$60 this turn but +$84 since
+    // start because interest outran payments). Keyed by name (turn rows carry name).
+    const grewSinceStartByName = new Map();
+    const lines = Array.isArray(stats && stats.debtAccountLines) ? stats.debtAccountLines : [];
+    for (const l of lines) {
+      if (!l || typeof l.name !== 'string') continue;
+      const bal = Number(l.balance);
+      const start = Number(l.startBalance);
+      if (Number.isFinite(bal) && Number.isFinite(start) && bal > start + 0.005) {
+        grewSinceStartByName.set(l.name, bal - start);
+      }
+    }
+
     const buildRow = (r) => {
       const row = document.createElement('div');
       row.className = 'turn-row';
@@ -98,14 +113,21 @@ export function fillThisTurnPanel(stats) {
       name.className = 'turn-row-name';
       name.textContent = r.name || 'Account';
       name.title = r.name || 'Account';
-      // Bug #5 — when an account's balance GREW this turn, the payment (if any)
-      // didn't keep up with interest. Flag it so a rise never reads as progress.
       const d = Number(r.delta) || 0;
+      const grewSince = grewSinceStartByName.get(r.name);
       if (d > 0) {
+        // Rose THIS turn — payment didn't keep up with interest/charges.
         const warn = document.createElement('span');
         warn.className = 'turn-row-warn';
         warn.textContent = ' ⚠ grew';
         warn.title = 'This balance rose this turn — interest and new charges outpaced any payment.';
+        name.appendChild(warn);
+      } else if (grewSince != null) {
+        // Dropped this turn but still UP since you started — net result is negative.
+        const warn = document.createElement('span');
+        warn.className = 'turn-row-warn';
+        warn.textContent = ` ↑ ${fmtSignedDollar(grewSince)} since start`;
+        warn.title = 'You paid this down this turn, but the balance is still higher than when you started — interest has outpaced your payments overall.';
         name.appendChild(warn);
       }
 
