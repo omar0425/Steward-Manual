@@ -375,6 +375,32 @@ function buildPayThisNextCard() {
   return section;
 }
 
+function buildPaydownCalculator() {
+  const section = el('section', { class: 'section-panel dashboard-only-section', id: 'paydown-calc-section' });
+  section.innerHTML = `
+    <p class="tc-section-label" style="margin:0;">Paydown calculator</p>
+    <p class="tc-section-sublabel" id="calc-basis">Percentages are of your current debt.</p>
+    <div class="calc-row">
+      <label class="calc-field">
+        <span class="calc-label">Pay down</span>
+        <span class="calc-input-wrap"><span class="calc-affix">$</span>
+          <input id="calc-dollars" class="calc-input" type="number" inputmode="decimal" min="0" step="any" placeholder="500" aria-label="Dollars to pay down" />
+        </span>
+      </label>
+      <span class="calc-eq" aria-hidden="true">↔</span>
+      <label class="calc-field">
+        <span class="calc-label">Percent of debt</span>
+        <span class="calc-input-wrap">
+          <input id="calc-percent" class="calc-input" type="number" inputmode="decimal" min="0" step="any" placeholder="5" aria-label="Percent of current debt" />
+          <span class="calc-affix calc-affix--suffix">%</span>
+        </span>
+      </label>
+    </div>
+    <p class="calc-avg-apr-row">Average APR across your debts: <span id="calc-avg-apr" class="calc-avg-apr">—</span></p>
+  `;
+  return section;
+}
+
 function buildCumulativePaydownTrophy() {
   const section = el('section', { class: 'section-panel dashboard-only-section', id: 'cumulative-trophy-section' });
   section.innerHTML = `
@@ -524,6 +550,7 @@ export function mountPlayShell(root) {
   dashboard.appendChild(buildSessionPanel());
   dashboard.appendChild(buildAskStewardPanel());
   dashboard.appendChild(buildDebtAccountsPanel());
+  dashboard.appendChild(buildPaydownCalculator());
   dashboard.appendChild(buildStageProgressDetail());
   dashboard.appendChild(buildCumulativePaydownTrophy());
   dashboard.appendChild(buildDataStrip());
