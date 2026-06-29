@@ -550,7 +550,9 @@ export function paidDownDetailTooltip(stats) {
     lines.push(`Baseline (peak anchor): ${fmtDollar(baseline)}.`);
   }
   lines.push(
-    'Cumulative paydown: sum of decreases in total tracked debt between snapshots (never decreases).',
+    'Cumulative paydown: sum of decreases in total tracked debt between snapshots (never decreases). ' +
+    'This is the gross figure, before interest — see "Principal paid down (net)" on the progress panel ' +
+    'for the amount actually cleared after the interest your balances accrued.',
   );
   const nd = Number(stats.cumulativeNewDebtAdded);
   const net = Number(stats.netImprovement);

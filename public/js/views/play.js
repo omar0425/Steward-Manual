@@ -396,7 +396,7 @@ function buildPaydownCalculator() {
         </span>
       </label>
     </div>
-    <p class="calc-avg-apr-row">Average APR across your debts: <span id="calc-avg-apr" class="calc-avg-apr">—</span></p>
+    <p class="calc-avg-apr-row">Average APR on interest-bearing debt: <span id="calc-avg-apr" class="calc-avg-apr">—</span></p>
   `;
   return section;
 }

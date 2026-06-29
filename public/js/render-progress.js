@@ -108,7 +108,9 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
   const principal = principalPaidDownFromStats(stats);
   const principalVal = Number.isFinite(principal) ? fmtDollar(Math.round(principal)) : '—';
   if (elPaid) {
-    elPaid.innerHTML = `<span class="sp-label">Principal paid down</span><span class="sp-val sp-val--good">${principalVal}</span>`;
+    // "(net)" makes this persistently distinct from the hero's gross "You've
+    // reduced $X" headline — two legitimate figures that otherwise read as a bug.
+    elPaid.innerHTML = `<span class="sp-label">Principal paid down (net)</span><span class="sp-val sp-val--good">${principalVal}</span>`;
     const grossR = Math.round(paid);
     const interestR = Math.round(Number(stats && stats.cumulativeInterestAccrued) || 0);
     elPaid.title = interestR > 0
@@ -221,10 +223,22 @@ function fillDebtFreeBanner(stats) {
     return;
   }
   if (df && df.onTrack && df.debtFreeDate) {
-    if (dateEl) dateEl.textContent = formatMonthYear(df.debtFreeDate);
     const pace = Number(df.monthlyPace);
     const paceBit = Number.isFinite(pace) && pace > 0 ? `at ~${fmtDollar(Math.round(pace))}/mo` : '';
-    if (subEl) subEl.textContent = [paceBit, thisMonthBit].filter(Boolean).join(' · ');
+    const pf = stats && stats.payoffForecast;
+    const hasBand = pf && pf.ready && !pf.alreadyFree && pf.medianDate && pf.optimisticDate && pf.conservativeDate;
+    if (hasBand) {
+      // Lead with the Monte Carlo most-likely date and an honest range. The
+      // single pace-derived date (df.debtFreeDate) swings session to session;
+      // the band reframes that as expected variation rather than a moving goal.
+      if (dateEl) dateEl.textContent = formatMonthYear(pf.medianDate);
+      const range = `likely ${formatMonthYear(pf.optimisticDate)} – ${formatMonthYear(pf.conservativeDate)}`;
+      if (subEl) subEl.textContent = [range, paceBit, thisMonthBit].filter(Boolean).join(' · ');
+    } else {
+      // Not enough history for a band yet — fall back to the single pace date.
+      if (dateEl) dateEl.textContent = formatMonthYear(df.debtFreeDate);
+      if (subEl) subEl.textContent = [paceBit, thisMonthBit].filter(Boolean).join(' · ');
+    }
     banner.hidden = false;
     fillPayoffForecast(stats);
     return;
@@ -251,17 +265,13 @@ function fillPayoffForecast(stats) {
   const parts = [];
 
   if (f && f.ready && !f.alreadyFree && f.medianDate) {
-    const median = formatMonthYear(f.medianDate);
-    const optimistic = f.optimisticDate ? formatMonthYear(f.optimisticDate) : null;
-    const conservative = f.conservativeDate ? formatMonthYear(f.conservativeDate) : null;
-    const range = optimistic && conservative ? `${optimistic} – ${conservative}` : (conservative || optimistic || '—');
-
+    // The most-likely date + range now headline the banner above; this box adds
+    // the odds and the remaining-interest band so the two don't restate it.
     let odds = '';
     if (Number.isFinite(f.prob1yr) && f.prob1yr >= 50) odds = `${f.prob1yr}% chance within 1 year`;
     else if (Number.isFinite(f.prob2yr) && f.prob2yr >= 40) odds = `${f.prob2yr}% chance within 2 years`;
     else if (Number.isFinite(f.prob3yr)) odds = `${f.prob3yr}% chance within 3 years`;
 
-    parts.push(`<span class="pf-line">Most likely <b>${median}</b> · likely range ${range}</span>`);
     if (odds) parts.push(`<span class="pf-odds">${odds}</span>`);
 
     // Remaining-interest band — interest you'll still pay before you're free.
