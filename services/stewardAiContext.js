@@ -37,6 +37,7 @@ const { getClimbTier, nextClimbTierInfo } = require('./tiers');
 const {
   getClimbStatsFromConfig,
   getLastDebtSyncDebugForStatus,
+  recentCorrectedSnapshots,
 } = require('./climbMetrics');
 const { refreshNicknames } = require('./stewardAiNicknames');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, DAYS_PER_MONTH } = require('./pace');
@@ -320,7 +321,11 @@ function buildContext() {
   // Pace & forecast. The monthly pace is span-gated (services/pace.js): it
   // returns null until entries span real calendar time, so clustered logging
   // can no longer inflate it into a fantasy rate or over-optimistic dates.
-  const monthlyPace = monthlyPaceFromSnapshots(snapshots);
+  // Correction-aware history (same series the chart and dashboard forecast use),
+  // so the Steward's pace/dates match the UI and aren't skewed by setup-time
+  // account additions. Falls back to raw snapshots for legacy aggregate-only users.
+  const paceSnapshots = recentCorrectedSnapshots({ gameStartAt, fallback: snapshots });
+  const monthlyPace = monthlyPaceFromSnapshots(paceSnapshots);
   const forecasts = forecastTierDates({
     currentDebt: snap.debt_remaining,
     baseline: climb.climbBaselineDebt,
@@ -328,8 +333,8 @@ function buildContext() {
   });
   // Debt-free date + what the user has actually done THIS month — so the Steward
   // can speak to current behavior and a real finish line, from the same history.
-  const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
-  const netPaidThisMonth = paidThisMonth(snapshots);
+  const debtFreeProjection = projectDebtFree(paceSnapshots, snap.debt_remaining, { monthlyPace });
+  const netPaidThisMonth = paidThisMonth(paceSnapshots);
   // Lifetime average paid down per month (Total Cleared ÷ months since start).
   // Robust where the trailing snapshot pace bails (first balance below today's).
   const avgMonthlyPayment = averageMonthlyPaydown(climb.cumulativePaidDown, gameStartAt);

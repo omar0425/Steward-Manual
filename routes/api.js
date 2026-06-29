@@ -54,6 +54,7 @@ const {
   persistLastDebtSyncDebugSnapshot,
   perAccountDebtDeltaDisplayRows,
   buildCorrectedDebtSeries,
+  recentCorrectedSnapshots,
   roundMoney,
 } = require('../services/climbMetrics');
 const {
@@ -350,16 +351,20 @@ router.get('/status', (req, res) => {
   // (e.g. correcting a typo) where dividing by near-zero elapsed time gives a
   // bogus "1 month away" answer.
   let monthsEstimateClimb = null;
+  // Correction-aware history (same series the chart uses): setup-time account
+  // additions are carried back so they don't read as debt growth and skew the
+  // pace/forecast. Falls back to raw snapshots for legacy aggregate-only users.
+  const paceSnapshots = recentCorrectedSnapshots({ gameStartAt, fallback: snapshots });
   // Shared span-gated monthly pace — same helper the Steward forecasts use,
   // so the dashboard estimate and the AI dates can never disagree, and a
   // burst of same-week entries can't produce a bogus "1 month away".
-  const monthlyPace = monthlyPaceFromSnapshots(snapshots);
+  const monthlyPace = monthlyPaceFromSnapshots(paceSnapshots);
   if (next.nextTier && next.gapDollars > 0 && monthlyPace && monthlyPace > 0) {
     monthsEstimateClimb = Math.ceil(next.gapDollars / monthlyPace);
   }
   // Projected debt-free date + this-month progress, from the same real history.
-  const debtFreeProjection = projectDebtFree(snapshots, snap.debt_remaining, { monthlyPace });
-  const netPaidThisMonth = paidThisMonth(snapshots);
+  const debtFreeProjection = projectDebtFree(paceSnapshots, snap.debt_remaining, { monthlyPace });
+  const netPaidThisMonth = paidThisMonth(paceSnapshots);
   // Lifetime average paid down per month (Total Cleared ÷ months since start).
   const avgMonthlyPayment = averageMonthlyPaydown(climb.cumulativePaidDown, gameStartAt);
 
@@ -387,7 +392,7 @@ router.get('/status', (req, res) => {
   // Surfaced on the dashboard and reused as the forecast's effective APR so the
   // two never disagree.
   const avgApr = effectiveAnnualAprPct(planAccounts);
-  const payoffForecast = monteCarloPayoff(snap.debt_remaining, monthlyPaydownSamples(snapshots), {
+  const payoffForecast = monteCarloPayoff(snap.debt_remaining, monthlyPaydownSamples(paceSnapshots), {
     annualAprPct: avgApr,
   });
   // Interest kept from the bank SO FAR — savings rate vs starting balances,
@@ -1427,19 +1432,26 @@ router.get('/export', (req, res) => {
     };
   });
 
-  const pace = monthlyPaceFromSnapshots(recentSnapshots(60));
+  const exportGameStartAt = getConfig('game_start_at');
+  // Correction-aware history (same series the chart and dashboard forecast use),
+  // so the exported pace/forecast match the UI and aren't skewed by setup-time
+  // account additions. Falls back to raw snapshots for legacy aggregate-only users.
+  const exportPaceSnapshots = recentCorrectedSnapshots({
+    gameStartAt: exportGameStartAt,
+    fallback: recentSnapshots(60),
+  });
+  const pace = monthlyPaceFromSnapshots(exportPaceSnapshots);
   // DA-06 — the dashboard's "Avg / month" is the lifetime average (Total Cleared ÷
   // months since game start), not the snapshot pace. Export the SAME figure so the
   // API matches the UI instead of returning null when the snapshot pace is unset.
-  const exportGameStartAt = getConfig('game_start_at');
   const lifetimeAvgPaydown = averageMonthlyPaydown(climb.cumulativePaidDown, exportGameStartAt);
-  const proj = latestDebt != null ? projectDebtFree(recentSnapshots(60), latestDebt, { monthlyPace: pace }) : null;
+  const proj = latestDebt != null ? projectDebtFree(exportPaceSnapshots, latestDebt, { monthlyPace: pace }) : null;
   // Bug #4 — the dashboard's debt-free date comes from the Monte Carlo forecast,
   // not the linear projection, so export THAT (with its confidence band) instead
   // of leaving projectedDebtFree null. Anyone exporting their data then has the
   // same projection the UI shows.
   const exportForecast = latestDebt != null
-    ? monteCarloPayoff(latestDebt, monthlyPaydownSamples(recentSnapshots(60)), {
+    ? monteCarloPayoff(latestDebt, monthlyPaydownSamples(exportPaceSnapshots), {
         annualAprPct: effectiveAnnualAprPct(accounts),
       })
     : null;
