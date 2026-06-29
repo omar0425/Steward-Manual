@@ -2300,14 +2300,18 @@ body[data-setup-mode="first"] .setup-welcome {
 .commitment-btn--ghost:hover { background: var(--gold-soft); color: var(--gold-2, var(--gold)); border-color: var(--gold); }
 /* ── Saved Debts List ─────────────────────────────────────────────────────── */
 .saved-debts-list { display: flex; flex-direction: column; gap: 0; }
+/* Bug #8 — fixed grid columns (name | balance | remove) so balances snap to one
+   column down the list instead of floating with name length. */
 .saved-debt-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
+  gap: 12px;
   padding: 6px 0;
   min-height: 46px;
   border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
 }
+.saved-debt-balance { justify-self: end; }
 .saved-debt-row:first-child { border-top: 1px solid var(--border, rgba(255,255,255,0.06)); }
 .saved-debt-name {
   font-size: 15px;
@@ -2339,6 +2343,7 @@ body[data-setup-mode="first"] .setup-welcome {
   padding: 6px 10px;
   font-family: 'IBM Plex Mono', monospace;
   text-align: right;
+  font-variant-numeric: tabular-nums;
   transition: border-color 0.15s;
 }
 .saved-debt-balance-input:focus {
