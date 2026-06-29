@@ -17,8 +17,10 @@ let _reduced = false;
 try { _reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { /* ignore */ }
 
 function fmtAccrued(n) {
-  // Enough decimals that the eye can see it move, even on small balances.
-  return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  // Whole cents — this is a currency value, and 4 decimals (e.g. $0.0514) reads
+  // as a rendering glitch. On a real balance the cents still tick visibly; on a
+  // tiny balance it moves slowly, which is honest.
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function paint() {

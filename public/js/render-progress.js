@@ -144,8 +144,12 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     const est = Number(stats && stats.estimatedInterestAccrued);
     const hasEst = Number.isFinite(est) && est > 0;
     const understated = stats && stats.estimatedInterestUnderstated;
+    // Say "accrued since start" explicitly: this is a cumulative total, and
+    // without that word it reads as a rival to the "~$/mo right now" monthly
+    // cost shown on the debts panel — two interest numbers that look like they
+    // should tie out but measure different things.
     const estLine = hasEst
-      ? `<span class="sp-sub">≈ ${fmtDollar(Math.round(est))}${understated ? '+' : ''} est. from APRs</span>`
+      ? `<span class="sp-sub">≈ ${fmtDollar(Math.round(est))}${understated ? '+' : ''} accrued since start (est.)</span>`
       : '';
     elInterest.innerHTML = `<span class="sp-label">Interest logged</span><span class="sp-val">${iaStr}</span>${estLine}`;
     elInterest.title = 'Two views of interest. "Interest logged" is only what you’ve tagged as interest/fees. The "est. from APRs" line below estimates the real interest accrued since you started, from your APRs and balances'
