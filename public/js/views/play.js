@@ -484,6 +484,10 @@ function buildDataStrip() {
       <span class="data-chip-k">Version</span>
       <span class="data-chip-v" id="app-version">\u2014</span>
     </div>
+    <div class="data-chip" title="Time in this visit, and total focused time on Steward (the session tracker writes to this).">
+      <span class="data-chip-k">Session</span>
+      <span class="data-chip-v" id="data-session-time">\u2014</span>
+    </div>
     <div class="data-strip-actions">
       <a class="refresh-btn" id="export-csv-btn" href="/api/export?format=csv" download
          title="Snapshot history as CSV (with per-entry change + paid-since-start), opens in Excel/Sheets. Also: every card side-by-side over time \u2192 /api/export?format=csv&table=matrix \u00b7 long per-account history \u2192 /api/export?format=csv&table=accounts">\u2913 CSV</a>

@@ -24,6 +24,11 @@ export function animateNumber(el, to, render, opts = {}) {
   const prev = Number(el.dataset.animVal);
   const hasPrev = Number.isFinite(prev);
 
+  // Cancel any in-flight roll-up on this element BEFORE the early returns — a
+  // repeat call that lands on the instant path would otherwise leave a stale
+  // animation frame that overwrites the freshly-set value on its next tick.
+  if (el._animRaf) { cancelAnimationFrame(el._animRaf); el._animRaf = null; }
+
   // First paint, no change, or reduced motion → set instantly.
   if (!hasPrev || prev === target || reduceMotion()) {
     el.dataset.animVal = String(target);
@@ -36,9 +41,6 @@ export function animateNumber(el, to, render, opts = {}) {
   const start = performance.now();
   const from = prev;
   const delta = target - from;
-
-  // Cancel any in-flight roll-up on this element.
-  if (el._animRaf) cancelAnimationFrame(el._animRaf);
 
   const tick = (now) => {
     const t = Math.min(1, (now - start) / duration);

@@ -88,3 +88,24 @@ Use this for a single user's data from a JSON export (from the in-app "Export my
 - **Daily:** off-box pull (`pull-backup.ps1`) + the fresh restore drill, alert on failure.
 - **Monthly:** do a real Option-A restore into a throwaway environment end-to-end — the only way to know the *whole* path works, not just the file.
 - Keep the off-box copies on different hardware/cloud than the live volume.
+
+---
+
+## Ongoing health checks (do these numbers make sense?)
+
+Beyond "can I recover," catch a *figure* drifting into nonsense (the class of bug
+that once produced "CLEAR $7,189 THIS MONTH"). `scripts/audit-metrics.js` runs
+domain-sense checks on a `/status` payload — realistic monthly ask, ordered
+forecast bands, monotonic payoff probabilities, non-negative interest, etc.
+
+```bash
+# Against a saved payload:
+node scripts/audit-metrics.js status.json
+# Against the live app (exit 1 if anything FAILs → alert on it):
+curl -s --cookie "steward_sid=<your session>" https://APP/api/status | node scripts/audit-metrics.js
+# Add --ai to also ask the model for a freeform sanity read (needs the AI key).
+```
+
+- **Weekly (or after any climb-math change):** run it against live `/status`; a
+  non-zero exit means a metric is contextually wrong — investigate before trusting
+  the dashboard. The `runChecks()` function is unit-tested (`test/audit-metrics.test.js`).

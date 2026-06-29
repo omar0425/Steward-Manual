@@ -15,6 +15,14 @@ const LEGACY_FALLBACK_LIQUID_WEIGHT = 0.88;
 
 const RUNWAY_POINTS_CAP = 62;
 const RUNWAY_MONTHS_AT_CAP = 5.5;
+/**
+ * Fallback runway scoring when monthlyExpenses is unknown (the manual edition's
+ * common case): liquid dollars are scored on a flat ramp up to this point cap,
+ * reached at FALLBACK_LIQUID_REFERENCE dollars. Lower cap than the expenses-based
+ * path on purpose — without a runway we can't claim the same confidence.
+ */
+const FALLBACK_RUNWAY_POINTS_CAP = 35;
+const FALLBACK_LIQUID_REFERENCE = 15000;
 /** Set slightly below legacy 38 so debt-free + ~3mo EF lands Steady (id stabilizing), not marginal Fortified. */
 const BUFFER_POINTS_CAP = 37;
 
@@ -140,7 +148,7 @@ function computeStability(input) {
       (effectiveRunwayMonths / RUNWAY_MONTHS_AT_CAP) * RUNWAY_POINTS_CAP,
     );
   } else {
-    runwayPoints = Math.min(35, (liquidLike / 15000) * 35);
+    runwayPoints = Math.min(FALLBACK_RUNWAY_POINTS_CAP, (liquidLike / FALLBACK_LIQUID_REFERENCE) * FALLBACK_RUNWAY_POINTS_CAP);
   }
 
   let bufferPoints = 0;

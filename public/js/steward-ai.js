@@ -125,8 +125,14 @@ function showDialog({ mode, title, text }) {
   document.body.appendChild(overlay);
 
   let autoTimer = null;
+  // Hoisted so EVERY close path (dismiss, backdrop, auto-timeout, Escape) removes
+  // the document-level keydown listener. Previously only the Escape branch removed
+  // it, so toasts that closed any other way leaked a listener (and a closure
+  // retaining the removed overlay) on every snapshot.
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
   const close = () => {
     if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+    document.removeEventListener('keydown', onKey);
     overlay.remove();
     // Only the modal stole focus, so only the modal restores it. Returning
     // focus after a toast would yank the user away from what they were doing.
@@ -136,12 +142,7 @@ function showDialog({ mode, title, text }) {
   };
 
   overlay.querySelector('.steward-ai-dismiss').addEventListener('click', close);
-  document.addEventListener('keydown', function onKey(e) {
-    if (e.key === 'Escape') {
-      document.removeEventListener('keydown', onKey);
-      close();
-    }
-  });
+  document.addEventListener('keydown', onKey);
 
   if (isToast) {
     // Linger long enough to read, then fade on its own; hovering pauses it.

@@ -680,7 +680,17 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
         classifications,
       }),
     });
-    const data = await res.json();
+    // Parse separately so a non-JSON response (proxy/HTML error page) is reported
+    // honestly instead of being swallowed by the network catch as "Network error."
+    // (We don't use readJsonRes here — it throws on any non-2xx, which would hide
+    // the route's clean 400 validation messages handled in the else branch below.)
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+    if (!data) {
+      if (msgEl) msgEl.textContent = `Couldn't save — the server returned an unexpected response (HTTP ${res.status}).`;
+      if (btnEl) btnEl.disabled = false;
+      return;
+    }
     if (res.ok && data.ok) {
       if (data.setupIncomplete) {
         if (document.body) document.body.dataset.setupMode = 'first';
@@ -715,10 +725,10 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
         await resyncSavedDebtsFromServer();
       }
     } else {
-      if (msgEl) msgEl.textContent = data.error || 'Failed to save.';
+      if (msgEl) msgEl.textContent = data.error || `Failed to save (HTTP ${res.status}).`;
     }
   } catch (err) {
-    if (msgEl) msgEl.textContent = 'Network error.';
+    if (msgEl) msgEl.textContent = 'Network error — is Steward running?';
   }
 
   if (btnEl) btnEl.disabled = false;

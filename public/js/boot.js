@@ -124,7 +124,9 @@ async function loadNotificationsSent() {
     const data = await res.json();
     notificationsSentCache = Array.isArray(data.sent) ? data.sent : [];
   } catch {
-    return [];
+    // Cache an empty array (not null) so a later markMilestoneSent can record
+    // marks locally and the silent "first boot" seed path doesn't re-run.
+    notificationsSentCache = [];
   }
   return notificationsSentCache;
 }
