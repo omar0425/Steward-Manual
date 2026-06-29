@@ -899,6 +899,9 @@ board-liquidity-pill
 .dr-balance-cell { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
 .dr-balance { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
 .dr-paid-pct { margin-top: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 400; color: var(--emerald, #10b981); opacity: 0.85; white-space: nowrap; }
+/* Grown above starting balance: the "% paid" line flips to a rose "↑ grew"
+   readout so it never claims progress the account didn't make. */
+.dr-paid-pct.grew { color: var(--rose, #d94f6e); }
 .dr-delta { min-width: 42px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-align: right; color: var(--text-3); white-space: nowrap; }
 .dr-delta.down { color: var(--emerald); }
 .dr-delta.up { color: var(--rose); }

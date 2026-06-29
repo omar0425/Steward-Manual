@@ -530,11 +530,27 @@ export function fillDebtAccountsList(stats) {
     // that used to omit it for 0% read as uneven). Paid-off rows show 100%.
     const pctPaidRaw = Number(acct.pctPaid);
     const pctPaidVal = isPaidOff ? 100 : (Number.isFinite(pctPaidRaw) && pctPaidRaw > 0 ? pctPaidRaw : 0);
+    const startBal = Number(acct.startBalance);
+    const hasStart = acct.startBalance != null && Number.isFinite(startBal);
+    // An account can grow above its starting balance (new charges). The "% paid"
+    // line and its tooltip must reflect direction: claiming "Down from $X / N% paid"
+    // when the balance actually rose is the DATA-1 bug. Show "grew" + "Up from $X"
+    // in that case so the row never contradicts itself.
+    const grew = hasStart && balance > startBal + 0.005;
     const pctEl = document.createElement('span');
     pctEl.className = 'dr-paid-pct';
-    pctEl.textContent = `${pctPaidVal}% paid`;
-    if (acct.startBalance != null && Number.isFinite(Number(acct.startBalance))) {
-      pctEl.title = `Down from ${fmtDollar(Number(acct.startBalance))} since you started tracking it.`;
+    if (grew) {
+      pctEl.classList.add('grew');
+      const up = balance - startBal;
+      pctEl.textContent = `↑ ${fmtDollar(Math.round(up))} since start`;
+      pctEl.title = `Up from ${fmtDollar(Math.round(startBal))} when you started tracking it — this balance grew.`;
+    } else {
+      pctEl.textContent = `${pctPaidVal}% paid`;
+      if (hasStart) {
+        pctEl.title = pctPaidVal > 0
+          ? `Down from ${fmtDollar(Math.round(startBal))} since you started tracking it.`
+          : `Unchanged from ${fmtDollar(Math.round(startBal))} since you started tracking it.`;
+      }
     }
     amountCell.appendChild(pctEl);
 
