@@ -127,28 +127,10 @@ app.use((req, res, next) => {
       }
     }
   }
-  // Polyfill res.cookie / res.clearCookie if not present
-  if (!res.cookie) {
-    res.cookie = (name, value, opts = {}) => {
-      let str = `${name}=${encodeURIComponent(value)}`;
-      if (opts.maxAge) str += `; Max-Age=${Math.floor(opts.maxAge / 1000)}`;
-      if (opts.httpOnly) str += '; HttpOnly';
-      if (opts.sameSite) str += `; SameSite=${opts.sameSite}`;
-      if (opts.path) str += `; Path=${opts.path}`;
-      if (process.env.NODE_ENV === 'production') str += '; Secure';
-      res.append('Set-Cookie', str);
-      return res;
-    };
-  }
-  if (!res.clearCookie) {
-    res.clearCookie = (name, opts = {}) => {
-      let str = `${name}=; Max-Age=0`;
-      if (opts.path) str += `; Path=${opts.path}`;
-      str += '; HttpOnly';
-      res.append('Set-Cookie', str);
-      return res;
-    };
-  }
+  // Express 4 provides res.cookie / res.clearCookie natively, so the old
+  // hand-rolled polyfill here was dead code. The `Secure`-in-production flag it
+  // used to add now lives on the cookie itself (see setSessionCookie in
+  // routes/auth.js) so the behavior is preserved without the dead branch.
   next();
 });
 
@@ -388,13 +370,14 @@ app.use((err, req, res, next) => {
 });
 
 // ── Prune expired sessions + reset tokens every hour ──────────────────────────
-// unref() so this timer never keeps the process alive on its own (matches the
-// backup + nudge intervals).
-const _pruneHandle = setInterval(() => {
+// .unref() so this timer never keeps the process alive on its own (parity with
+// the backup + nudge intervals); a pending hourly cleanup shouldn't block a
+// graceful shutdown.
+const pruneHandle = setInterval(() => {
   pruneExpiredSessions();
   purgeExpiredPasswordResetTokens();
 }, 60 * 60 * 1000);
-if (typeof _pruneHandle.unref === 'function') _pruneHandle.unref();
+if (typeof pruneHandle.unref === 'function') pruneHandle.unref();
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 // Loud, early warning if the SQLite file isn't on a Railway persistent volume —

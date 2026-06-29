@@ -19,6 +19,12 @@ const db = new DatabaseSync(DB_PATH);
 // make that guaranteed rather than dependent on the node:sqlite build default.
 db.exec('PRAGMA foreign_keys = ON');
 
+// Wait up to 5s for a lock rather than failing instantly with SQLITE_BUSY.
+// This is a second connection to the same file as db.js; busy_timeout is
+// per-connection, so it must be set here too. (journal_mode=WAL is a persistent
+// DB property already set by db.js — it carries across connections.)
+db.exec("PRAGMA busy_timeout = 5000");
+
 // ── Schema ────────────────────────────────────────────────────────────────────
 
 db.exec(`

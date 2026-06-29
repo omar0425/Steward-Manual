@@ -33,7 +33,7 @@ const {
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
 } = require('../db');
-const { getClimbTier, nextClimbTierInfo } = require('./tiers');
+const { getClimbTier, nextClimbTierInfo, TIERS } = require('./tiers');
 const {
   getClimbStatsFromConfig,
   getLastDebtSyncDebugForStatus,
@@ -188,7 +188,9 @@ function forecastTierDates({ currentDebt, baseline, monthlyPace }) {
   if (!Number.isFinite(monthlyPace) || monthlyPace <= 0) return [];
   if (!Number.isFinite(baseline) || baseline <= 0) return [];
   const perDay = monthlyPace / DAYS_PER_MONTH;
-  const nonDebtFreeStages = 9;
+  // Derive from the tier table (9 non-debt-free stages today) so the forecast
+  // can't silently diverge from the real climb-tier math if TIERS ever changes.
+  const nonDebtFreeStages = TIERS.length - 1;
   const forecasts = [];
   for (let i = 1; i <= nonDebtFreeStages; i++) {
     const exitPct = i / nonDebtFreeStages;
