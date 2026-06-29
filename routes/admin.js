@@ -76,10 +76,14 @@ router.post('/users/:id/restore', express.json({ limit: '8mb' }), (req, res) => 
   if (!user) return undefined;
   const check = isValidImportPayload(req.body);
   if (!check.ok) return res.status(400).json({ ok: false, error: check.error });
+  const force = req.body.force === true || req.query.force === '1' || req.query.force === 'true';
   try {
-    const restored = withUser(user.id, () => importUserData(req.body));
+    const restored = withUser(user.id, () => importUserData(req.body, { force }));
     return res.json({ ok: true, user: { id: user.id, username: user.username }, restored });
   } catch (err) {
+    if (err && err.code === 'EMPTY_RESTORE_GUARD') {
+      return res.status(409).json({ ok: false, error: err.message, needsForce: true });
+    }
     console.error('[admin] restore', err);
     return res.status(500).json({ ok: false, error: 'Restore failed.' });
   }

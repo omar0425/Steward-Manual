@@ -180,6 +180,45 @@ function ensureUserScopedTables() {
 ensureUserScopedTables();
 _schemaInitDone = true;
 
+// ── Transactions ──────────────────────────────────────────────────────────────
+// node:sqlite has a single connection, so transactions can't safely nest with raw
+// BEGIN/COMMIT ("cannot start a transaction within a transaction"). This helper
+// tracks depth: the outermost call uses BEGIN/COMMIT, inner calls use SAVEPOINTs,
+// so multi-write helpers (balance replace, history append, climb metric writes)
+// can be composed inside one outer transaction and still roll back atomically.
+let _txnDepth = 0;
+function transaction(fn) {
+  if (typeof fn !== 'function') throw new Error('transaction(fn): fn must be a function');
+  if (_txnDepth > 0) {
+    const name = `sp_${_txnDepth}`;
+    db.exec(`SAVEPOINT ${name}`);
+    _txnDepth += 1;
+    try {
+      const r = fn();
+      db.exec(`RELEASE ${name}`);
+      _txnDepth -= 1;
+      return r;
+    } catch (err) {
+      db.exec(`ROLLBACK TO ${name}`);
+      db.exec(`RELEASE ${name}`);
+      _txnDepth -= 1;
+      throw err;
+    }
+  }
+  db.exec('BEGIN');
+  _txnDepth += 1;
+  try {
+    const r = fn();
+    db.exec('COMMIT');
+    _txnDepth -= 1;
+    return r;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    _txnDepth -= 1;
+    throw err;
+  }
+}
+
 // ── Snapshot helpers ──────────────────────────────────────────────────────────
 
 const INSERT_SNAPSHOT = db.prepare(`
@@ -264,8 +303,7 @@ function replaceDebtAccountBalances(balanceByAccountId) {
     INSERT INTO debt_account_balances (user_id, ynab_account_id, last_balance, updated_at)
     VALUES (?, ?, ?, ?)
   `);
-  db.exec('BEGIN');
-  try {
+  transaction(() => {
     del.run(userId);
     for (const [id, bal] of balanceByAccountId) {
       const b = Math.round(Number(bal) * 100) / 100;
@@ -278,17 +316,15 @@ function replaceDebtAccountBalances(balanceByAccountId) {
       }
       ins.run(userId, String(id), b, now);
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 }
 
 // ── Per-account balance history (spark lines, last 30 entries per account) ───
 
-function appendDebtAccountHistory(balanceMap) {
-  const now = new Date().toISOString();
+function appendDebtAccountHistory(balanceMap, recordedAt) {
+  // recordedAt lets the caller pin history to the snapshot's exact timestamp so
+  // an undo can later delete precisely the rows this pull added (see undoLastPull).
+  const now = recordedAt ? String(recordedAt) : new Date().toISOString();
   const userId = currentUserId();
   const ins = db.prepare(`
     INSERT OR IGNORE INTO debt_account_history (user_id, ynab_account_id, recorded_at, balance)
@@ -301,17 +337,33 @@ function appendDebtAccountHistory(balanceMap) {
       WHERE user_id = ? AND ynab_account_id = ? ORDER BY recorded_at DESC LIMIT 30
     )
   `);
-  db.exec('BEGIN');
-  try {
+  transaction(() => {
     for (const [id, bal] of balanceMap) {
       ins.run(userId, String(id), now, Math.round(Number(bal) * 100) / 100);
       prune.run(userId, String(id), userId, String(id));
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
+}
+
+/**
+ * Delete the current user's history rows recorded at an exact timestamp. Used by
+ * undo to remove precisely the rows a reversed pull appended (no-op when the
+ * timestamp is absent, e.g. legacy undo entries / aggregate pulls). Returns the
+ * number of rows removed.
+ */
+function deleteDebtAccountHistoryAt(recordedAt) {
+  if (recordedAt == null || recordedAt === '') return 0;
+  return db
+    .prepare(`DELETE FROM debt_account_history WHERE user_id = ? AND recorded_at = ?`)
+    .run(currentUserId(), String(recordedAt)).changes;
+}
+
+/** Delete all of the current user's config rows whose key starts with `prefix`. */
+function deleteConfigByPrefix(prefix) {
+  if (!prefix) return 0;
+  return db
+    .prepare(`DELETE FROM config WHERE user_id = ? AND key LIKE ?`)
+    .run(currentUserId(), `${String(prefix)}%`).changes;
 }
 
 /** Raw per-account history rows (ascending) for the current user — chart series. */
@@ -396,7 +448,7 @@ function exportUserData() {
  * never write into someone else's rows). The undo stack is cleared because its
  * snapshotIds referenced the pre-restore rows. Returns counts of what was written.
  */
-function importUserData(data) {
+function importUserData(data, { force = false } = {}) {
   const userId = currentUserId();
   if (!data || typeof data !== 'object') throw new Error('import payload must be an object');
   const snapshots = Array.isArray(data.snapshots) ? data.snapshots : [];
@@ -405,6 +457,23 @@ function importUserData(data) {
   const settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
 
   const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
+
+  // Safety net: this is a destructive full-replace. A shape-valid payload that
+  // yields ZERO usable snapshots (e.g. a truncated/old/hand-edited file) would
+  // silently erase everything the user has. Refuse unless the caller explicitly
+  // forces it (an intentional wipe). Checked BEFORE any DELETE runs.
+  const usableSnapshots = snapshots.filter((s) => s && s.pulled_at != null).length;
+  const existingSnapshots = db
+    .prepare('SELECT COUNT(*) AS n FROM snapshots WHERE user_id = ?')
+    .get(userId).n;
+  if (usableSnapshots === 0 && existingSnapshots > 0 && !force) {
+    const err = new Error(
+      'Refusing to restore: the payload has no usable snapshots and you already have data — ' +
+      'this would erase everything. Re-send with force to wipe intentionally.',
+    );
+    err.code = 'EMPTY_RESTORE_GUARD';
+    throw err;
+  }
 
   const insSnap = db.prepare(`
     INSERT INTO snapshots
@@ -425,15 +494,15 @@ function importUserData(data) {
   const now = new Date().toISOString();
 
   let counts = { snapshots: 0, balances: 0, history: 0, settings: 0 };
-  db.exec('BEGIN');
-  try {
+  let skipped = { snapshots: 0, balances: 0, history: 0, settings: 0 };
+  transaction(() => {
     db.prepare('DELETE FROM snapshots WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_balances WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_history WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM config WHERE user_id = ?').run(userId);
 
     for (const s of snapshots) {
-      if (!s || s.pulled_at == null) continue;
+      if (!s || s.pulled_at == null) { skipped.snapshots += 1; continue; }
       insSnap.run(
         userId,
         String(s.source || 'manual'),
@@ -450,7 +519,7 @@ function importUserData(data) {
     for (const b of balances) {
       const id = b && (b.accountId != null ? b.accountId : b.ynab_account_id);
       const bal = num(b && (b.balance != null ? b.balance : b.last_balance), NaN);
-      if (id == null || !Number.isFinite(bal) || bal < 0) continue;
+      if (id == null || !Number.isFinite(bal) || bal < 0) { skipped.balances += 1; continue; }
       insBal.run(userId, String(id), Math.round(bal * 100) / 100, String(b.updatedAt || b.updated_at || now));
       counts.balances += 1;
     }
@@ -458,22 +527,18 @@ function importUserData(data) {
       const id = h && (h.accountId != null ? h.accountId : h.ynab_account_id);
       const at = h && (h.recordedAt || h.recorded_at);
       const bal = num(h && h.balance, NaN);
-      if (id == null || !at || !Number.isFinite(bal) || bal < 0) continue;
+      if (id == null || !at || !Number.isFinite(bal) || bal < 0) { skipped.history += 1; continue; }
       insHist.run(userId, String(id), String(at), Math.round(bal * 100) / 100);
       counts.history += 1;
     }
     for (const [key, value] of Object.entries(settings)) {
       if (key === 'climb_undo_stack') continue; // referenced now-stale snapshot ids
-      if (value == null) continue;
+      if (value == null) { skipped.settings += 1; continue; }
       insCfg.run(userId, String(key), String(value));
       counts.settings += 1;
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
-  return counts;
+  });
+  return { ...counts, skipped };
 }
 
 /** Shape-check an import/restore payload before it touches the DB. */
@@ -487,6 +552,17 @@ function isValidImportPayload(data) {
   if (data.settings != null && (typeof data.settings !== 'object' || Array.isArray(data.settings))) {
     return { ok: false, error: '"settings" must be an object.' };
   }
+  // Element-shape + size sanity (cheap, catches a corrupt/hostile file before the
+  // destructive replace). Empty arrays remain valid; only present elements are checked.
+  const MAX_ROWS = 100000;
+  const isPlainObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
+  if (data.snapshots.length > MAX_ROWS) return { ok: false, error: 'Too many snapshots in payload.' };
+  if (data.debtAccountBalances.length > MAX_ROWS) return { ok: false, error: 'Too many balance rows in payload.' };
+  if (Array.isArray(data.debtAccountHistory) && data.debtAccountHistory.length > MAX_ROWS) {
+    return { ok: false, error: 'Too many history rows in payload.' };
+  }
+  if (data.snapshots.some((s) => !isPlainObj(s))) return { ok: false, error: 'Each snapshot must be an object.' };
+  if (data.debtAccountBalances.some((b) => !isPlainObj(b))) return { ok: false, error: 'Each balance row must be an object.' };
   return { ok: true };
 }
 
@@ -541,14 +617,16 @@ function initGameState(debtRemaining, pulledAt) {
     'turn_start_balances',
     'notifications_sent',
   ];
-  db.exec('BEGIN');
-  try {
+  transaction(() => {
     upsert.run(userId, GAME_START_DEBT_KEY,  debt);
     upsert.run(userId, GAME_START_AT_KEY,    at);
     upsert.run(userId, 'climb_baseline_debt', debt);
     upsert.run(userId, 'debt_start',          debt);
     upsert.run(userId, 'cumulative_paid_down',       '0');
     upsert.run(userId, 'cumulative_new_debt_added',  '0');
+    // Reset accrued interest too — a new game must not inherit the prior game's
+    // interest bucket (it's one of the three cumulative climb metrics).
+    upsert.run(userId, 'cumulative_interest_accrued', '0');
     upsert.run(userId, 'last_aggregate_debt_for_climb', debt);
     upsert.run(userId, 'climb_per_account_map_seeded', '1');
     for (const key of KEYS_TO_CLEAR) del.run(userId, key);
@@ -557,11 +635,7 @@ function initGameState(debtRemaining, pulledAt) {
       INSERT OR IGNORE INTO debt_account_history (user_id, ynab_account_id, recorded_at, balance)
       SELECT user_id, ynab_account_id, ?, last_balance FROM debt_account_balances WHERE user_id = ?
     `).run(at, userId);
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 }
 
 // ── Config helpers ────────────────────────────────────────────────────────────
@@ -611,6 +685,13 @@ function resetAllGameState() {
     'promise_text',
     'turn_start_at',
     'turn_start_balances',
+    // AI commentary + cutscene state — a reset must not leave stale narration,
+    // nicknames, fired-mode timers, or an armed cutscene describing the old game.
+    'pending_cutscene',
+    'steward_ai_ledger',
+    'steward_ai_nicknames',
+    'steward_ai_last_if_do_nothing_at',
+    'steward_ai_last_quarterly_at',
   ];
   // Counts collected so the API can tell the user what was actually cleared.
   const countOne = (sql, ...params) => db.prepare(sql).get(userId, ...params);
@@ -636,17 +717,17 @@ function resetAllGameState() {
   }
 
   const del = db.prepare(`DELETE FROM config WHERE user_id = ? AND key = ?`);
-  db.exec('BEGIN');
-  try {
+  // Per-snapshot AI dialog/quote caches are keyed by pulled_at (a prefix), so the
+  // explicit key list can't catch them — sweep by LIKE inside the same transaction.
+  const delPrefix = db.prepare(`DELETE FROM config WHERE user_id = ? AND key LIKE ?`);
+  transaction(() => {
     for (const key of GAME_STATE_KEYS) del.run(userId, key);
+    delPrefix.run(userId, 'steward_ai_dialog_at:%');
+    delPrefix.run(userId, 'steward_ai_quote_at:%');
     db.prepare('DELETE FROM snapshots WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_balances WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_history WHERE user_id = ?').run(userId);
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 
   return {
     deleted: {
@@ -674,6 +755,7 @@ function lastNonZeroFinancials() {
 
 module.exports = {
   db,
+  transaction,
   withUser,
   currentUserId,
   insertSnapshot,
@@ -689,7 +771,9 @@ module.exports = {
   getConfig,
   setConfig,
   setConfigIfAbsent,
+  deleteConfigByPrefix,
   appendDebtAccountHistory,
+  deleteDebtAccountHistoryAt,
   getDebtAccountHistory,
   debtAccountHistoryRows,
   getDebtAccountFirstBalances,
