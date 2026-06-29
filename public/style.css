@@ -210,29 +210,33 @@ h1, h2, h3 {
 .nav-link.active::after { content: ''; position: absolute; bottom: -4px; left: 0; right: 0; height: 1px; background: var(--gold); }
 .nav-link.nav-link-btn { background: none; border: none; padding: 0; cursor: pointer; font: inherit; letter-spacing: inherit; }
 .nav-link.nav-link-btn:focus-visible { outline: 1px dashed var(--gold); outline-offset: 3px; border-radius: 2px; }
-.nav-right { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.nav-right { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+/* Unified right-nav cluster: badge, theme toggle, and sign-out share one
+   height, padding, border weight, and radius so they read as a single group
+   rather than three mismatched controls. Each sets its own accent colour. */
+.nav-badge,
+.nav-theme-btn,
+.nav-logout-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 30px; padding: 0 12px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
+  border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+  background: transparent; line-height: 1; box-sizing: border-box;
+  transition: all 130ms;
+}
 .nav-badge {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--gold); padding: 4px 10px; border-radius: 999px;
-  border: 1px solid rgba(200,168,76,0.25); background: var(--gold-soft);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--gold); border-color: rgba(200,168,76,0.35); background: var(--gold-soft);
 }
 /* render.js: update nav stage tag text with tier.badge + tier.label */
 .nav-stage-tag { /* same class as .nav-badge — wire to tier in render.js */ }
 
 /* Theme toggle button */
-.nav-theme-btn {
-  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em;
-  padding: 5px 12px; border: 1px solid var(--border-2); border-radius: var(--radius-sm);
-  background: transparent; color: var(--text-2); cursor: pointer; transition: all 130ms;
-}
+.nav-theme-btn { color: var(--text-2); cursor: pointer; }
 .nav-theme-btn:hover { border-color: var(--gold); color: var(--gold); }
 
 /* Sign-out button in nav */
-.nav-logout-btn {
-  font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em;
-  padding: 5px 12px; border: 1px solid var(--border-2); border-radius: var(--radius-sm);
-  background: transparent; color: var(--text-3); cursor: pointer; transition: all 130ms;
-}
+.nav-logout-btn { color: var(--text-3); cursor: pointer; }
 .nav-logout-btn:hover { border-color: var(--rose); color: var(--rose); }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -294,26 +298,44 @@ h1, h2, h3 {
     display: grid;
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
     grid-template-areas:
-      "hero   hero"
-      "entry  chart"
-      "entry  session"
-      "entry  ask"
-      "debts  stage"
-      "debts  trophy"
-      "danger strip";
+      "hero    hero"
+      "entry   chart"
+      "entry   session"
+      "debts   ask"
+      "debts   stage"
+      "trophy  paynext"
+      "strip   strip"
+      "danger  danger";
     column-gap: 28px;
     align-items: start;
   }
-  body:not([data-setup-mode]) #dashboard > :nth-child(1) { grid-area: hero; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(2) { grid-area: entry; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(3) { grid-area: chart; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(4) { grid-area: session; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(5) { grid-area: ask; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(6) { grid-area: debts; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(7) { grid-area: stage; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(8) { grid-area: trophy; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(9) { grid-area: strip; }
-  body:not([data-setup-mode]) #dashboard > :nth-child(10) { grid-area: danger; }
+  /* Areas are assigned by ID, not by :nth-child. The previous nth-child mapping
+     silently broke whenever the optional "Pay this next" card (DOM child 3)
+     became visible — every panel after it shifted one slot and landed in the
+     wrong area. ID assignment is immune to source order and to any panel being
+     hidden, so the grid is stable no matter which optional cards show.
+
+     Balance: the right insight stack (chart · This Turn · ask · stage) is taller
+     than the entry panel alone, so the two heavy left panels (entry, debts) plus
+     the trophy are spread down the left column against the four right panels,
+     keeping both sides close in height so neither ends in a blank void. "Pay
+     this next" sits at the bottom-right beside the short trophy, so when it's
+     hidden it simply trims the tail instead of leaving a hole mid-column.
+
+     Data sync + danger zone span full width as footer rows: page-level "close
+     out" content reads as a gap if it ends at the column boundary with the other
+     column empty beside it. Full-bleed rows close the page cleanly. */
+  body:not([data-setup-mode]) #hero-section          { grid-area: hero; }
+  body:not([data-setup-mode]) #manual-entry-panel    { grid-area: entry; }
+  body:not([data-setup-mode]) #debt-chart-section    { grid-area: chart; }
+  body:not([data-setup-mode]) #session-card          { grid-area: session; }
+  body:not([data-setup-mode]) #ask-steward-panel     { grid-area: ask; }
+  body:not([data-setup-mode]) #debt-accounts-section { grid-area: debts; }
+  body:not([data-setup-mode]) #stage-progress-section{ grid-area: stage; }
+  body:not([data-setup-mode]) #pay-next-section      { grid-area: paynext; }
+  body:not([data-setup-mode]) #cumulative-trophy-section { grid-area: trophy; }
+  body:not([data-setup-mode]) #data-sync-strip       { grid-area: strip; }
+  body:not([data-setup-mode]) #danger-zone-section   { grid-area: danger; }
 }
 
 /* ── Section panel — base for all dashboard cards ── */
@@ -720,18 +742,18 @@ board-liquidity-pill
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 14px 0 18px;
-  margin-bottom: 12px;
+  padding: 6px 0 10px;
+  margin-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
 .session-net-val {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 60px;
+  font-size: 46px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
   color: var(--text);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   transition: color 300ms ease;
 }
 .session-net-val.neg { color: var(--emerald); }
@@ -850,22 +872,26 @@ board-liquidity-pill
 }
 .sp-val--good { color: var(--emerald); }
 .sp-val--bad  { color: var(--rose); }
+/* Word values ("forward" / "backward" in Net direction) share the stat-value
+   family but render smaller than the numeric figures, so a label word never
+   visually outranks the dollar amounts beside it. Colour still differentiates. */
+.sp-val--word { font-size: 20px; letter-spacing: 0; }
 
 /* Fixed numeric tracks (not `auto`): every .debt-row — and the header — is its
    OWN grid container, so `auto`/content-sized tracks resolve per row and the
    columns never line up across rows (the header's empty cells even collapse the
    balance/APR tracks to 0px). Definite px widths make the APR, balance, delta and
    trend columns share one alignment down the whole table; only the name flexes. */
-.debt-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 104px 52px 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.debt-row { display: grid; grid-template-columns: minmax(140px, 1.4fr) 136px 104px 52px 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .debt-row:last-child { border-bottom: none; }
-/* Phones: the five fixed tracks (~380px) crowd a narrow panel and would force
-   horizontal overflow. Keep the same five columns (so the header still lines up)
-   but tighten every fixed track and the elements that carry hardcoded widths
-   (.dr-delta min-width, .dr-spark width). The name column keeps the remainder. */
+/* Phones: rather than crush the name column to fit five tracks, drop the Trend
+   sparkline (the least essential column) entirely and reclaim its width for the
+   account name. Four tracks (name · APR · balance · delta) line up header-to-row
+   because the header's 5th cell is hidden the same way. */
 @media (max-width: 560px) {
-  .debt-row { grid-template-columns: minmax(0, 1fr) 70px 82px 38px 40px; gap: 6px; }
-  .debt-row .dr-delta { min-width: 38px; }
-  .debt-row .dr-spark { width: 40px; }
+  .debt-row { grid-template-columns: minmax(110px, 1fr) 78px 86px 40px; gap: 6px; }
+  .debt-row > :nth-child(5) { display: none; }
+  .debt-row .dr-delta { min-width: 40px; }
   .dr-apr { font-size: 9px; }
   .dr-balance { font-size: 16px; }
 }
@@ -1324,6 +1350,11 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
      stat-cumulative-paydown ← fmtDollar(paid)
      cumulative-pct ← (paid/baseline*100).toFixed(1) + '% of starting debt'
    ══════════════════════════════════════════════════════════════════════ */
+/* Compact the Total Cleared panel: a horizontal row (icon · figures · context)
+   with trimmed vertical padding so it never reads as a tall, mostly-empty
+   placeholder card. The cleared dollar figure and "of $Y starting balance" are
+   the prominent content. */
+#cumulative-trophy-section { padding-top: 20px; padding-bottom: 20px; }
 .trophy-row { display: flex; align-items: center; gap: 24px; }
 .trophy-icon { font-size: 40px; flex-shrink: 0; filter: grayscale(0.25); }
 .trophy-body { display: flex; flex-direction: column; gap: 3px; }
@@ -2404,21 +2435,28 @@ body[data-setup-mode="first"] .setup-welcome {
 
 /* Ask the Steward */
 .ask-steward-panel[hidden] { display: none; }
+/* 2×2 grid for the four suggested questions — equal cells, no orphaned button
+   wrapping onto a lonely second row. Collapses to a single column on very
+   narrow panels where two side-by-side chips would be cramped. */
 .ask-steward-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 12px;
 }
+@media (max-width: 480px) {
+  .ask-steward-chips { grid-template-columns: 1fr; }
+}
 .ask-steward-chip {
-  padding: 8px 12px;
+  padding: 10px 14px;
+  text-align: center;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   letter-spacing: 0.02em;
   color: var(--text-2);
   background: var(--surface-2);
   border: 1px solid var(--border-2);
-  border-radius: 999px;
+  border-radius: 10px;
   cursor: pointer;
   transition: color 140ms, border-color 140ms, background 140ms;
 }
@@ -2769,7 +2807,12 @@ body[data-setup-mode="first"] .setup-welcome {
    Stretch the story column to the hero's full height and distribute its blocks
    so the dead space at the bottom is absorbed. */
 .hero-section { align-items: stretch; }
-.hero-story { justify-content: space-between; }
+/* Stack the story blocks from the top with consistent spacing instead of
+   distributing them edge-to-edge. space-between pushed the journey bar to the
+   very bottom and fanned out uneven gaps; flex-start keeps the stat sheet
+   reading as one tight group with any spare height pooled cleanly at the
+   bottom rather than as orphaned voids between rows. */
+.hero-story { justify-content: flex-start; }
 
 /* #3 — More air between the STAGE eyebrow and the big "Buried" heading. */
 .hero-stage-kicker { margin: 0 0 8px 0; }

@@ -231,7 +231,7 @@ function buildHeroSection() {
 function buildDebtReductionChart() {
   /* Wrapped in <details> so users can collapse the chart to compress the page.
      Open by default; the section-summary mirrors the original header layout. */
-  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', open: '' });
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'debt-chart-section', open: '' });
   section.innerHTML = `
     <summary class="section-summary chart-header" title="Total debt still owed, plotted across your most recent snapshots.">
       <span class="tc-section-label" style="margin:0;">Debt Remaining</span>
@@ -283,7 +283,7 @@ function buildSessionPanel() {
 }
 
 function buildDebtAccountsPanel() {
-  const section = el('section', { class: 'section-panel dashboard-only-section' });
+  const section = el('section', { class: 'section-panel dashboard-only-section', id: 'debt-accounts-section' });
   section.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;">
       <div style="min-width:0;">
@@ -321,7 +321,7 @@ function buildDebtAccountsPanel() {
 
 function buildStageProgressDetail() {
   /* Collapsible — same pattern as the trend chart. */
-  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', open: '' });
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'stage-progress-section', open: '' });
   section.innerHTML = `
     <summary class="section-summary">
       <span class="tc-section-label" style="margin:0;">Stage progress</span>
@@ -443,7 +443,7 @@ function buildManualEntryForm() {
 }
 
 function buildDataStrip() {
-  const section = el('section', { class: 'data-strip dashboard-only-section', 'aria-label': 'Data sync' });
+  const section = el('section', { class: 'data-strip dashboard-only-section', id: 'data-sync-strip', 'aria-label': 'Data sync' });
   section.innerHTML = `
     <div class="data-chip" title="The most recent time you saved a snapshot of your balances.">
       <span class="data-chip-k">Last snapshot</span>
@@ -531,7 +531,7 @@ export function mountPlayShell(root) {
      description block so the user understands the difference between "wipe my
      game data" and "delete my account entirely". Confirmation prompts in
      commitment.js are the second line of defence. */
-  const dangerZone = el('details', { class: 'play-danger-zone' });
+  const dangerZone = el('details', { class: 'play-danger-zone', id: 'danger-zone-section' });
   dangerZone.innerHTML = `
     <summary class="play-danger-summary">Account &amp; danger zone</summary>
     <div class="play-danger-action" id="account-security-section">

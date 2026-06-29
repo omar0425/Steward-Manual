@@ -160,7 +160,7 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     if (stats && stats.debtDirection === 'increasing') { d = 'backward'; dirClass = 'sp-val--bad'; }
     else if (netThisTurn > 0) { d = 'backward'; dirClass = 'sp-val--bad'; }
     else if (netThisTurn < 0) { d = 'forward'; dirClass = 'sp-val--good'; }
-    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val ${dirClass}">${d}</span>`;
+    elDir.innerHTML = `<span class="sp-label">Net direction</span><span class="sp-val sp-val--word ${dirClass}">${d}</span>`;
   }
 }
 
