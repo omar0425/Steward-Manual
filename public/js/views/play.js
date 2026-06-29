@@ -306,10 +306,10 @@ function buildDebtAccountsPanel() {
       <span class="debt-total-val" id="debt-total-val">\u2014</span>
     </div>
     <p class="debt-interest-line" id="debt-interest-line" hidden></p>
-    <div class="game-start-row" id="game-start-row" hidden>
-      <span class="game-start-label">Game start</span>
-      <span class="game-start-meta" id="game-start-meta"></span>
-      <span class="game-start-val" id="game-start-val"></span>
+    <div class="game-start-grid" id="game-start-row" hidden>
+      <span class="gs-label">Game start</span><span class="gs-value" id="game-start-date">—</span>
+      <span class="gs-label">Starting balance</span><span class="gs-value" id="game-start-val">—</span>
+      <span class="gs-label" id="game-start-progress-label" hidden>Progress</span><span class="gs-value" id="game-start-progress" hidden></span>
     </div>
     <div class="commitment-reason-wrap" id="commitment-reason-wrap" hidden>
       <p class="commitment-reason-display" id="commitment-reason-display"></p>

@@ -354,25 +354,33 @@ export function fillDebtAccountsList(stats) {
 
   listEl.textContent = '';
 
-  const gsRow  = document.getElementById('game-start-row');
-  const gsMeta = document.getElementById('game-start-meta');
-  const gsVal  = document.getElementById('game-start-val');
-  if (gsRow && gsMeta && gsVal) {
+  const gsRow   = document.getElementById('game-start-row');
+  const gsDate  = document.getElementById('game-start-date');
+  const gsVal   = document.getElementById('game-start-val');
+  const gsProg  = document.getElementById('game-start-progress');
+  const gsProgL = document.getElementById('game-start-progress-label');
+  if (gsRow && gsDate && gsVal) {
     const gd = stats && stats.gameStartDebt;
     const ga = stats && stats.gameStartAt;
     if (gd != null && Number.isFinite(gd)) {
-      const dateLabel = ga
+      // Bug #12 — labeled value pairs instead of one crammed line.
+      gsDate.textContent = ga
         ? new Date(ga).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-        : '';
+        : '—';
+      gsVal.textContent = fmtDollar(gd);
       const paidDown = gd - (stats.debtRemaining || 0);
       const pct = gd > 0 ? Math.round((paidDown / gd) * 100) : null;
-      gsMeta.textContent = (pct != null && pct > 0)
-        ? `${dateLabel} · ${pct}% paid down`
-        : dateLabel;
-      gsVal.textContent  = fmtDollar(gd);
-      gsVal.title        = paidDown >= 0
-        ? `${fmtDollar(paidDown)} paid down since game start${pct != null ? ` (${pct}%)` : ''}`
-        : '';
+      if (gsProg && gsProgL) {
+        if (pct != null && pct > 0) {
+          gsProg.textContent = `${pct}% paid down`;
+          gsProg.title = `${fmtDollar(paidDown)} paid down since game start`;
+          gsProg.hidden = false;
+          gsProgL.hidden = false;
+        } else {
+          gsProg.hidden = true;
+          gsProgL.hidden = true;
+        }
+      }
       gsRow.hidden = false;
     } else {
       gsRow.hidden = true;
@@ -442,13 +450,18 @@ export function fillDebtAccountsList(stats) {
   let missingAprBalance = 0;
   for (const acct of accounts) {
     const bal = Number(acct.balance);
-    const apr = _aprRates[acct.id];
-    const hasApr = Number.isFinite(apr) && apr > 0;
-    if (Number.isFinite(bal) && bal > 0 && !hasApr) {
+    const rawApr = _aprRates[acct.id];
+    const apr = Number(rawApr);
+    // A 0% rate (promo financing) is a REAL, set value — not missing data.
+    // "Missing" means the APR was never entered (null/blank/non-numeric).
+    const aprSet = rawApr != null && rawApr !== '' && Number.isFinite(apr) && apr >= 0;
+    if (Number.isFinite(bal) && bal > 0 && !aprSet) {
       missingAprCount += 1;
       missingAprBalance += bal;
     }
-    if (!Number.isFinite(bal) || bal <= 0 || !hasApr) continue;
+    // Only positive APRs accrue interest / qualify as the avalanche pick; a set
+    // 0% rate is fine and simply contributes nothing.
+    if (!Number.isFinite(bal) || bal <= 0 || !aprSet || apr <= 0) continue;
     ratedCount += 1;
     totalMonthlyInterest += (bal * apr) / 100 / 12;
     if (apr > payFirstApr) { payFirstApr = apr; payFirstId = acct.id; }
@@ -650,7 +663,9 @@ export function fillDebtAccountsList(stats) {
           : null;
       interestLine.textContent =
         `Interest costs you ~$${Math.round(totalMonthlyInterest).toLocaleString()}/mo right now` +
-        (payFirstName && ratedCount >= 2 ? ` — extra payments go furthest on ${payFirstName}.` : '.');
+        (payFirstName && ratedCount >= 2 ? ` — extra payments go furthest on ${payFirstName}.` : '.') +
+        // Bug #2 — be explicit that this figure omits accounts with no APR.
+        (missingAprCount > 0 ? ` * Excludes ${missingAprCount} account${missingAprCount === 1 ? '' : 's'} with no APR set.` : '');
       interestLine.hidden = false;
     } else {
       interestLine.hidden = true;
@@ -667,10 +682,23 @@ export function fillDebtAccountsList(stats) {
     if (missingAprCount > 0 && missingAprBalance > 0) {
       const sharePct = totalDebt > 0 ? Math.round((missingAprBalance / totalDebt) * 100) : 0;
       const acctWord = missingAprCount === 1 ? 'account' : 'accounts';
-      aprWarn.textContent =
+      const msg =
         `⚠️ ${missingAprCount} ${acctWord} missing an APR (${fmtDollar(Math.round(missingAprBalance))}` +
         (sharePct > 0 ? `, ${sharePct}% of your debt` : '') +
-        `). Interest cost and payoff estimates are understated until you add them — tap “Edit APRs” above.`;
+        `). Interest cost and payoff estimates are understated until you add them.`;
+      // Bug #2 — give the warning a real, prominent action button rather than
+      // pointing at a faint text link elsewhere. It opens the same APR editor.
+      aprWarn.innerHTML = '';
+      const span = document.createElement('span');
+      span.className = 'debt-apr-warning-text';
+      span.textContent = msg;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'debt-apr-warning-btn';
+      btn.textContent = 'Add APRs';
+      btn.addEventListener('click', () => { try { window.toggleAprForm(); } catch (_) {} });
+      aprWarn.appendChild(span);
+      aprWarn.appendChild(btn);
       aprWarn.hidden = false;
     } else {
       aprWarn.hidden = true;
