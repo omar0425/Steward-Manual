@@ -36,8 +36,10 @@ test.describe('Dashboard chrome', () => {
     const theme = () => page.evaluate(() => document.body.dataset.theme);
     const before = await theme();
     await page.locator('#theme-toggle').click();
-    const after = await theme();
-    expect(after).not.toBe(before);
+    // The flip runs inside a View Transition where supported, so the
+    // data-theme attribute updates asynchronously — poll instead of reading
+    // it synchronously on the next line.
+    await expect.poll(theme).not.toBe(before);
   });
 
   test('a started climb shows tier badge, name, and escape-gap headline', async ({ page }) => {

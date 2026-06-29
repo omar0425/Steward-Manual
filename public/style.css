@@ -386,6 +386,13 @@ h1, h2, h3 {
     0 0 0 1px var(--state-accent-soft),
     0 8px 32px rgba(0,0,0,0.3);
 }
+/* tilt.js drives an inline transform on pointermove. Hint the compositor and
+   shorten the follow so the 3D lean tracks the pointer instead of trailing on
+   the longer hover ease. Untilted cards keep the slower, softer transition. */
+.tier-card[data-tilt-bound="1"] {
+  transition: transform 90ms ease-out, box-shadow 300ms ease, border-color 300ms ease;
+  will-change: transform;
+}
 
 /* ── Tier cards group ── */
 .tier-cards-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -679,6 +686,12 @@ board-liquidity-pill
 .nw-single-dot { fill: var(--gold); opacity: 0.75; }
 .chart-wrap { height: 150px; position: relative; }
 .chart-wrap svg { display: block; }
+/* Soft luminous edge on the trend line so it reads as a glowing trace, and a
+   gentler gold halo on the dashed projection. drop-shadow follows the stroke
+   path (unlike box-shadow), and degrades to a plain line where unsupported. */
+#nw-line { filter: drop-shadow(0 0 3px rgba(20,164,105,0.55)); }
+#nw-projection { filter: drop-shadow(0 0 2px rgba(200,168,76,0.45)); }
+[data-theme="light"] #nw-line { filter: drop-shadow(0 0 2px rgba(20,164,105,0.35)); }
 /* `display: block` above wins over the UA `[hidden] { display: none }` rule, so
    setting `svg.hidden = true` in JS would not actually hide the chart. This
    higher-specificity rule restores that behavior for the empty-chart state. */
@@ -2953,3 +2966,27 @@ textarea:focus {
 .im-val { font-size: 13px; font-weight: 600; color: var(--rose); font-variant-numeric: tabular-nums; }
 .im-since { font-size: 10px; color: var(--text-3); letter-spacing: 0.02em; }
 .pf-saved { color: var(--emerald); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Scroll-reveal — panels rise + fade as they scroll into view.
+   Driven entirely by the CSS scroll-timeline (animation-timeline: view()),
+   so there is no JS, no IntersectionObserver, and no layout cost. Strictly
+   progressive: gated behind @supports, so browsers without scroll-driven
+   animations (and reduced-motion users) simply render everything fully
+   visible. animation-range stops well before center, so a panel is fully
+   revealed by the time it is comfortably on screen — it never lingers faded.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    @keyframes steward-rise-in {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .section-panel,
+    .data-strip {
+      animation: steward-rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
