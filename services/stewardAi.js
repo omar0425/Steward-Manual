@@ -277,7 +277,9 @@ async function generateTierQuote({ payload }) {
 
   const userContent = 'SNAPSHOT DATA:\n' + JSON.stringify(payload, null, 0);
 
-  const res = await callAnthropic({ system, userContent, maxTokens: 80 });
+  // 80 was tight enough that a slightly-long one-liner could truncate the JSON
+  // envelope (→ unparseable → silent 204). 140 leaves headroom for the wrapper.
+  const res = await callAnthropic({ system, userContent, maxTokens: 140 });
   if (!res.ok) return res;
   const parsed = tryParseJson(res.text);
   const quote = parsed ? asString(parsed.quote, 140) : '';

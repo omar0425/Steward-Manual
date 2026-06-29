@@ -388,10 +388,13 @@ app.use((err, req, res, next) => {
 });
 
 // ── Prune expired sessions + reset tokens every hour ──────────────────────────
-setInterval(() => {
+// unref() so this timer never keeps the process alive on its own (matches the
+// backup + nudge intervals).
+const _pruneHandle = setInterval(() => {
   pruneExpiredSessions();
   purgeExpiredPasswordResetTokens();
 }, 60 * 60 * 1000);
+if (typeof _pruneHandle.unref === 'function') _pruneHandle.unref();
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 // Loud, early warning if the SQLite file isn't on a Railway persistent volume —

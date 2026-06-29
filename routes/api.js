@@ -676,7 +676,7 @@ router.post('/snapshot', (req, res) => {
     // applyClimbMetricsOnPull; here we just assemble the per-account map. The
     // legacy `preexistingAccountIds` array is honored as 'preexisting'.
     const increaseClassifications = {};
-    if (classifications && typeof classifications === 'object') {
+    if (classifications && typeof classifications === 'object' && !Array.isArray(classifications)) {
       for (const [id, cat] of Object.entries(classifications)) {
         if (typeof cat === 'string') increaseClassifications[String(id)] = cat;
       }

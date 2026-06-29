@@ -14,6 +14,10 @@ const DB_PATH = process.env.STEWARD_DB_PATH
 try { fs.mkdirSync(path.dirname(DB_PATH), { recursive: true }); } catch { /* ignore */ }
 
 const db = new DatabaseSync(DB_PATH);
+// Enforce foreign keys on THIS connection too (it's a per-connection pragma).
+// deleteUserAccount relies on ON DELETE CASCADE to clear sessions + reset tokens;
+// make that guaranteed rather than dependent on the node:sqlite build default.
+db.exec('PRAGMA foreign_keys = ON');
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 

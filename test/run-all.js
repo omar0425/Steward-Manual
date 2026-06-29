@@ -37,6 +37,7 @@ require('./forecast.test');
 require('./invariants.test');
 require('./contrast.test');
 require('./payoff-plan.test');
+require('./audit-metrics.test');
 require('./corrected-series.test');
 require('./zzz-climb-metrics-apply.test');
 require('./admin-restore.test');
