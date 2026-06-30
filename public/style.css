@@ -290,57 +290,46 @@ h1, h2, h3 {
    6 stage progress · 7 trophy · 8 data strip · 9 danger zone.
    Setup view (body[data-setup-mode]) keeps the single column — only the
    entry panel is visible there and a grid would leave the right half empty. */
+/* The dashboard's two middle columns are wrapper divs (#dash-col-left/right).
+   On narrow screens they collapse to display:contents so every panel flows in
+   the single-column flex in DOM order; the wide-screen rule below turns them
+   into real flex columns. */
+#dash-col-left, #dash-col-right { display: contents; }
+
 @media (min-width: 1200px) {
   /* Match the id-specificity of the `#dashboard { display: flex }` rule below
      so the grid wins. Only once the app is ready and not in setup view. */
   body[data-app-mode="ready"]:not([data-setup-mode]) #dashboard {
     max-width: 1480px;
     display: grid;
-    /* Left column is sized to the entry/debts content (~620px — enough for the
-       5-column debt table) and the chart column (1fr) absorbs all extra width.
-       A fr-based left track grew unbounded on wide screens, leaving a dead band
-       of empty space beside the entry panel; pinning it removes that gap while
-       the chart gets wider instead of the inputs stretching lonely. */
+    /* Left column sized to its content (~620px — fits the 5-column debt table);
+       the right column (1fr) absorbs the extra width. Hero, data strip, danger
+       zone, and the footer span both columns. Each middle column stacks its own
+       panels independently (see #dash-col-* below), so a tall panel on one side
+       no longer stretches shared grid rows and leaves voids beside the other. */
     grid-template-columns: minmax(0, 620px) minmax(0, 1fr);
     grid-template-areas:
-      "hero    hero"
-      "entry   chart"
-      "entry   session"
-      "debts   ask"
-      "debts   stage"
-      "trophy  paynext"
-      "strip   strip"
-      "danger  danger";
+      "hero   hero"
+      "left   right"
+      "strip  strip"
+      "danger danger"
+      "footer footer";
     column-gap: 28px;
+    row-gap: 24px;
     align-items: start;
   }
-  /* Areas are assigned by ID, not by :nth-child. The previous nth-child mapping
-     silently broke whenever the optional "Pay this next" card (DOM child 3)
-     became visible — every panel after it shifted one slot and landed in the
-     wrong area. ID assignment is immune to source order and to any panel being
-     hidden, so the grid is stable no matter which optional cards show.
+  body:not([data-setup-mode]) #hero-section        { grid-area: hero; }
+  body:not([data-setup-mode]) #dash-col-left       { grid-area: left; }
+  body:not([data-setup-mode]) #dash-col-right      { grid-area: right; }
+  body:not([data-setup-mode]) #data-sync-strip     { grid-area: strip; }
+  body:not([data-setup-mode]) #danger-zone-section { grid-area: danger; }
+  body:not([data-setup-mode]) .steward-footer      { grid-area: footer; }
 
-     Balance: the right insight stack (chart · This Turn · ask · stage) is taller
-     than the entry panel alone, so the two heavy left panels (entry, debts) plus
-     the trophy are spread down the left column against the four right panels,
-     keeping both sides close in height so neither ends in a blank void. "Pay
-     this next" sits at the bottom-right beside the short trophy, so when it's
-     hidden it simply trims the tail instead of leaving a hole mid-column.
-
-     Data sync + danger zone span full width as footer rows: page-level "close
-     out" content reads as a gap if it ends at the column boundary with the other
-     column empty beside it. Full-bleed rows close the page cleanly. */
-  body:not([data-setup-mode]) #hero-section          { grid-area: hero; }
-  body:not([data-setup-mode]) #manual-entry-panel    { grid-area: entry; }
-  body:not([data-setup-mode]) #debt-chart-section    { grid-area: chart; }
-  body:not([data-setup-mode]) #session-card          { grid-area: session; }
-  body:not([data-setup-mode]) #ask-steward-panel     { grid-area: ask; }
-  body:not([data-setup-mode]) #debt-accounts-section { grid-area: debts; }
-  body:not([data-setup-mode]) #stage-progress-section{ grid-area: stage; }
-  body:not([data-setup-mode]) #pay-next-section      { grid-area: paynext; }
-  body:not([data-setup-mode]) #cumulative-trophy-section { grid-area: trophy; }
-  body:not([data-setup-mode]) #data-sync-strip       { grid-area: strip; }
-  body:not([data-setup-mode]) #danger-zone-section   { grid-area: danger; }
+  /* Real flex columns on wide screens — each packs its panels with one gap. */
+  body:not([data-setup-mode]) #dash-col-left,
+  body:not([data-setup-mode]) #dash-col-right {
+    display: flex; flex-direction: column; gap: 24px; min-width: 0;
+  }
 }
 
 /* ── Section panel — base for all dashboard cards ── */
