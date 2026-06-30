@@ -757,7 +757,9 @@ board-liquidity-pill
        debtAccountsList.appendChild(row);
      }
    ══════════════════════════════════════════════════════════════════════ */
-.tc-section-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-bottom: 14px; }
+/* Used on <h2> section titles as well as <p>/<span>; the font-weight + margin-top
+   resets keep an <h2> visually identical to the old non-semantic markup. */
+.tc-section-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-top: 0; margin-bottom: 14px; }
 
 /* Session card hero number */
 .session-card { position: relative; overflow: hidden; transition: border-color 400ms ease, box-shadow 400ms ease; }
@@ -3044,6 +3046,22 @@ textarea:focus {
   outline: none;
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(200, 168, 76, 0.16);
+}
+
+/* 3 — Keyboard focus that survives forced-colors / Windows High Contrast.
+   The inputs above signal focus with a box-shadow, which forced-colors mode
+   strips — leaving no indicator. These per-control rules set their own
+   `outline: none`, so restore a real outline on keyboard focus (it layers over
+   the box-shadow normally and is the sole indicator in forced-colors). */
+.calc-input:focus-visible,
+.apr-form-input:focus-visible,
+.commitment-reason-input:focus-visible,
+.commitment-custom-input:focus-visible,
+.account-pw-input:focus-visible,
+.saved-debt-balance-input:focus-visible,
+.debt-account-entry-row input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 
 /* 3 — Slim, themed scrollbars. */

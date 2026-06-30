@@ -137,6 +137,10 @@ function buildErrorScreen() {
 function buildHeroSection() {
   const section = el('section', { class: 'hero-section dashboard-only-section', id: 'hero-section' });
   section.innerHTML = `
+    <!-- The dashboard's single semantic page title (visually hidden). The setup
+         view carries its own <h1> in #setup-welcome, which is hidden once the
+         climb starts, so exactly one <h1> is present in each view state. -->
+    <h1 class="sr-only">Steward — your debt payoff dashboard</h1>
     <!-- Tier cards group: current + locked next -->
     <div class="tier-cards-stack">
       <div class="tier-cards-group">
@@ -194,6 +198,10 @@ function buildHeroSection() {
       <p class="hero-cta-sub" id="hero-cta-sub" hidden></p>
       <p class="hero-interest-ticker" id="hero-interest-ticker" hidden></p>
       <p class="interest-meter" id="interest-meter" hidden aria-live="off"></p>
+      <!-- The ticker above updates ~8fps, so it stays aria-live="off" to avoid
+           spamming a screen reader. This sibling carries a stable per-day summary
+           that is only rewritten when the underlying figure changes. -->
+      <p class="sr-only" id="interest-meter-a11y" aria-live="polite"></p>
 
       <span class="stat-sentinel" id="stat-debt-remaining" hidden></span>
       <span class="stat-sentinel" id="stat-net-worth" hidden></span>
@@ -234,7 +242,7 @@ function buildDebtReductionChart() {
   const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'debt-chart-section', open: '' });
   section.innerHTML = `
     <summary class="section-summary chart-header" title="Total debt still owed, plotted across your most recent snapshots.">
-      <span class="tc-section-label" style="margin:0;">Debt Remaining</span>
+      <h2 class="tc-section-label" style="margin:0;">Debt Remaining</h2>
       <span class="section-summary-meta">
         <span class="chart-current neg" id="stat-net-worth-chart">\u2014</span>
         <span class="chart-trend" id="chart-trend-delta" title="Change versus your locked starting debt (the dashed line). Down is paydown; up means debt grew."></span>
@@ -270,7 +278,7 @@ function buildSessionPanel() {
   const section = el('section', { class: 'section-panel session-card dashboard-only-section', id: 'session-card' });
   section.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;padding-top:4px;">
-      <p class="tc-section-label" style="margin:0;" title="This Turn — net change in your debt since the previous snapshot. Negative = you paid down; positive = balances grew.">This Turn</p>
+      <h2 class="tc-section-label" style="margin:0;" title="This Turn — net change in your debt since the previous snapshot. Negative = you paid down; positive = balances grew.">This Turn</h2>
       <span class="turn-since-label" id="turn-since-label"></span>
     </div>
     <div class="session-hero">
@@ -287,7 +295,7 @@ function buildDebtAccountsPanel() {
   section.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;">
       <div style="min-width:0;">
-        <p class="tc-section-label" style="margin:0;">Debt Accounts</p>
+        <h2 class="tc-section-label" style="margin:0;">Debt Accounts</h2>
         <p class="tc-section-sublabel">Read-only overview · update balances in the Your Debts panel</p>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
@@ -325,7 +333,7 @@ function buildStageProgressDetail() {
   const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'stage-progress-section', open: '' });
   section.innerHTML = `
     <summary class="section-summary">
-      <span class="tc-section-label" style="margin:0;">Stage progress</span>
+      <h2 class="tc-section-label" style="margin:0;">Stage progress</h2>
     </summary>
     <div id="progress-milestone-recent" class="milestone-recent-banner" hidden aria-live="polite"></div>
     <p class="progress-note" id="progress-stale-note" hidden style="font-size:12px;color:var(--amber);margin-bottom:12px;"></p>
@@ -363,7 +371,7 @@ function buildPayThisNextCard() {
   const section = el('section', { class: 'section-panel dashboard-only-section pay-next-section', id: 'pay-next-section', hidden: true });
   section.innerHTML = `
     <div class="pay-next-head">
-      <span class="tc-section-label" style="margin:0;">Pay this next</span>
+      <h2 class="tc-section-label" style="margin:0;">Pay this next</h2>
       <div class="pay-next-toggle" id="pay-next-toggle" role="group" aria-label="Payoff strategy">
         <button type="button" class="pay-next-tab" data-method="avalanche" title="Highest interest first — saves the most money">Save most</button>
         <button type="button" class="pay-next-tab" data-method="snowball" title="Smallest balance first — fastest win">Quick win</button>
@@ -378,7 +386,7 @@ function buildPayThisNextCard() {
 function buildPaydownCalculator() {
   const section = el('section', { class: 'section-panel dashboard-only-section', id: 'paydown-calc-section' });
   section.innerHTML = `
-    <p class="tc-section-label" style="margin:0;">Paydown calculator</p>
+    <h2 class="tc-section-label" style="margin:0;">Paydown calculator</h2>
     <p class="tc-section-sublabel" id="calc-basis">Percentages are of your current debt.</p>
     <div class="calc-row">
       <label class="calc-field">
@@ -431,7 +439,7 @@ function buildManualEntryForm() {
         <span>Start climb</span>
       </div>
     </div>
-    <p class="tc-section-label" style="margin:0 0 16px;padding-top:4px;">Your Debts</p>
+    <h2 class="tc-section-label" style="margin:0 0 16px;padding-top:4px;">Your Debts</h2>
 
     <!-- Saved debts list (shown when debts exist) -->
     <div id="saved-debts-list" class="saved-debts-list" style="display:none;">
@@ -515,7 +523,7 @@ const ASK_STEWARD_QUESTIONS = [
 function buildAskStewardPanel() {
   const section = el('section', { class: 'section-panel dashboard-only-section ask-steward-panel', id: 'ask-steward-panel', hidden: true });
   section.innerHTML = `
-    <p class="tc-section-label" style="margin:0 0 4px;">Ask the Steward</p>
+    <h2 class="tc-section-label" style="margin:0 0 4px;">Ask the Steward</h2>
     <p class="tc-section-sublabel">Answers drawn from your own numbers.</p>
     <div class="ask-steward-chips" id="ask-steward-chips">
       ${ASK_STEWARD_QUESTIONS.map(q => `<button type="button" class="ask-steward-chip">${q}</button>`).join('')}
