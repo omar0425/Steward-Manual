@@ -296,7 +296,12 @@ h1, h2, h3 {
   body[data-app-mode="ready"]:not([data-setup-mode]) #dashboard {
     max-width: 1480px;
     display: grid;
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    /* Left column is sized to the entry/debts content (~620px — enough for the
+       5-column debt table) and the chart column (1fr) absorbs all extra width.
+       A fr-based left track grew unbounded on wide screens, leaving a dead band
+       of empty space beside the entry panel; pinning it removes that gap while
+       the chart gets wider instead of the inputs stretching lonely. */
+    grid-template-columns: minmax(0, 620px) minmax(0, 1fr);
     grid-template-areas:
       "hero    hero"
       "entry   chart"
@@ -336,14 +341,6 @@ h1, h2, h3 {
   body:not([data-setup-mode]) #cumulative-trophy-section { grid-area: trophy; }
   body:not([data-setup-mode]) #data-sync-strip       { grid-area: strip; }
   body:not([data-setup-mode]) #danger-zone-section   { grid-area: danger; }
-
-  /* Cap the entry panel width on wide screens. The left (7fr) track gets very
-     wide past ~1440px and the balance inputs stretch into a lonely band of
-     empty space. Capping the panel (not the track) keeps the chart taking the
-     remaining width while the inputs sit at a comfortable entry width. The
-     panel aligns to the start of its cell so it stays flush with the left edge
-     shared by the debts panel below it. */
-  body:not([data-setup-mode]) #manual-entry-panel { max-width: 520px; justify-self: start; }
 }
 
 /* ── Section panel — base for all dashboard cards ── */
