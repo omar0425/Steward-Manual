@@ -930,7 +930,12 @@ board-liquidity-pill
   .debt-row { grid-template-columns: minmax(110px, 1fr) 78px 86px 40px; gap: 6px; }
   .debt-row > :nth-child(5) { display: none; }
   .debt-row .dr-delta { min-width: 40px; }
-  .dr-apr { font-size: 11px; }
+  .dr-apr { font-size: 12px; }
+  /* The 78px mobile APR column can't fit the rate AND the per-row "~$/mo"
+     interest at a legible size, so the rate (now 12px) gets the space and the
+     redundant per-account interest is hidden — the panel's "Interest costs
+     ~$X/mo right now" summary still covers it. */
+  .dr-interest { display: none; }
   .dr-balance { font-size: 16px; }
 }
 .dr-name  { min-width: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 400; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -961,7 +966,7 @@ board-liquidity-pill
   letter-spacing: 0.08em;
   vertical-align: 1px;
 }
-.dr-interest { color: var(--text-3); font-size: 11px; }
+.dr-interest { color: var(--text-3); font-size: 12px; }
 .debt-interest-line {
   margin: 8px 0 0;
   font-family: 'IBM Plex Mono', monospace;
@@ -1051,7 +1056,7 @@ board-liquidity-pill
    column lines up its decimals down the table (Bug #8). */
 .dr-apr {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-3);
   white-space: nowrap;
   text-align: right;
