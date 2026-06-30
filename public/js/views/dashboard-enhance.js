@@ -8,7 +8,7 @@
 import { renderNetWorthChart } from './networth-chart.js';
 import { tierQuote, tierBehaviorLine, TIER_META } from '../tiers.js';
 import { stewardApiUrl } from '../api.js';
-import { principalPaidDownFromStats } from '../format.js';
+import { cumulativePaidDownFromStats } from '../format.js';
 
 const TIER_IDS = [
   'rock_bottom', 'broke', 'struggling', 'surviving', 'stabilizing',
@@ -233,9 +233,10 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   const cupEl  = document.getElementById('stat-cumulative-paydown');
   const pctEl  = document.getElementById('cumulative-pct');
   if (cupEl && stats && stats.cumulativePaidDown != null) {
-    // Bug #3 — report NET principal (payments minus interest), matching the
-    // "Principal paid down" stat card, so the trophy never overstates progress.
-    const paid     = principalPaidDownFromStats(stats);
+    // The balance drop IS the progress — the cumulative paydown already reflects
+    // interest, so it isn't netted again. Matches the "Principal paid down" stat
+    // card, the hero figure, and the Steward AI's money rules.
+    const paid     = cumulativePaidDownFromStats(stats);
     const baseline = Number(stats.climbBaselineDebt) || 0;
     // A "Total Cleared: $0" trophy on a brand-new climb celebrates nothing and
     // just confuses. Hide the whole panel until the user has cleared something.

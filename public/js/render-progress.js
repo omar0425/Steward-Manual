@@ -2,7 +2,7 @@
 
 import {
   fmtDollar, fmtSignedDollar,
-  cumulativePaidDownFromStats, principalPaidDownFromStats, lifetimeProgressPctFromCumulative,
+  cumulativePaidDownFromStats, lifetimeProgressPctFromCumulative,
   formatLastPullAccountRow, formatNetThisTurnLine, lastPullAccountRowsFromStats,
   snapshotPaydownWindow, snapshotPaceIsNoisy, snapshotDeltaSinceOldest,
   paceQualitative, formatApproxDurationFromMonths, timeAgo,
@@ -104,22 +104,17 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     playNm.textContent = '';
     playNm.hidden = true;
   }
-  // Bug #3 — show NET principal: gross balance decreases minus interest that
-  // grew balances in other periods. The gross figure alone overstates progress.
-  const principal = principalPaidDownFromStats(stats);
-  const principalVal = Number.isFinite(principal) ? fmtDollar(Math.round(principal)) : '—';
+  // The balance drop IS the progress: cumulativePaidDown already reflects
+  // interest (the balance fell by this much *after* interest was added), so it is
+  // NOT netted again. This matches the hero's "you've reduced" figure and the
+  // Steward AI's money rules — one consistent paydown number across the app.
+  const paidVal = Number.isFinite(paid) ? fmtDollar(Math.round(paid)) : '—';
   if (elPaid) {
-    // "(net)" makes this persistently distinct from the hero's gross "You've
-    // reduced $X" headline — two legitimate figures that otherwise read as a bug.
-    elPaid.innerHTML = `<span class="sp-label">Principal paid down (net)</span><span class="sp-val sp-val--good">${principalVal}</span>`;
+    elPaid.innerHTML = `<span class="sp-label">Principal paid down</span><span class="sp-val sp-val--good">${paidVal}</span>`;
     const lbl = elPaid.querySelector('.sp-label');
     if (lbl) lbl.appendChild(createInfoDot(
-      'The gross payments that reduced your balances, minus the interest those balances accrued over the same time. It is the real dent in what you owe — lower than the hero’s "you’ve reduced" figure, which is before interest.'));
-    const grossR = Math.round(paid);
-    const interestR = Math.round(Number(stats && stats.cumulativeInterestAccrued) || 0);
-    elPaid.title = interestR > 0
-      ? `Real principal progress: ${fmtDollar(grossR)} of payments reduced your balances, minus ${fmtDollar(interestR)} of interest that grew them = ${fmtDollar(Math.round(principal))} net.`
-      : 'Principal you’ve cleared — how much your balances have dropped since you started.';
+      'How much your total tracked balance has dropped since you started — your real progress against the debt. Interest is already reflected: the balance fell by this much after interest was added, so it is not subtracted again.'));
+    elPaid.title = 'How much your total tracked balance has dropped since you started. Interest is already reflected — the balance fell by this much after it was added.';
   }
   const { accountLines, ndVal, pdVal } = lastPullAccountRowsFromStats(stats);
   const netThisTurn = accountLines.length > 0

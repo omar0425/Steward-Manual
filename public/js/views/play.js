@@ -415,12 +415,12 @@ function buildCumulativePaydownTrophy() {
     <div class="trophy-row">
       <div class="trophy-icon" aria-hidden="true">\uD83C\uDFC6</div>
       <div class="trophy-body">
-        <p class="trophy-label" title="Net principal cleared — payments that reduced your balances minus the interest that grew them.">Principal Cleared</p>
+        <p class="trophy-label" title="Total balance you've cleared since you started. Interest is already reflected — the balance fell by this much after it was added, so it is not subtracted again.">Principal Cleared</p>
         <p class="trophy-val" id="stat-cumulative-paydown">\u2014</p>
         <p class="trophy-sub" id="cumulative-pct"></p>
         <p class="trophy-saved" id="trophy-interest-saved" title="How much less interest your balances cost each month now versus your starting balances \u2014 money your paydown is keeping from the bank." hidden></p>
       </div>
-      <p class="trophy-context">Real progress against your starting balance \u2014 every dollar your payments knocked off, net of the interest the debt charged you.</p>
+      <p class="trophy-context">Real progress against your starting balance \u2014 how much your payments have knocked your total balance down since you began.</p>
     </div>
   `;
   return section;
