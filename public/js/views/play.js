@@ -404,7 +404,7 @@ function buildPaydownCalculator() {
         </span>
       </label>
     </div>
-    <p class="calc-avg-apr-row">Average APR on interest-bearing debt: <span id="calc-avg-apr" class="calc-avg-apr">—</span></p>
+    <p class="calc-avg-apr-row">Average APR on interest-bearing debt: <span id="calc-avg-apr" class="calc-avg-apr">—</span><button type="button" class="info-dot" aria-label="How is this calculated?" aria-expanded="false" data-explain="Balance-weighted average APR across the accounts that charge interest. Promotional 0% balances are left out, so this reflects the rate on debt that is actually costing you — not a blend across your whole balance.">ⓘ</button></p>
   `;
   return section;
 }

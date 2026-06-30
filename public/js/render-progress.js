@@ -10,6 +10,7 @@ import {
 import { TIER_FLOW, TIER_META } from './tiers.js';
 import { queuePaidOffCelebration } from './render-debts.js';
 import { stewardApiUrl } from './api.js';
+import { createInfoDot } from './info-popover.js';
 
 /* Full-viewport confetti burst for a climbed stage. Dependency-free: ~90
    absolutely-positioned pieces, randomized drift/spin/delay via CSS custom
@@ -111,6 +112,9 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     // "(net)" makes this persistently distinct from the hero's gross "You've
     // reduced $X" headline — two legitimate figures that otherwise read as a bug.
     elPaid.innerHTML = `<span class="sp-label">Principal paid down (net)</span><span class="sp-val sp-val--good">${principalVal}</span>`;
+    const lbl = elPaid.querySelector('.sp-label');
+    if (lbl) lbl.appendChild(createInfoDot(
+      'The gross payments that reduced your balances, minus the interest those balances accrued over the same time. It is the real dent in what you owe — lower than the hero’s "you’ve reduced" figure, which is before interest.'));
     const grossR = Math.round(paid);
     const interestR = Math.round(Number(stats && stats.cumulativeInterestAccrued) || 0);
     elPaid.title = interestR > 0
@@ -288,6 +292,9 @@ function fillPayoffForecast(stats) {
 
   if (!parts.length) { el.hidden = true; return; }
   el.innerHTML = `<span class="pf-label">Forecast</span>` + parts.join('');
+  const pfLbl = el.querySelector('.pf-label');
+  if (pfLbl) pfLbl.appendChild(createInfoDot(
+    'A Monte Carlo simulation replays your own recent paydown history thousands of times to project a range of payoff dates — a most-likely date plus an optimistic-to-conservative band — instead of one fragile guess. The range widens when your pace is uneven.'));
   el.title = f && f.ready
     ? `Monte Carlo: ${f.runs.toLocaleString()} runs resampled from your ${f.samples} logged paydown periods. Range = 10th–90th percentile; interest is accrued on the running balance along each simulated path.`
     : '';

@@ -3,6 +3,7 @@
 import { fmtDollar, fmtSignedDollar } from './format.js';
 import { stewardApiUrl } from './api.js';
 import { updateInterestMeter } from './interest-meter.js';
+import { createInfoDot } from './info-popover.js';
 
 let _aprRates = {};
 let _debtHistory = {};
@@ -666,6 +667,8 @@ export function fillDebtAccountsList(stats) {
         (payFirstName && ratedCount >= 2 ? ` — extra payments go furthest on ${payFirstName}.` : '.') +
         // Bug #2 — be explicit that this figure omits accounts with no APR.
         (missingAprCount > 0 ? ` * Excludes ${missingAprCount} account${missingAprCount === 1 ? '' : 's'} with no APR set.` : '');
+      interestLine.appendChild(createInfoDot(
+        'Each balance multiplied by its APR, divided by 12 — the interest your debt accrues this month at current balances. Accounts with no APR entered are left out, so the real cost may be higher.'));
       interestLine.hidden = false;
     } else {
       interestLine.hidden = true;

@@ -3,6 +3,7 @@
 /* ── Side-effect imports (CSS injection, character styles) ──────── */
 import './character.js';
 import './easter-egg.js';
+import './info-popover.js';
 
 /* ── Module imports ────────────────────────────────────────────── */
 import { currentShell, getDashboardRoot, isPlayDashboardDoc } from './shell.js';
