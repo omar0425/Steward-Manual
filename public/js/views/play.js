@@ -265,8 +265,8 @@ function buildDebtReductionChart() {
     <div class="chart-x-labels" id="chart-x-labels"></div>
     <p class="chart-projection" id="chart-projection-label" hidden></p>
     <div class="whatif-section" id="whatif-section" hidden>
-      <label class="whatif-label" for="whatif-slider">What if I add <span class="whatif-amount" id="whatif-amount">$0</span>/mo extra?</label>
-      <input type="range" class="whatif-slider" id="whatif-slider" min="0" max="1000" step="25" value="0" aria-label="Extra monthly payment, dollars" />
+      <label class="whatif-label" for="whatif-slider">What if I add <span class="whatif-amount" id="whatif-amount">$100</span>/mo extra?</label>
+      <input type="range" class="whatif-slider" id="whatif-slider" min="0" max="1000" step="25" value="100" aria-label="Extra monthly payment, dollars" />
       <p class="whatif-readout" id="whatif-readout" aria-live="polite"></p>
     </div>
     <p class="chart-memo">Latest 60 snapshots · line down = paydown · line up = balances grew</p>

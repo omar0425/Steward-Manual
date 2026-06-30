@@ -13,11 +13,19 @@ import { getInterestSummary } from '../render-debts.js';
    projection is active. Slider value persists across sessions. */
 
 const WHATIF_STORAGE_KEY = 'steward-whatif-extra';
+// First-visit default (multiple of the slider's step). Starting above $0 means
+// the control demonstrates its own value immediately instead of showing a flat
+// "drag to see" prompt. A user who deliberately sets $0 keeps it (stored as "0").
+const WHATIF_DEFAULT = 100;
 let _projState = null; // { latest, dailyPace, lastDateMs, daysToZero } when projecting
 let _whatifBound = false;
 
 function readWhatifExtra() {
-  try { return Math.max(0, Number(localStorage.getItem(WHATIF_STORAGE_KEY)) || 0); } catch { return 0; }
+  try {
+    const raw = localStorage.getItem(WHATIF_STORAGE_KEY);
+    if (raw == null) return WHATIF_DEFAULT; // never set → show a live projection, not $0
+    return Math.max(0, Number(raw) || 0);
+  } catch { return WHATIF_DEFAULT; }
 }
 
 function updateWhatIfReadout() {
