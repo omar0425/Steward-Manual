@@ -558,15 +558,28 @@ export function mountPlayShell(root) {
 
   const dashboard = el('main', { class: 'dashboard app-shell', id: 'dashboard' });
   dashboard.appendChild(buildHeroSection());
-  dashboard.appendChild(buildManualEntryForm());
-  dashboard.appendChild(buildPayThisNextCard());
-  dashboard.appendChild(buildDebtReductionChart());
-  dashboard.appendChild(buildSessionPanel());
-  dashboard.appendChild(buildAskStewardPanel());
-  dashboard.appendChild(buildDebtAccountsPanel());
-  dashboard.appendChild(buildPaydownCalculator());
-  dashboard.appendChild(buildStageProgressDetail());
-  dashboard.appendChild(buildCumulativePaydownTrophy());
+
+  /* Two independent stacking columns on wide screens. Each column flex-stacks
+     its own panels with one consistent gap, so a tall panel on one side never
+     forces gaps into the other (the old grid-template-areas approach stretched
+     shared rows, leaving big voids beside shorter panels). On narrow screens the
+     wrappers collapse via display:contents and every panel flows in one column.
+     Left = the wide input/table panels; right = the insight stack. */
+  const leftCol = el('div', { class: 'dash-col', id: 'dash-col-left' });
+  leftCol.appendChild(buildManualEntryForm());
+  leftCol.appendChild(buildDebtAccountsPanel());
+  leftCol.appendChild(buildPaydownCalculator());
+  leftCol.appendChild(buildCumulativePaydownTrophy());
+
+  const rightCol = el('div', { class: 'dash-col', id: 'dash-col-right' });
+  rightCol.appendChild(buildDebtReductionChart());
+  rightCol.appendChild(buildPayThisNextCard());
+  rightCol.appendChild(buildSessionPanel());
+  rightCol.appendChild(buildAskStewardPanel());
+  rightCol.appendChild(buildStageProgressDetail());
+
+  dashboard.appendChild(leftCol);
+  dashboard.appendChild(rightCol);
   dashboard.appendChild(buildDataStrip());
   /* Danger zone \u2014 destructive actions tucked behind a disclosure so they can't be
      hit accidentally from the bottom of the dashboard. Each action has its own
