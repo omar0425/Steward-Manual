@@ -56,6 +56,11 @@ function withUser(userId, fn) {
 // WAL mode + foreign keys via exec (node:sqlite has no .pragma() shorthand)
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
+// Wait up to 5s for a lock instead of failing instantly with SQLITE_BUSY.
+// This process holds two separate connections to the same file (db.js and
+// db-auth.js); without a busy_timeout a write on one can throw "database is
+// locked" while the other is mid-transaction. busy_timeout is per-connection.
+db.exec("PRAGMA busy_timeout = 5000");
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 // Migration: safety-relevant liquid column; older rows NULL

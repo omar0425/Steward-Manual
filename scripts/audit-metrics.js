@@ -12,10 +12,18 @@
  * Usage:
  *   node scripts/audit-metrics.js path/to/status.json
  *   curl -s --cookie "steward_sid=..." https://APP/api/status | node scripts/audit-metrics.js
+ *   node scripts/audit-metrics.js today.json --baseline yesterday.json   # + drift check
+ *
+ * Flags:
+ *   --baseline <file>  compare against a prior /status capture and flag drift
+ *                      (a monotonic counter that fell, a metric that swung wildly).
+ *   --strict-drift     promote drift WARNs to FAILs (non-zero exit) for hard alerts.
+ *   --ai               also run the AI sense-check (needs an API key).
  *
  * Schedule it against the live /status (see RECOVERY.md → Ongoing health checks)
  * to get told when a figure drifts. Exit code 1 if any FAIL — so it can also gate
- * CI against a captured payload. `runChecks(status)` is exported for tests.
+ * CI against a captured payload. `runChecks(status)` and
+ * `runDriftChecks(status, baseline, opts)` are exported for tests.
  */
 
 const fs = require('fs');
@@ -97,14 +105,86 @@ function runChecks(status) {
   return findings;
 }
 
-module.exports = { runChecks };
+/**
+ * Pure: drift check — compare this capture to a prior one and flag movements
+ * that shouldn't happen on their own. Catches the slow-rot class of bug — a
+ * figure that quietly goes wrong over time rather than being absurd in any
+ * single snapshot. Returns a findings array. Drift is WARN by default (undo/
+ * reset are legitimate); pass { strict: true } to promote it to FAIL.
+ */
+function runDriftChecks(status, baseline, { strict = false } = {}) {
+  const findings = [];
+  const fail = (msg) => findings.push({ level: 'FAIL', msg });
+  const warn = (msg) => findings.push({ level: 'WARN', msg });
+  const ok = (msg) => findings.push({ level: 'OK', msg });
+  const flag = strict ? fail : warn;
+
+  const cur = (status && status.stats) || {};
+  const old = (baseline && baseline.stats) || {};
+
+  // Monotonic counters should only ever rise (barring a deliberate undo/reset).
+  for (const k of ['cumulativePaidDown', 'cumulativeInterestAccrued']) {
+    const a = num(old[k]);
+    const b = num(cur[k]);
+    if (a != null && b != null && b < a - 0.01) {
+      flag(`${k} fell ${a} → ${b} since last check — expected non-decreasing (undo/reset? else investigate)`);
+    }
+  }
+
+  // pctPaid going backward materially.
+  {
+    const a = num(old.pctPaid);
+    const b = num(cur.pctPaid);
+    if (a != null && b != null && b < a - 5) flag(`pctPaid dropped ${a} → ${b} since last check`);
+  }
+
+  // Big one-period swings in headline figures usually mean a bad pull, not real life.
+  const swing = (key, label, pctThreshold) => {
+    const a = num(old[key]);
+    const b = num(cur[key]);
+    if (a != null && b != null && a > 0) {
+      const pct = (Math.abs(b - a) / a) * 100;
+      if (pct > pctThreshold) flag(`${label} swung ${pct.toFixed(0)}% (${a} → ${b}) in one period`);
+    }
+  };
+  swing('debtRemaining', 'debtRemaining', 50);
+  swing('suggestedMonthly', 'suggestedMonthly', 60);
+
+  const cf = cur.payoffForecast || {};
+  const of = old.payoffForecast || {};
+  {
+    const a = num(of.medianMonths);
+    const b = num(cf.medianMonths);
+    if (a != null && b != null && a > 0) {
+      const pct = (Math.abs(b - a) / a) * 100;
+      if (pct > 75) flag(`payoff medianMonths changed ${pct.toFixed(0)}% (${a} → ${b}) in one period`);
+    }
+  }
+
+  if (!findings.length) ok('no suspicious drift vs baseline');
+  return findings;
+}
+
+module.exports = { runChecks, runDriftChecks };
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 if (require.main === module) {
-  const WANT_AI = process.argv.includes('--ai');
+  const argv = process.argv.slice(2);
+  const WANT_AI = argv.includes('--ai');
+  const STRICT_DRIFT = argv.includes('--strict-drift');
+  const baselineIdx = argv.indexOf('--baseline');
+  const BASELINE_FILE = baselineIdx !== -1 ? (argv[baselineIdx + 1] || null) : null;
 
   const readInput = () => {
-    const arg = process.argv.slice(2).find((a) => !a.startsWith('--'));
+    // First positional arg that isn't a flag or the --baseline value.
+    let arg = null;
+    for (let i = 0; i < argv.length; i++) {
+      const a = argv[i];
+      if (a === '--baseline') { i++; continue; } // skip the flag and its value
+      if (a.startsWith('--')) continue;
+      arg = a;
+      break;
+    }
     const raw = arg ? fs.readFileSync(arg, 'utf8') : fs.readFileSync(0, 'utf8');
     return JSON.parse(raw);
   };
@@ -130,6 +210,14 @@ if (require.main === module) {
 
   (async () => {
     const findings = runChecks(status);
+    if (BASELINE_FILE) {
+      try {
+        const baseline = JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8'));
+        findings.push(...runDriftChecks(status, baseline, { strict: STRICT_DRIFT }));
+      } catch (e) {
+        findings.push({ level: 'WARN', msg: `could not read baseline ${BASELINE_FILE} for drift check: ${e.message}` });
+      }
+    }
     for (const f of findings) console.log(`${f.level === 'FAIL' ? '✗' : f.level === 'WARN' ? '⚠' : '✓'} ${f.level}  ${f.msg}`);
     const fails = findings.filter((f) => f.level === 'FAIL').length;
     const warns = findings.filter((f) => f.level === 'WARN').length;

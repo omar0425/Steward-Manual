@@ -299,7 +299,7 @@ function stabilityNarrative(debtTierId, stability) {
       exposed: {
         lead: 'Debt is still very large — and cash safety is not yet matching the risk.',
         mood: 'Every month is still a tightrope; breathing room has to rise alongside paydown.',
-        recommend: '~$94/mo closes this stage in a year. Keep a cash floor \u2014 don\u2019t strip it to look good on paper.',
+        recommend: 'Raise breathing room as you pay down; keep a cash floor \u2014 don\u2019t strip it to look good on paper.',
       },
       stabilizing: {
         lead:

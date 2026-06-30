@@ -36,6 +36,8 @@ require('./nicknames.test');
 require('./pace-projection.test');
 require('./forecast.test');
 require('./invariants.test');
+require('./property-invariants.test');
+require('./schema-migration.test');
 require('./contrast.test');
 require('./payoff-plan.test');
 require('./audit-metrics.test');

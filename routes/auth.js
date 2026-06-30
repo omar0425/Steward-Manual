@@ -36,6 +36,11 @@ function setSessionCookie(res, session) {
   res.cookie(COOKIE_NAME, session.id, {
     httpOnly: true,
     sameSite: 'lax',
+    // Only send the session cookie over HTTPS in production. Behind Railway's
+    // TLS-terminating proxy (trust proxy = 1) Express sees the request as
+    // secure, so the cookie is set and returned correctly. Off in dev/test
+    // where there's no TLS.
+    secure: process.env.NODE_ENV === 'production',
     maxAge: SESSION_TTL_MS,
     path: '/',
   });
@@ -284,7 +289,7 @@ router.post('/logout', (req, res) => {
   if (sid) {
     deleteSession(sid);
   }
-  res.clearCookie(COOKIE_NAME, { path: '/' });
+  res.clearCookie(COOKIE_NAME, { path: '/', secure: process.env.NODE_ENV === 'production' });
   return res.json({ ok: true });
 });
 
@@ -314,7 +319,7 @@ router.post('/delete-account', (req, res) => {
     deleteUserAccount(userId);
     /* Clear the session cookie — the session row itself is already gone via
        the CASCADE on the users FK, but the browser still has the cookie. */
-    res.clearCookie(COOKIE_NAME, { path: '/' });
+    res.clearCookie(COOKIE_NAME, { path: '/', secure: process.env.NODE_ENV === 'production' });
     return res.json({ ok: true });
   } catch (err) {
     console.error('[auth/delete-account]', err);
