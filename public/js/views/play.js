@@ -559,27 +559,29 @@ export function mountPlayShell(root) {
   const dashboard = el('main', { class: 'dashboard app-shell', id: 'dashboard' });
   dashboard.appendChild(buildHeroSection());
 
-  /* Two independent stacking columns on wide screens. Each column flex-stacks
-     its own panels with one consistent gap, so a tall panel on one side never
-     forces gaps into the other (the old grid-template-areas approach stretched
-     shared rows, leaving big voids beside shorter panels). On narrow screens the
-     wrappers collapse via display:contents and every panel flows in one column.
-     Left = the wide input/table panels; right = the insight stack. */
-  const leftCol = el('div', { class: 'dash-col', id: 'dash-col-left' });
-  leftCol.appendChild(buildManualEntryForm());
-  leftCol.appendChild(buildDebtAccountsPanel());
-  leftCol.appendChild(buildPaydownCalculator());
-  leftCol.appendChild(buildCumulativePaydownTrophy());
+  /* Two columns on wide screens. The key to staying balanced across states: the
+     two tall, variable-height panels — the entry form and the debt-accounts
+     table — go in SEPARATE columns. They both grow as the user adds accounts, so
+     splitting them keeps the columns close in height whether there are 3 debts or
+     30 (putting both on one side is what left the big void). The remaining panels
+     are distributed to even out the rest. Wrappers collapse via display:contents
+     below 1200px so every panel flows in one column; hero/strip/danger/footer are
+     full-width siblings. */
+  const colA = el('div', { class: 'dash-col', id: 'dash-col-a' });
+  colA.appendChild(buildManualEntryForm());
+  colA.appendChild(buildSessionPanel());
+  colA.appendChild(buildPaydownCalculator());
+  colA.appendChild(buildAskStewardPanel());
+  colA.appendChild(buildCumulativePaydownTrophy());
 
-  const rightCol = el('div', { class: 'dash-col', id: 'dash-col-right' });
-  rightCol.appendChild(buildDebtReductionChart());
-  rightCol.appendChild(buildPayThisNextCard());
-  rightCol.appendChild(buildSessionPanel());
-  rightCol.appendChild(buildAskStewardPanel());
-  rightCol.appendChild(buildStageProgressDetail());
+  const colB = el('div', { class: 'dash-col', id: 'dash-col-b' });
+  colB.appendChild(buildDebtReductionChart());
+  colB.appendChild(buildDebtAccountsPanel());
+  colB.appendChild(buildStageProgressDetail());
+  colB.appendChild(buildPayThisNextCard());
 
-  dashboard.appendChild(leftCol);
-  dashboard.appendChild(rightCol);
+  dashboard.appendChild(colA);
+  dashboard.appendChild(colB);
   dashboard.appendChild(buildDataStrip());
   /* Danger zone \u2014 destructive actions tucked behind a disclosure so they can't be
      hit accidentally from the bottom of the dashboard. Each action has its own
