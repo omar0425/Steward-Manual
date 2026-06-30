@@ -35,81 +35,108 @@ function writeNicknames(map) {
 }
 
 /**
- * Detect a nickname for one account. Inputs:
+ * Detect every nickname pattern an account matches, in priority order (first =
+ * strongest). Returning the full list — rather than only the first match — lets
+ * the assignment step fall through to a weaker name when the strongest one is
+ * already claimed by another account, so two cards never end up with the same
+ * name. Inputs:
  *   history: [{ date, balance }] ordered oldest → newest (matches db.getDebtAccountHistory)
  *   apr:     number or null
  *   currentBalance: number (today's balance)
  */
-function detectNickname({ history, apr, currentBalance }) {
+function detectNicknameCandidates({ history, apr, currentBalance }) {
+  const out = [];
+
   // The Bleeder — high APR is enough on its own. We don't need a history
   // window to know what 24% APR is costing the player.
-  if (Number.isFinite(apr) && apr >= 20) return 'The Bleeder';
+  if (Number.isFinite(apr) && apr >= 20) out.push('The Bleeder');
 
-  if (!Array.isArray(history) || history.length < MIN_NICKNAME_AGE_TURNS) return null;
+  if (Array.isArray(history) && history.length >= MIN_NICKNAME_AGE_TURNS) {
+    // The Wound Reopens — 2+ debt-up moves in the last 6 history points
+    const recent = history.slice(-6); // newest at the end
+    let increases = 0;
+    for (let i = 1; i < recent.length; i++) {
+      if (recent[i].balance > recent[i - 1].balance + 5) increases++;
+    }
+    if (increases >= 2) out.push('The Wound that Reopens');
 
-  // The Wound Reopens — 2+ debt-up moves in the last 6 history points
-  const recent = history.slice(-6); // newest at the end
-  let increases = 0;
-  for (let i = 1; i < recent.length; i++) {
-    if (recent[i].balance > recent[i - 1].balance + 5) increases++;
+    // The Stubborn One — last 4 snapshots all within $20 of each other,
+    // balance not near zero (a $50 balance that holds steady isn't stubborn)
+    if (history.length >= 4 && currentBalance >= 100) {
+      const last4 = history.slice(-4);
+      const max = Math.max(...last4.map((h) => h.balance));
+      const min = Math.min(...last4.map((h) => h.balance));
+      if (max - min < 20) out.push('The Stubborn One');
+    }
+
+    // The Quiet Closer — small balance, trending down
+    if (currentBalance > 0 && currentBalance < 500 && history.length >= 2) {
+      const oldest = history[0].balance;
+      const newest = history[history.length - 1].balance;
+      if (newest < oldest - 5) out.push('The Quiet Closer');
+    }
   }
-  if (increases >= 2) return 'The Wound that Reopens';
 
-  // The Stubborn One — last 4 snapshots all within $20 of each other,
-  // balance not near zero (a $50 balance that holds steady isn't stubborn)
-  if (history.length >= 4 && currentBalance >= 100) {
-    const last4 = history.slice(-4);
-    const max = Math.max(...last4.map((h) => h.balance));
-    const min = Math.min(...last4.map((h) => h.balance));
-    if (max - min < 20) return 'The Stubborn One';
-  }
-
-  // The Quiet Closer — small balance, trending down
-  if (currentBalance > 0 && currentBalance < 500 && history.length >= 2) {
-    const oldest = history[0].balance;
-    const newest = history[history.length - 1].balance;
-    if (newest < oldest - 5) return 'The Quiet Closer';
-  }
-
-  return null;
+  return out;
 }
 
 /**
- * Walk current accounts, assign nicknames to any unnamed ones whose history
- * now reveals a pattern. Names are sticky once given. Returns the full
- * { accountId: nickname } map (named accounts only).
+ * Pure: given current accounts, their APRs/history, and any already-assigned
+ * (sticky) nicknames, return the updated { accountId: nickname } map. No I/O.
+ *
+ * Guarantees every nickname in the result is UNIQUE. A contested name — e.g.
+ * "The Bleeder", which every 20%+ card matches — goes to the account that earns
+ * it most (highest APR), and the rest fall through to their next pattern or to
+ * no nickname at all. Previously each account was named independently, so a
+ * wallet of high-APR cards all came out "The Bleeder".
  */
-function refreshNicknames(currentAccounts, aprMap, historyByAccount) {
-  const nicks = readNicknames();
-  let changed = false;
+function assignNicknames(currentAccounts, aprMap, historyByAccount, existing) {
+  const nicks = { ...(existing || {}) };
 
-  for (const acct of currentAccounts || []) {
-    const id = String(acct && acct.id || '');
-    if (!id || nicks[id]) continue;
+  // Drop names for accounts that no longer exist first, so a freed-up name can
+  // be reused by a current account in this same pass.
+  const liveIds = new Set((currentAccounts || []).map((a) => String(a && a.id || '')));
+  for (const id of Object.keys(nicks)) {
+    if (!liveIds.has(id)) delete nicks[id];
+  }
+
+  const taken = new Set(Object.values(nicks));
+  const aprOf = (a) => Number(aprMap && aprMap[String(a && a.id)]) || 0;
+
+  // Highest-APR accounts get first pick at a contested name.
+  const unnamed = (currentAccounts || [])
+    .filter((a) => { const id = String(a && a.id || ''); return id && !nicks[id]; })
+    .sort((a, b) => aprOf(b) - aprOf(a));
+
+  for (const acct of unnamed) {
+    const id = String(acct.id);
     const apr = Number(aprMap && aprMap[id]);
     const history = (historyByAccount && historyByAccount[id]) || [];
-    const nick = detectNickname({
+    const candidates = detectNicknameCandidates({
       history,
       apr: Number.isFinite(apr) ? apr : null,
       currentBalance: Number(acct.balance) || 0,
     });
+    const nick = candidates.find((n) => !taken.has(n));
     if (nick) {
       nicks[id] = nick;
-      changed = true;
+      taken.add(nick);
     }
   }
 
-  // Prune nicknames for accounts that no longer exist (user removed them)
-  const liveIds = new Set((currentAccounts || []).map((a) => String(a && a.id || '')));
-  for (const id of Object.keys(nicks)) {
-    if (!liveIds.has(id)) {
-      delete nicks[id];
-      changed = true;
-    }
-  }
-
-  if (changed) writeNicknames(nicks);
   return nicks;
 }
 
-module.exports = { refreshNicknames };
+/**
+ * Walk current accounts, assign nicknames to any unnamed ones whose history
+ * now reveals a pattern. Names are sticky once given and unique across accounts.
+ * Returns the full { accountId: nickname } map (named accounts only).
+ */
+function refreshNicknames(currentAccounts, aprMap, historyByAccount) {
+  const existing = readNicknames();
+  const updated = assignNicknames(currentAccounts, aprMap, historyByAccount, existing);
+  if (JSON.stringify(updated) !== JSON.stringify(existing)) writeNicknames(updated);
+  return updated;
+}
+
+module.exports = { refreshNicknames, assignNicknames, detectNicknameCandidates };

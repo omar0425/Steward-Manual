@@ -2,7 +2,7 @@
 
 import {
   fmtDollar, fmtSignedDollar,
-  cumulativePaidDownFromStats, principalPaidDownFromStats, lifetimeProgressPctFromCumulative,
+  cumulativePaidDownFromStats, lifetimeProgressPctFromCumulative,
   formatLastPullAccountRow, formatNetThisTurnLine, lastPullAccountRowsFromStats,
   snapshotPaydownWindow, snapshotPaceIsNoisy, snapshotDeltaSinceOldest,
   paceQualitative, formatApproxDurationFromMonths, timeAgo,
@@ -10,6 +10,7 @@ import {
 import { TIER_FLOW, TIER_META } from './tiers.js';
 import { queuePaidOffCelebration } from './render-debts.js';
 import { stewardApiUrl } from './api.js';
+import { createInfoDot } from './info-popover.js';
 
 /* Full-viewport confetti burst for a climbed stage. Dependency-free: ~90
    absolutely-positioned pieces, randomized drift/spin/delay via CSS custom
@@ -103,17 +104,17 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     playNm.textContent = '';
     playNm.hidden = true;
   }
-  // Bug #3 — show NET principal: gross balance decreases minus interest that
-  // grew balances in other periods. The gross figure alone overstates progress.
-  const principal = principalPaidDownFromStats(stats);
-  const principalVal = Number.isFinite(principal) ? fmtDollar(Math.round(principal)) : '—';
+  // The balance drop IS the progress: cumulativePaidDown already reflects
+  // interest (the balance fell by this much *after* interest was added), so it is
+  // NOT netted again. This matches the hero's "you've reduced" figure and the
+  // Steward AI's money rules — one consistent paydown number across the app.
+  const paidVal = Number.isFinite(paid) ? fmtDollar(Math.round(paid)) : '—';
   if (elPaid) {
-    elPaid.innerHTML = `<span class="sp-label">Principal paid down</span><span class="sp-val sp-val--good">${principalVal}</span>`;
-    const grossR = Math.round(paid);
-    const interestR = Math.round(Number(stats && stats.cumulativeInterestAccrued) || 0);
-    elPaid.title = interestR > 0
-      ? `Real principal progress: ${fmtDollar(grossR)} of payments reduced your balances, minus ${fmtDollar(interestR)} of interest that grew them = ${fmtDollar(Math.round(principal))} net.`
-      : 'Principal you’ve cleared — how much your balances have dropped since you started.';
+    elPaid.innerHTML = `<span class="sp-label">Principal paid down</span><span class="sp-val sp-val--good">${paidVal}</span>`;
+    const lbl = elPaid.querySelector('.sp-label');
+    if (lbl) lbl.appendChild(createInfoDot(
+      'How much your total tracked balance has dropped since you started — your real progress against the debt. Interest is already reflected: the balance fell by this much after interest was added, so it is not subtracted again.'));
+    elPaid.title = 'How much your total tracked balance has dropped since you started. Interest is already reflected — the balance fell by this much after it was added.';
   }
   const { accountLines, ndVal, pdVal } = lastPullAccountRowsFromStats(stats);
   const netThisTurn = accountLines.length > 0
@@ -144,8 +145,12 @@ function fillPlayProgressDetailBullets({ stats, debtDirEl }) {
     const est = Number(stats && stats.estimatedInterestAccrued);
     const hasEst = Number.isFinite(est) && est > 0;
     const understated = stats && stats.estimatedInterestUnderstated;
+    // Say "accrued since start" explicitly: this is a cumulative total, and
+    // without that word it reads as a rival to the "~$/mo right now" monthly
+    // cost shown on the debts panel — two interest numbers that look like they
+    // should tie out but measure different things.
     const estLine = hasEst
-      ? `<span class="sp-sub">≈ ${fmtDollar(Math.round(est))}${understated ? '+' : ''} est. from APRs</span>`
+      ? `<span class="sp-sub">≈ ${fmtDollar(Math.round(est))}${understated ? '+' : ''} accrued since start (est.)</span>`
       : '';
     elInterest.innerHTML = `<span class="sp-label">Interest logged</span><span class="sp-val">${iaStr}</span>${estLine}`;
     elInterest.title = 'Two views of interest. "Interest logged" is only what you’ve tagged as interest/fees. The "est. from APRs" line below estimates the real interest accrued since you started, from your APRs and balances'
@@ -217,10 +222,22 @@ function fillDebtFreeBanner(stats) {
     return;
   }
   if (df && df.onTrack && df.debtFreeDate) {
-    if (dateEl) dateEl.textContent = formatMonthYear(df.debtFreeDate);
     const pace = Number(df.monthlyPace);
     const paceBit = Number.isFinite(pace) && pace > 0 ? `at ~${fmtDollar(Math.round(pace))}/mo` : '';
-    if (subEl) subEl.textContent = [paceBit, thisMonthBit].filter(Boolean).join(' · ');
+    const pf = stats && stats.payoffForecast;
+    const hasBand = pf && pf.ready && !pf.alreadyFree && pf.medianDate && pf.optimisticDate && pf.conservativeDate;
+    if (hasBand) {
+      // Lead with the Monte Carlo most-likely date and an honest range. The
+      // single pace-derived date (df.debtFreeDate) swings session to session;
+      // the band reframes that as expected variation rather than a moving goal.
+      if (dateEl) dateEl.textContent = formatMonthYear(pf.medianDate);
+      const range = `likely ${formatMonthYear(pf.optimisticDate)} – ${formatMonthYear(pf.conservativeDate)}`;
+      if (subEl) subEl.textContent = [range, paceBit, thisMonthBit].filter(Boolean).join(' · ');
+    } else {
+      // Not enough history for a band yet — fall back to the single pace date.
+      if (dateEl) dateEl.textContent = formatMonthYear(df.debtFreeDate);
+      if (subEl) subEl.textContent = [paceBit, thisMonthBit].filter(Boolean).join(' · ');
+    }
     banner.hidden = false;
     fillPayoffForecast(stats);
     return;
@@ -247,17 +264,13 @@ function fillPayoffForecast(stats) {
   const parts = [];
 
   if (f && f.ready && !f.alreadyFree && f.medianDate) {
-    const median = formatMonthYear(f.medianDate);
-    const optimistic = f.optimisticDate ? formatMonthYear(f.optimisticDate) : null;
-    const conservative = f.conservativeDate ? formatMonthYear(f.conservativeDate) : null;
-    const range = optimistic && conservative ? `${optimistic} – ${conservative}` : (conservative || optimistic || '—');
-
+    // The most-likely date + range now headline the banner above; this box adds
+    // the odds and the remaining-interest band so the two don't restate it.
     let odds = '';
     if (Number.isFinite(f.prob1yr) && f.prob1yr >= 50) odds = `${f.prob1yr}% chance within 1 year`;
     else if (Number.isFinite(f.prob2yr) && f.prob2yr >= 40) odds = `${f.prob2yr}% chance within 2 years`;
     else if (Number.isFinite(f.prob3yr)) odds = `${f.prob3yr}% chance within 3 years`;
 
-    parts.push(`<span class="pf-line">Most likely <b>${median}</b> · likely range ${range}</span>`);
     if (odds) parts.push(`<span class="pf-odds">${odds}</span>`);
 
     // Remaining-interest band — interest you'll still pay before you're free.
@@ -274,6 +287,9 @@ function fillPayoffForecast(stats) {
 
   if (!parts.length) { el.hidden = true; return; }
   el.innerHTML = `<span class="pf-label">Forecast</span>` + parts.join('');
+  const pfLbl = el.querySelector('.pf-label');
+  if (pfLbl) pfLbl.appendChild(createInfoDot(
+    'A Monte Carlo simulation replays your own recent paydown history thousands of times to project a range of payoff dates — a most-likely date plus an optimistic-to-conservative band — instead of one fragile guess. The range widens when your pace is uneven.'));
   el.title = f && f.ready
     ? `Monte Carlo: ${f.runs.toLocaleString()} runs resampled from your ${f.samples} logged paydown periods. Range = 10th–90th percentile; interest is accrued on the running balance along each simulated path.`
     : '';

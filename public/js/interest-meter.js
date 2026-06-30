@@ -17,8 +17,10 @@ let _reduced = false;
 try { _reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { /* ignore */ }
 
 function fmtAccrued(n) {
-  // Enough decimals that the eye can see it move, even on small balances.
-  return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  // Whole cents — this is a currency value, and 4 decimals (e.g. $0.0514) reads
+  // as a rendering glitch. On a real balance the cents still tick visibly; on a
+  // tiny balance it moves slowly, which is honest.
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function paint() {
@@ -44,14 +46,23 @@ function paint() {
 export function updateInterestMeter(monthlyInterest) {
   const el = document.getElementById('interest-meter');
   if (!el) return;
+  // Screen-reader summary lives on a separate aria-live="polite" element so the
+  // ~8fps ticker (aria-live="off") never spams. This is only rewritten here, on
+  // recompute, so it announces when the figure meaningfully changes — not per frame.
+  const a11y = document.getElementById('interest-meter-a11y');
   const monthly = Number(monthlyInterest);
   if (!Number.isFinite(monthly) || monthly <= 0) {
     el.hidden = true;
+    if (a11y) a11y.textContent = '';
     if (_raf) { window.cancelAnimationFrame(_raf); _raf = null; }
     return;
   }
   _perSecond = (monthly * 12) / SECONDS_PER_YEAR;
   if (!_start) _start = Date.now(); // anchor once for a continuous count-up
   el.hidden = false;
+  if (a11y) {
+    const perDay = Math.round(_perSecond * 86400);
+    a11y.textContent = `Your balances are accruing about $${perDay.toLocaleString()} per day in interest.`;
+  }
   if (!_raf) paint();
 }

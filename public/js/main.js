@@ -3,6 +3,7 @@
 /* ── Side-effect imports (CSS injection, character styles) ──────── */
 import './character.js';
 import './easter-egg.js';
+import './info-popover.js';
 
 /* ── Module imports ────────────────────────────────────────────── */
 import { currentShell, getDashboardRoot, isPlayDashboardDoc } from './shell.js';
@@ -44,7 +45,9 @@ function initTheme() {
   // label/text each click so screen readers stay accurate.
   const update = () => {
     const isDark = document.body.dataset.theme === 'dark';
-    btn.textContent = isDark ? '\u263D Dark' : '\u2600 Light';
+    // Show the ACTION (what a click does), not the current state \u2014 "\u263E Dark" while
+    // already dark read as ambiguous. The visible label now matches the aria-label.
+    btn.textContent = isDark ? '\u2600 Light mode' : '\u263D Dark mode';
     btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
     btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
   };

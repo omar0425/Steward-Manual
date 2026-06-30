@@ -3,6 +3,7 @@
 import { fmtDollar, fmtSignedDollar } from './format.js';
 import { stewardApiUrl } from './api.js';
 import { updateInterestMeter } from './interest-meter.js';
+import { createInfoDot } from './info-popover.js';
 
 let _aprRates = {};
 let _debtHistory = {};
@@ -157,6 +158,21 @@ export function toggleAprForm() {
   if (btn) btn.classList.add('active');
 }
 
+/* A typical APR guessed from the account's name, shown only as a PLACEHOLDER
+   hint ("e.g. 22") — never auto-filled. Steward is careful to distinguish a real
+   entered rate (including 0%) from a missing one, so a guessed number must never
+   become saved data; it's just a nudge so the field isn't a blank "—". */
+function suggestAprHint(name) {
+  const n = String(name || '').toLowerCase();
+  if (/mortgage|home\s*loan|heloc/.test(n)) return '7';
+  if (/auto|car\b|vehicle|truck/.test(n)) return '8';
+  if (/student|education|sallie|navient/.test(n)) return '6';
+  if (/card|visa|mastercard|amex|credit|chase|capital\s*one|discover|citi|synchrony/.test(n)) return '22';
+  if (/personal|loan|lending|sofi|upstart/.test(n)) return '12';
+  if (/medical|hospital|dental/.test(n)) return '0';
+  return null;
+}
+
 function buildAprForm(panel) {
   const accounts = (_lastDebtStats && _lastDebtStats.debtAccountLines) || [];
   panel.innerHTML = '';
@@ -184,7 +200,8 @@ function buildAprForm(panel) {
     input.step = '0.01';
     input.className = 'apr-form-input';
     input.dataset.accountId = acct.id;
-    input.placeholder = '—';
+    const hint = suggestAprHint(acct.name);
+    input.placeholder = hint ? `e.g. ${hint}` : '—';
     const rateVal = _aprRates[acct.id];
     if (rateVal != null && Number.isFinite(rateVal)) input.value = rateVal;
 
@@ -666,6 +683,8 @@ export function fillDebtAccountsList(stats) {
         (payFirstName && ratedCount >= 2 ? ` — extra payments go furthest on ${payFirstName}.` : '.') +
         // Bug #2 — be explicit that this figure omits accounts with no APR.
         (missingAprCount > 0 ? ` * Excludes ${missingAprCount} account${missingAprCount === 1 ? '' : 's'} with no APR set.` : '');
+      interestLine.appendChild(createInfoDot(
+        'Each balance multiplied by its APR, divided by 12 — the interest your debt accrues this month at current balances. Accounts with no APR entered are left out, so the real cost may be higher.'));
       interestLine.hidden = false;
     } else {
       interestLine.hidden = true;
