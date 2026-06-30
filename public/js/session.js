@@ -96,6 +96,10 @@ function updateSessionTimeDisplay() {
   const sessionSec = sessionWallSecondsFrom(meta.currentSessionStartedAt);
   const totalSec = meta.totalPlaySeconds;
   el.textContent = `This visit ${formatDurationClockHMS(sessionSec)} · Focused ${formatDurationClockHMS(totalSec)}`;
+  // Reveal the chip now that it holds a real value — it starts hidden so the
+  // strip never shows a bare "Session —" before the tracker has anything.
+  const chip = document.getElementById('data-session-chip');
+  if (chip) chip.hidden = false;
 }
 
 /**
@@ -188,9 +192,7 @@ export function startPlaytimeTracking() {
     if (stewardPlaytime.active) updateSessionTimeDisplay();
   }, 1000);
 
-  const el = document.getElementById('data-session-time');
-  if (el) {
-    el.hidden = false;
-  }
+  const chip = document.getElementById('data-session-chip');
+  if (chip) chip.hidden = false;
   updateSessionTimeDisplay();
 }

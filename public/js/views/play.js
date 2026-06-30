@@ -492,7 +492,7 @@ function buildDataStrip() {
       <span class="data-chip-k">Version</span>
       <span class="data-chip-v" id="app-version">\u2014</span>
     </div>
-    <div class="data-chip" title="Time in this visit, and total focused time on Steward (the session tracker writes to this).">
+    <div class="data-chip" id="data-session-chip" hidden title="Time in this visit, and total focused time on Steward (the session tracker writes to this).">
       <span class="data-chip-k">Session</span>
       <span class="data-chip-v" id="data-session-time">\u2014</span>
     </div>
