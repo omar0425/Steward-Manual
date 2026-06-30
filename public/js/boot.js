@@ -365,6 +365,27 @@ function initStickyUpdateFab() {
   });
 }
 
+/* One-tap "Refresh" — re-fetch /api/status and re-render every figure, so the
+   user can recompute on demand (e.g. after editing data on another device). The
+   "data as of" signal already lives in the freshness pill + Last snapshot chip;
+   this gives them a visible action to act on it. */
+function initRecalcNowBtn() {
+  const btn = document.getElementById('recalc-now-btn');
+  if (!btn || btn.dataset.bound === '1') return;
+  btn.dataset.bound = '1';
+  btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Refreshing…';
+    try { await manualRefresh(); }
+    finally {
+      btn.textContent = original;
+      btn.disabled = false;
+    }
+  });
+}
+
 export function initDashboardBoot() {
   initPlayResetBtn();
   initDeleteAccountBtn();
@@ -372,6 +393,7 @@ export function initDashboardBoot() {
   initAccountSecurity();
   initAskSteward();
   initStickyUpdateFab();
+  initRecalcNowBtn();
   const root = document.getElementById('commitment-screen');
   if (!root) {
     initStartGameGate();
