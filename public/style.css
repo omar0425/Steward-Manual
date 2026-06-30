@@ -280,37 +280,28 @@ h1, h2, h3 {
   display: flex; flex-direction: column; gap: 16px;
 }
 
-/* ── Wide screens: two-column dashboard ───────────────────────────────────
-   Above 1200px the single column wastes half the screen. 1200 (not 1500) is
-   deliberate: it sits below a typical ~1262px "side-panel open" width AND a
-   ~1500px "panel closed" width, so the layout stays two-column either way
-   instead of flipping whenever a side panel toggles. Areas are assigned by
-   child order, fixed by mountPlayShell() in views/play.js:
-   1 hero · 2 entry · 3 chart · 4 This Turn · 5 debt accounts ·
-   6 stage progress · 7 trophy · 8 data strip · 9 danger zone.
-   Setup view (body[data-setup-mode]) keeps the single column — only the
-   entry panel is visible there and a grid would leave the right half empty. */
-/* The dashboard's two middle columns are wrapper divs (#dash-col-left/right).
-   On narrow screens they collapse to display:contents so every panel flows in
-   the single-column flex in DOM order; the wide-screen rule below turns them
-   into real flex columns. */
-#dash-col-left, #dash-col-right { display: contents; }
+/* ── Wide screens: auto-balanced two-column dashboard ─────────────────────
+   Above 1200px the middle panels (#dash-cols) become a CSS multi-column layout.
+   The browser balances the two columns so they stay close in height no matter
+   which panels are shown or hidden — neither side ends in a tall void, which a
+   fixed left/right split can't guarantee. Panels never split across a column
+   (break-inside: avoid). Hero, data strip, danger zone, and footer remain
+   full-width stacked siblings (#dashboard keeps its base flex column).
+   The 1200 breakpoint sits below the common "side-panel open" (~1262px) and
+   "panel closed" (~1500px) widths, so the layout doesn't flip when a side panel
+   toggles. Setup view stays single-column (only the entry panel shows). */
+/* Below 1200px the column wrappers collapse so every panel flows in one column
+   in DOM order; the rule below makes them real columns on wide screens. */
+#dash-col-a, #dash-col-b { display: contents; }
 
 @media (min-width: 1200px) {
-  /* Match the id-specificity of the `#dashboard { display: flex }` rule below
-     so the grid wins. Only once the app is ready and not in setup view. */
   body[data-app-mode="ready"]:not([data-setup-mode]) #dashboard {
     max-width: 1480px;
     display: grid;
-    /* Left column sized to its content (~620px — fits the 5-column debt table);
-       the right column (1fr) absorbs the extra width. Hero, data strip, danger
-       zone, and the footer span both columns. Each middle column stacks its own
-       panels independently (see #dash-col-* below), so a tall panel on one side
-       no longer stretches shared grid rows and leaves voids beside the other. */
-    grid-template-columns: minmax(0, 620px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "hero   hero"
-      "left   right"
+      "cola   colb"
       "strip  strip"
       "danger danger"
       "footer footer";
@@ -319,15 +310,15 @@ h1, h2, h3 {
     align-items: start;
   }
   body:not([data-setup-mode]) #hero-section        { grid-area: hero; }
-  body:not([data-setup-mode]) #dash-col-left       { grid-area: left; }
-  body:not([data-setup-mode]) #dash-col-right      { grid-area: right; }
+  body:not([data-setup-mode]) #dash-col-a          { grid-area: cola; }
+  body:not([data-setup-mode]) #dash-col-b          { grid-area: colb; }
   body:not([data-setup-mode]) #data-sync-strip     { grid-area: strip; }
   body:not([data-setup-mode]) #danger-zone-section { grid-area: danger; }
   body:not([data-setup-mode]) .steward-footer      { grid-area: footer; }
 
-  /* Real flex columns on wide screens — each packs its panels with one gap. */
-  body:not([data-setup-mode]) #dash-col-left,
-  body:not([data-setup-mode]) #dash-col-right {
+  /* Each column stacks its panels with one consistent gap. */
+  body:not([data-setup-mode]) #dash-col-a,
+  body:not([data-setup-mode]) #dash-col-b {
     display: flex; flex-direction: column; gap: 24px; min-width: 0;
   }
 }
@@ -906,7 +897,7 @@ board-liquidity-pill
    columns never line up across rows (the header's empty cells even collapse the
    balance/APR tracks to 0px). Definite px widths make the APR, balance, delta and
    trend columns share one alignment down the whole table; only the name flexes. */
-.debt-row { display: grid; grid-template-columns: minmax(140px, 1.4fr) 136px 104px 52px 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.debt-row { display: grid; grid-template-columns: minmax(120px, 1.4fr) 136px 104px 52px 64px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .debt-row:last-child { border-bottom: none; }
 /* Phones: rather than crush the name column to fit five tracks, drop the Trend
    sparkline (the least essential column) entirely and reclaim its width for the
