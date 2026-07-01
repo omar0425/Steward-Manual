@@ -48,6 +48,7 @@ const {
   peekUndoLabel,
   getLastDebtSyncDebugForStatus,
   computeStreak,
+  removalSafeStreakSeries,
   applyClimbMetricsOnPull,
   KEY_MAP_SEEDED,
   setLastDebtSyncDebug,
@@ -200,13 +201,18 @@ router.get('/status', (req, res) => {
   else if (ageHours < 48)  freshness = `${Math.floor(ageHours)}h ago`;
   else                     freshness = 'Stale >48h';
 
-  // Streak from the correction-aware debt line (same series pace/forecast use),
-  // not raw snapshots. This stops a setup-time "forgot this debt" addition — which
-  // spikes raw debt_remaining upward — from falsely BREAKING a streak. (Known gap:
-  // fully untracking/removing an account still reads as a decrease in this series
-  // and can inflate the streak; correcting that needs per-account-delta streaks.)
+  // Streak from a per-account-delta series: only balance changes on accounts
+  // present in BOTH consecutive pulls count, so neither a setup-time "forgot this
+  // debt" addition (which spikes raw debt upward and would falsely BREAK a streak)
+  // nor fully removing/untracking an account (which drops the aggregate with no
+  // payment and would falsely INFLATE it) affects the momentum counter. Falls back
+  // to the correction-aware snapshots for legacy aggregate-only users with no
+  // per-account history.
+  const streakSeries = removalSafeStreakSeries(debtAccountHistoryRows(), { gameStartAt });
   const streak = computeStreak(
-    recentCorrectedSnapshots({ gameStartAt, fallback: snapshots }),
+    streakSeries.length >= 2
+      ? streakSeries
+      : recentCorrectedSnapshots({ gameStartAt, fallback: snapshots }),
   );
   const lastDebtSync = getLastDebtSyncDebugForStatus();
   const aggregatePaydownSinceGameStart =
