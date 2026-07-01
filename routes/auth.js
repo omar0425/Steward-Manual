@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { randomBytes } = require('crypto');
 const router  = express.Router();
 const {
   createLocalUser,
@@ -65,9 +66,19 @@ const _registerSweepHandle = setInterval(() => {
 if (typeof _registerSweepHandle.unref === 'function') _registerSweepHandle.unref();
 
 function _clientIp(req) {
-  return (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
-    .toString().split(',')[0].trim().slice(0, 64);
+  // Use req.ip, which respects the `trust proxy` hop configured in server.js.
+  // Reading X-Forwarded-For directly let a client spoof the header and mint a
+  // fresh "IP" per request, bypassing every per-IP limiter below. Falls back to
+  // the socket address in dev/test where trust proxy is off.
+  return String((req && req.ip) || (req.socket && req.socket.remoteAddress) || '')
+    .trim().slice(0, 64);
 }
+
+// A valid-shaped but never-matching password hash (16-byte salt + 64-byte key,
+// all zeros). verifyPassword against it runs a full scrypt and returns false, so
+// the login path can spend equivalent CPU when a username doesn't exist — closing
+// the timing oracle that otherwise revealed which usernames are real local users.
+const DECOY_PASSWORD_HASH = '0'.repeat(32) + ':' + '0'.repeat(128);
 
 /* Test suites (unit + e2e) register many users from 127.0.0.1 and would trip
    the limiter instantly; they run with NODE_ENV=test. The dedicated limiter
@@ -178,17 +189,24 @@ router.post('/register', (req, res) => {
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 5;
-const _loginAttempts = new Map(); // key: lowercased username → { count, firstAttemptAt }
+// Per-IP ceiling across ALL usernames — blunts credential stuffing / spraying,
+// where one source tries a few passwords each against many accounts and never
+// trips the per-(username,ip) counter.
+const LOGIN_IP_MAX_FAILURES = 50;
+// key: `${username}|${ip}` → { count, firstAttemptAt }. Scoping the lockout to
+// the source IP (not username alone) means an attacker can no longer lock a
+// victim out of their own account by burning failures from a different IP.
+const _loginAttempts = new Map();
+const _loginIpAttempts = new Map(); // key: ip → { count, firstAttemptAt }
 
-// Periodic sweep of expired attempt entries. Each unique attempted username
-// otherwise lingers in the Map for up to LOGIN_WINDOW_MS even after no
-// further activity — small but unbounded over time. The sweep clears entries
-// whose window has elapsed.
+// Periodic sweep of expired attempt entries. Each unique key otherwise lingers
+// in the Map for up to LOGIN_WINDOW_MS even after no further activity — small
+// but unbounded over time. The sweep clears entries whose window has elapsed.
 const _loginAttemptsSweepHandle = setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of _loginAttempts) {
-    if (now - entry.firstAttemptAt >= LOGIN_WINDOW_MS) {
-      _loginAttempts.delete(key);
+  for (const map of [_loginAttempts, _loginIpAttempts]) {
+    for (const [key, entry] of map) {
+      if (now - entry.firstAttemptAt >= LOGIN_WINDOW_MS) map.delete(key);
     }
   }
 }, LOGIN_WINDOW_MS);
@@ -196,35 +214,50 @@ if (typeof _loginAttemptsSweepHandle.unref === 'function') {
   _loginAttemptsSweepHandle.unref();
 }
 
-function _loginAttemptKey(rawUsername) {
-  return String(rawUsername || '').trim().toLowerCase();
+function _loginAttemptKey(rawUsername, ip) {
+  return `${String(rawUsername || '').trim().toLowerCase()}|${String(ip || '')}`;
 }
 
-function _loginAttemptStatus(key) {
-  const entry = _loginAttempts.get(key);
+function _windowStatus(map, key, max) {
+  const entry = map.get(key);
   if (!entry) return { blocked: false, retryAfterMs: 0 };
   const elapsed = Date.now() - entry.firstAttemptAt;
   if (elapsed >= LOGIN_WINDOW_MS) {
-    _loginAttempts.delete(key);
+    map.delete(key);
     return { blocked: false, retryAfterMs: 0 };
   }
-  if (entry.count >= LOGIN_MAX_FAILURES) {
-    return { blocked: true, retryAfterMs: LOGIN_WINDOW_MS - elapsed };
+  if (entry.count >= max) return { blocked: true, retryAfterMs: LOGIN_WINDOW_MS - elapsed };
+  return { blocked: false, retryAfterMs: 0 };
+}
+
+// Blocked if EITHER the per-(username,ip) lockout or the per-IP ceiling trips.
+function _loginBlockedStatus(attemptKey, ip) {
+  const perUser = _windowStatus(_loginAttempts, attemptKey, LOGIN_MAX_FAILURES);
+  const perIp = _windowStatus(_loginIpAttempts, String(ip || ''), LOGIN_IP_MAX_FAILURES);
+  if (perUser.blocked || perIp.blocked) {
+    return { blocked: true, retryAfterMs: Math.max(perUser.retryAfterMs, perIp.retryAfterMs) };
   }
   return { blocked: false, retryAfterMs: 0 };
 }
 
-function _recordLoginFailure(key) {
-  const entry = _loginAttempts.get(key);
+function _bump(map, key) {
+  const entry = map.get(key);
   if (!entry || Date.now() - entry.firstAttemptAt >= LOGIN_WINDOW_MS) {
-    _loginAttempts.set(key, { count: 1, firstAttemptAt: Date.now() });
+    map.set(key, { count: 1, firstAttemptAt: Date.now() });
     return;
   }
   entry.count += 1;
 }
 
-function _clearLoginAttempts(key) {
-  _loginAttempts.delete(key);
+function _recordLoginFailure(attemptKey, ip) {
+  _bump(_loginAttempts, attemptKey);
+  _bump(_loginIpAttempts, String(ip || ''));
+}
+
+function _clearLoginAttempts(attemptKey) {
+  _loginAttempts.delete(attemptKey);
+  // Intentionally do NOT clear the per-IP counter — a successful login on one
+  // account shouldn't reset a stuffing run's IP budget across other accounts.
 }
 
 router.post('/login', (req, res) => {
@@ -238,8 +271,9 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ ok: false, error: 'Password must be 200 characters or fewer.' });
     }
 
-    const attemptKey = _loginAttemptKey(username);
-    const status = _loginAttemptStatus(attemptKey);
+    const ip = _clientIp(req);
+    const attemptKey = _loginAttemptKey(username, ip);
+    const status = _loginBlockedStatus(attemptKey, ip);
     if (status.blocked) {
       const minutes = Math.max(1, Math.ceil(status.retryAfterMs / 60000));
       res.set('Retry-After', String(Math.ceil(status.retryAfterMs / 1000)));
@@ -251,12 +285,15 @@ router.post('/login', (req, res) => {
 
     const user = findUserByUsername(username.trim());
     if (!user || user.provider !== 'local' || !user.password) {
-      _recordLoginFailure(attemptKey);
+      // Spend equivalent CPU on a fake hash so response timing doesn't reveal
+      // whether the username exists as a local account (enumeration oracle).
+      verifyPassword(password, DECOY_PASSWORD_HASH);
+      _recordLoginFailure(attemptKey, ip);
       return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
     }
 
     if (!verifyPassword(password, user.password)) {
-      _recordLoginFailure(attemptKey);
+      _recordLoginFailure(attemptKey, ip);
       return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
     }
 
@@ -458,11 +495,18 @@ router.post('/logout-others', (req, res) => {
 
 const FORGOT_WINDOW_MS = 60 * 60 * 1000;        // 1 hour
 const FORGOT_MAX_PER_WINDOW = 5;
-const _forgotAttempts = new Map();              // key → { count, firstAt }
+// Separate, higher ceiling on the source IP alone. The per-(email|ip) key let a
+// single IP fan out 5 reset emails each to unlimited distinct addresses — a
+// mail-bombing amplifier. This caps total reset dispatches per IP per window.
+const FORGOT_IP_MAX_PER_WINDOW = 20;
+const _forgotAttempts = new Map();              // `${email}|${ip}` → { count, firstAt }
+const _forgotIpAttempts = new Map();            // ip → { count, firstAt }
 const _forgotSweepHandle = setInterval(() => {
   const now = Date.now();
-  for (const [k, v] of _forgotAttempts) {
-    if (now - v.firstAt >= FORGOT_WINDOW_MS) _forgotAttempts.delete(k);
+  for (const map of [_forgotAttempts, _forgotIpAttempts]) {
+    for (const [k, v] of map) {
+      if (now - v.firstAt >= FORGOT_WINDOW_MS) map.delete(k);
+    }
   }
 }, FORGOT_WINDOW_MS);
 if (typeof _forgotSweepHandle.unref === 'function') _forgotSweepHandle.unref();
@@ -470,22 +514,30 @@ if (typeof _forgotSweepHandle.unref === 'function') _forgotSweepHandle.unref();
 function _forgotKey(email, ip) {
   return `${String(email || '').trim().toLowerCase()}|${String(ip || '').slice(0, 64)}`;
 }
-function _forgotShouldThrottle(key) {
-  const entry = _forgotAttempts.get(key);
+function _forgotWindowThrottled(map, key, max) {
+  const entry = map.get(key);
   if (!entry) return false;
   if (Date.now() - entry.firstAt >= FORGOT_WINDOW_MS) {
-    _forgotAttempts.delete(key);
+    map.delete(key);
     return false;
   }
-  return entry.count >= FORGOT_MAX_PER_WINDOW;
+  return entry.count >= max;
 }
-function _forgotBumpCount(key) {
-  const entry = _forgotAttempts.get(key);
+function _forgotShouldThrottle(key, ip) {
+  return _forgotWindowThrottled(_forgotAttempts, key, FORGOT_MAX_PER_WINDOW)
+    || _forgotWindowThrottled(_forgotIpAttempts, String(ip || ''), FORGOT_IP_MAX_PER_WINDOW);
+}
+function _forgotBump(map, key) {
+  const entry = map.get(key);
   if (!entry || Date.now() - entry.firstAt >= FORGOT_WINDOW_MS) {
-    _forgotAttempts.set(key, { count: 1, firstAt: Date.now() });
+    map.set(key, { count: 1, firstAt: Date.now() });
   } else {
     entry.count += 1;
   }
+}
+function _forgotBumpCount(key, ip) {
+  _forgotBump(_forgotAttempts, key);
+  _forgotBump(_forgotIpAttempts, String(ip || ''));
 }
 
 router.post('/forgot-password', async (req, res) => {
@@ -501,13 +553,13 @@ router.post('/forgot-password', async (req, res) => {
       return res.json(genericResponse);
     }
     const normalized = email.trim().toLowerCase();
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().split(',')[0].trim();
+    const ip = _clientIp(req);
     const key = _forgotKey(normalized, ip);
-    if (_forgotShouldThrottle(key)) {
+    if (_forgotShouldThrottle(key, ip)) {
       // Even when throttled, respond 200 generically so attackers don't learn anything.
       return res.json(genericResponse);
     }
-    _forgotBumpCount(key);
+    _forgotBumpCount(key, ip);
 
     const user = findUserByEmail(normalized);
     // Only dispatch for local users with an email. Google-provider accounts
@@ -599,11 +651,24 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 // callback instead of silently inheriting localhost. The resulting URL must
 // still be listed under "Authorized redirect URIs" in the Google console.
 const GOOGLE_REDIRECT_URI  = process.env.GOOGLE_REDIRECT_URI || `${APP_BASE_URL}/api/auth/google/callback`;
+const OAUTH_STATE_COOKIE = 'steward_oauth_state';
 
 router.get('/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID) {
     return res.status(501).json({ ok: false, error: 'Google OAuth not configured.' });
   }
+  // CSRF defense for the OAuth flow: mint a random `state`, stash it in a short-
+  // lived HttpOnly cookie, and require the callback to echo it back. Without
+  // this, an attacker could feed a victim their own authorization code and log
+  // the victim into the attacker's account (login CSRF).
+  const state = randomBytes(16).toString('hex');
+  res.cookie(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 10 * 60 * 1000, // 10 minutes to complete the round trip
+    path: '/',
+  });
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: GOOGLE_REDIRECT_URI,
@@ -611,15 +676,24 @@ router.get('/google', (req, res) => {
     scope: 'openid email profile',
     access_type: 'offline',
     prompt: 'select_account',
+    state,
   });
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
 
 router.get('/google/callback', async (req, res) => {
   try {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
     if (error || !code) {
       return res.redirect('/login?error=google_denied');
+    }
+    // Verify the state parameter against the cookie set in /google, then clear
+    // it (single use). A missing/mismatched state means this callback was not
+    // initiated by this browser — reject it.
+    const expectedState = req.cookies && req.cookies[OAUTH_STATE_COOKIE];
+    res.clearCookie(OAUTH_STATE_COOKIE, { path: '/', secure: process.env.NODE_ENV === 'production' });
+    if (!state || !expectedState || String(state) !== String(expectedState)) {
+      return res.redirect('/login?error=google_state');
     }
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
       return res.redirect('/login?error=google_not_configured');
@@ -652,9 +726,26 @@ router.get('/google/callback', async (req, res) => {
       console.error('[auth/google] User info failed:', profile);
       return res.redirect('/login?error=google_profile_failed');
     }
+    // Only trust a Google-verified address. An unverified email (some Workspace
+    // / alias setups) could otherwise be used to claim any account bound to that
+    // address. `verified_email` is the userinfo field; treat anything but a
+    // strict true as unverified.
+    if (profile.verified_email !== true) {
+      console.warn('[auth/google] rejected unverified email:', profile.email);
+      return res.redirect('/login?error=google_unverified');
+    }
 
-    // Find or create user, create session
-    const user = findOrCreateGoogleUser(profile.email, profile.name);
+    // Find or create user, create session. A pre-existing LOCAL account on this
+    // email is refused (see findOrCreateGoogleUser) to prevent takeover.
+    let user;
+    try {
+      user = findOrCreateGoogleUser(profile.email, profile.name);
+    } catch (err) {
+      if (err && err.code === 'EMAIL_OWNED_BY_LOCAL') {
+        return res.redirect('/login?error=google_email_conflict');
+      }
+      throw err;
+    }
     const session = createSession(user.id);
     setSessionCookie(res, session);
 

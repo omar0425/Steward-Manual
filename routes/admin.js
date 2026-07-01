@@ -27,10 +27,11 @@ function requireAdminToken(req, res, next) {
   if (!expected) {
     return res.status(501).json({ ok: false, error: 'Admin API not configured. Set ADMIN_TOKEN.' });
   }
+  // Header only — a ?token= query string leaks into proxy/access logs and
+  // browser history. Accept the Authorization or X-Admin-Token headers.
   const supplied =
     (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() ||
-    String(req.headers['x-admin-token'] || '') ||
-    String(req.query.token || '');
+    String(req.headers['x-admin-token'] || '');
   // Hash both sides so timingSafeEqual gets equal-length buffers.
   const a = crypto.createHash('sha256').update(supplied).digest();
   const b = crypto.createHash('sha256').update(expected).digest();

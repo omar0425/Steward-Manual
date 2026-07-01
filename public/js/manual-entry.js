@@ -21,10 +21,10 @@ function fmtDollar(n) {
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-/* Normalize a balance value for display in a number input. Always shows two
-   decimals so every row reads the same regardless of the underlying value
-   ("2098.00" beside "18055.43" — uniform precision). QA bug #6: a mix of
-   integer-rendered and 2-decimal-rendered inputs looks inconsistent. */
+/* Normalize a balance value for display in a number input. Debt is tracked in
+   whole dollars by design (the server rounds too), so this rounds to an integer
+   — every row reads uniformly and line items always sum to the displayed total.
+   Note: opening and re-saving a row therefore drops any sub-dollar cents. */
 function formatBalanceForInput(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return '';
@@ -646,13 +646,20 @@ async function detectStaleBaselines() {
   return findStaleBaselines(formRows, serverById);
 }
 
+let saveInFlight = false;
 async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
+  // Re-entry guard: a rapid double-Enter (or a second click before the first
+  // POST resolves) would otherwise fire two /api/snapshot writes, creating
+  // duplicate snapshots / double-counting. Ignore overlapping calls.
+  if (saveInFlight) return;
+  saveInFlight = true;
   if (btnEl) btnEl.disabled = true;
   if (msgEl) msgEl.textContent = 'Saving…';
 
   if (!debtAccounts || debtAccounts.length === 0) {
     if (msgEl) msgEl.textContent = 'Enter at least one debt account.';
     if (btnEl) btnEl.disabled = false;
+    saveInFlight = false;
     return;
   }
 
@@ -689,6 +696,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
     if (!data) {
       if (msgEl) msgEl.textContent = `Couldn't save — the server returned an unexpected response (HTTP ${res.status}).`;
       if (btnEl) btnEl.disabled = false;
+      saveInFlight = false;
       return;
     }
     if (res.ok && data.ok) {
@@ -713,6 +721,11 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
             // manualRefresh() (not location.reload) means the message stays
             // on-screen while the dashboard underneath updates in place.
             setTimeout(() => { void manualRefresh(); void resyncSavedDebtsFromServer(); }, 4500);
+            // Re-enable the caller's button before bailing out — the persistent
+            // "Update Balances" button is not rebuilt by the delayed refresh, so
+            // skipping this left it disabled forever after a preserved-field save.
+            if (btnEl) btnEl.disabled = false;
+            saveInFlight = false;
             return;
           }
         }
@@ -732,6 +745,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
   }
 
   if (btnEl) btnEl.disabled = false;
+  saveInFlight = false;
 }
 
 /* ── Init ─────────────────────────────────────────────────────────────────── */
@@ -816,10 +830,28 @@ export function initManualEntryForm() {
     }
     /* Successful submit clears any stale validation chip before kicking off the save. */
     dismissValidationMsg();
-    const existingAccounts = collectSavedDebtUpdates();
-    const allAccounts = [...existingAccounts, ...newAccounts];
     const saveBtn = document.getElementById('save-snapshot-btn');
     const formMsg = getFormMsg();
+    // Same stale-form guard the "Update Balances" path uses: this submit re-posts
+    // the full account list (existing rows + new ones), so out-of-date balances
+    // for the untouched accounts would silently overwrite paydown logged on
+    // another device. Skip during first-run setup, where there's no baseline yet.
+    const isSetupMode = document.body && document.body.dataset.setupMode === 'first';
+    if (!isSetupMode) {
+      if (saveBtn) saveBtn.disabled = true;
+      const stale = await detectStaleBaselines();
+      if (saveBtn) saveBtn.disabled = false;
+      if (stale && stale.length > 0) {
+        await resyncSavedDebtsFromServer();
+        const names = stale.map(s => s.name).filter(Boolean).join(', ');
+        if (formMsg) {
+          formMsg.textContent = `Heads up — these balances changed since you opened this page: ${names}. I've reloaded the latest numbers so your earlier payments aren't overwritten. Re-enter today's balances and save again.`;
+        }
+        return;
+      }
+    }
+    const existingAccounts = collectSavedDebtUpdates();
+    const allAccounts = [...existingAccounts, ...newAccounts];
     await saveSnapshot(allAccounts, formMsg, saveBtn);
   });
 

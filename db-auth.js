@@ -128,7 +128,19 @@ function listAllUsers() {
 
 function findOrCreateGoogleUser(email, displayName) {
   let user = findUserByEmail(email);
-  if (user) return user;
+  if (user) {
+    // Only authenticate into an existing row if it's actually a Google identity.
+    // Merging into a pre-existing LOCAL account would let an attacker who
+    // registered victim@example.com (email is not verified at registration) be
+    // silently signed into by the real owner's Google login — account takeover.
+    // Refuse; the caller surfaces a "link your accounts" style error instead.
+    if (user.provider !== 'google') {
+      const err = new Error('This email is already registered with a password. Sign in with your password.');
+      err.code = 'EMAIL_OWNED_BY_LOCAL';
+      throw err;
+    }
+    return user;
+  }
   const now = new Date().toISOString();
   const username = displayName || email.split('@')[0];
   const info = db.prepare(`

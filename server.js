@@ -111,7 +111,18 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+// Default JSON parser (100kb) for the whole app. The data-restore routes handle
+// full exports that legitimately exceed that, and mount their own 8mb parser —
+// but a global parser here would consume the stream first and reject the body
+// with 413 before the route parser ran, silently breaking restore for exactly
+// the users with enough history to need it. Skip those paths so their larger
+// limit applies.
+const globalJsonParser = express.json();
+const RESTORE_PATH_RE = /^\/admin\/api\/users\/\d+\/restore\/?$/;
+app.use((req, res, next) => {
+  if (req.path === '/api/restore' || RESTORE_PATH_RE.test(req.path)) return next();
+  return globalJsonParser(req, res, next);
+});
 
 // Simple cookie parser (avoids adding cookie-parser dependency)
 app.use((req, res, next) => {
@@ -267,9 +278,9 @@ app.get('/admin/backup', (req, res) => {
   if (!BACKUP_TOKEN) {
     return res.status(501).json({ ok: false, error: 'Backups not configured. Set STEWARD_BACKUP_TOKEN.' });
   }
-  const supplied =
-    (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() ||
-    String(req.query.token || '');
+  // Header only — a ?token= query string lands in proxy/access logs and browser
+  // history, leaking the credential. Require the Authorization header.
+  const supplied = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   // Hash both sides so timingSafeEqual gets equal-length buffers.
   const a = crypto.createHash('sha256').update(supplied).digest();
   const b = crypto.createHash('sha256').update(BACKUP_TOKEN).digest();
@@ -363,6 +374,11 @@ app.use((err, req, res, next) => {
   // body-parser flags malformed JSON with type 'entity.parse.failed'
   if (err && err.type === 'entity.parse.failed') {
     return res.status(400).json({ ok: false, error: 'Malformed JSON in request body.' });
+  }
+  // Oversized body — return the accurate 413 instead of collapsing it into a
+  // generic 500. body-parser sets err.type='entity.too.large' / status 413.
+  if (err && (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413)) {
+    return res.status(413).json({ ok: false, error: 'Request body too large.' });
   }
   console.error('[Steward] Unhandled error:', err && err.stack ? err.stack : err);
   if (res.headersSent) return next(err);

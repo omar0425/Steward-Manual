@@ -151,7 +151,7 @@ function fireNotification(title, body) {
   } else if (Notification.permission !== 'denied') {
     Notification.requestPermission().then(p => {
       if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' });
-    });
+    }).catch(() => { /* some browsers reject rather than resolve 'denied' */ });
   }
 }
 
