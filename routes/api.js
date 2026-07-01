@@ -200,7 +200,14 @@ router.get('/status', (req, res) => {
   else if (ageHours < 48)  freshness = `${Math.floor(ageHours)}h ago`;
   else                     freshness = 'Stale >48h';
 
-  const streak = computeStreak(snapshots);
+  // Streak from the correction-aware debt line (same series pace/forecast use),
+  // not raw snapshots. This stops a setup-time "forgot this debt" addition — which
+  // spikes raw debt_remaining upward — from falsely BREAKING a streak. (Known gap:
+  // fully untracking/removing an account still reads as a decrease in this series
+  // and can inflate the streak; correcting that needs per-account-delta streaks.)
+  const streak = computeStreak(
+    recentCorrectedSnapshots({ gameStartAt, fallback: snapshots }),
+  );
   const lastDebtSync = getLastDebtSyncDebugForStatus();
   const aggregatePaydownSinceGameStart =
     Number.isFinite(Number(gameStartDebt)) && Number.isFinite(Number(snap.debt_remaining))

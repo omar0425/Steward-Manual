@@ -19,8 +19,18 @@ const DAYS_PER_MONTH = 30.44;
  * (newest-first). Negative samples (debt grew that interval) are kept on
  * purpose — that volatility is exactly what the simulation should feel.
  */
-function monthlyPaydownSamples(snapshots, { minDays = 2 } = {}) {
+// minDays drops individual short intervals; a 3-day gap with any real drop
+// annualizes into a fantasy $/month rate. minSpanDays additionally refuses to
+// derive ANY samples until the overall history spans real calendar time — the
+// same discipline services/pace.js enforces (MIN_SPAN_DAYS = 21), so a burst of
+// same-week entries can't feed the Monte Carlo a wildly optimistic debt-free
+// date that contradicts the linear projection.
+function monthlyPaydownSamples(snapshots, { minDays = 10, minSpanDays = 21 } = {}) {
   if (!Array.isArray(snapshots) || snapshots.length < 2) return [];
+  const times = snapshots.map((s) => Date.parse(s.pulled_at)).filter(Number.isFinite);
+  if (times.length < 2) return [];
+  const spanDays = (Math.max(...times) - Math.min(...times)) / 86400000;
+  if (spanDays < minSpanDays) return [];
   const out = [];
   for (let i = 0; i < snapshots.length - 1; i++) {
     const newer = snapshots[i];
