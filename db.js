@@ -418,6 +418,22 @@ function getDebtAccountFirstBalances() {
     // keep the first seen if a duplicate timestamp ever occurs.
     if (!m.has(String(r.id))) m.set(String(r.id), Number(r.balance));
   }
+  // Prefer the write-once origin balance the snapshot route persists (see
+  // debt_account_first_balance). The history-derived MIN above is only a fallback
+  // for accounts predating that persistence — and it drifts once the 30-row
+  // prune drops an account's earliest rows. The persisted value never drifts.
+  const raw = getConfig('debt_account_first_balance');
+  if (raw) {
+    try {
+      const pinned = JSON.parse(raw);
+      if (pinned && typeof pinned === 'object' && !Array.isArray(pinned)) {
+        for (const [id, bal] of Object.entries(pinned)) {
+          const n = Number(bal);
+          if (Number.isFinite(n)) m.set(String(id), n);
+        }
+      }
+    } catch { /* malformed → keep history-derived values */ }
+  }
   return m;
 }
 
@@ -680,6 +696,7 @@ function resetAllGameState() {
     'cumulative_paid_down',
     'debt_account_name_map',
     'debt_account_origin',
+    'debt_account_first_balance',
     'debt_start',
     'game_start_at',
     'game_start_debt',

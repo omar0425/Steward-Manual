@@ -133,7 +133,7 @@ function initEmailPrompt() {
       <span style="flex:1;color:var(--text);">
         <strong style="color:var(--amber,#d4a030);">Add an email</strong> to your account so you can reset your password later.
       </span>
-      <input id="email-prompt-input" type="email" placeholder="you@example.com" maxlength="254"
+      <input id="email-prompt-input" type="email" placeholder="you@example.com" maxlength="254" aria-label="Email address"
              style="flex:0 1 260px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;" />
       <button id="email-prompt-save" type="button"
               style="padding:6px 14px;background:var(--gold,#c8a84c);border:none;border-radius:4px;color:#1a1a1a;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">

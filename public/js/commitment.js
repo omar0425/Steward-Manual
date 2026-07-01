@@ -34,13 +34,14 @@ function persistPromiseAck(customText) {
 /* Mirror the promise server-side so a new device/browser doesn't re-ask a
    mid-climb user to commit. Fire-and-forget — localStorage stays the fast path. */
 function syncPromiseToServer(text) {
-  try {
-    void fetch(stewardApiUrl('/api/config/promise'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(text != null ? { text: String(text) } : {}),
-    });
-  } catch (_) { /* offline — local copy still works */ }
+  // A synchronous try/catch can't catch an async fetch rejection (network
+  // failure), so attach a .catch — otherwise an offline save surfaces as an
+  // unhandled promise rejection. localStorage stays the fast path regardless.
+  fetch(stewardApiUrl('/api/config/promise'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(text != null ? { text: String(text) } : {}),
+  }).catch(() => { /* offline — local copy still works */ });
 }
 
 /* Server says the promise was already made (e.g. on another device) — copy it

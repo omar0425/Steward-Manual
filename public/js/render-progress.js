@@ -327,8 +327,11 @@ export function fillProgressNarrative({
           const slipped = fromIdx >= 0 && toIdx >= 0 && toIdx < fromIdx;
           const toMeta = TIER_META[m.to] || {};
           const fromMeta = TIER_META[m.from] || {};
-          const toLabel = toMeta.label || m.to;
-          const fromLabel = fromMeta.label || m.from;
+          // Labels fall back to the raw server-supplied tier ids, so escape them
+          // before they hit innerHTML — keeps this sink consistent with the rest
+          // of the renderer even though tier ids are server constants today.
+          const toLabel = escapeText(toMeta.label || m.to);
+          const fromLabel = escapeText(fromMeta.label || m.from);
           if (climbed) {
             row.innerHTML = `🎯 <strong>Stage up</strong> — ${fromLabel} → ${toLabel}.`;
             fireStageUpConfetti();

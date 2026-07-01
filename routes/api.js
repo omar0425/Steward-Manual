@@ -540,6 +540,21 @@ function isNegativeFinite(n) {
   return Number.isFinite(x) && x < 0;
 }
 
+// Upper bound on any single money field / account balance. A value like 1e307
+// is finite (so it passes Number.isFinite) but `x * 100` inside roundMoney
+// overflows to Infinity, which then poisons the stored REAL column and every
+// downstream sum. $1e12 is far above any real personal debt while staying well
+// clear of the overflow threshold.
+const MAX_MONEY = 1e12;
+function exceedsMoneyCap(n) {
+  const x = Number(n);
+  return Number.isFinite(x) && x > MAX_MONEY;
+}
+// Cap the number of debt accounts per pull. Each account drives several
+// synchronous SQLite writes; an unbounded array (bounded only by the body size
+// limit) would block the event loop for every other user.
+const MAX_DEBT_ACCOUNTS = 200;
+
 router.post('/snapshot', (req, res) => {
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -577,6 +592,13 @@ router.post('/snapshot', (req, res) => {
       return res.status(400).json({
         ok: false,
         error: `${negativeField[0]} cannot be negative`,
+      });
+    }
+    const oversizedField = Object.entries(moneyFields).find(([, value]) => exceedsMoneyCap(value));
+    if (oversizedField) {
+      return res.status(400).json({
+        ok: false,
+        error: `${oversizedField[0]} is unrealistically large (max ${MAX_MONEY}).`,
       });
     }
     // Reject non-finite money fields. Silent coercion (Number("$3,000") → NaN → 0)
@@ -625,17 +647,28 @@ router.post('/snapshot', (req, res) => {
     const debtDisplayRows = [];
 
     if (Array.isArray(debtAccounts) && debtAccounts.length > 0) {
+      if (debtAccounts.length > MAX_DEBT_ACCOUNTS) {
+        return res.status(400).json({
+          ok: false,
+          error: `Too many debt accounts (max ${MAX_DEBT_ACCOUNTS}).`,
+        });
+      }
       let sumFromAccounts = 0;
       for (const acct of debtAccounts) {
         if (!acct || typeof acct !== 'object') {
           return res.status(400).json({ ok: false, error: 'debtAccounts entries must be objects' });
         }
-        const id  = String(acct.id || `acct-${debtDisplayRows.length}`);
+        // Cap the id length too — it's a map key and a stored column; only `name`
+        // was previously bounded.
+        const id  = String(acct.id || `acct-${debtDisplayRows.length}`).slice(0, 100);
         if (debtBalanceMap.has(id)) {
           return res.status(400).json({ ok: false, error: `Duplicate debt account id: ${id}` });
         }
         if (isNegativeFinite(acct.balance)) {
           return res.status(400).json({ ok: false, error: `Debt account ${id} balance cannot be negative` });
+        }
+        if (exceedsMoneyCap(acct.balance)) {
+          return res.status(400).json({ ok: false, error: `Debt account ${id} balance is unrealistically large (max ${MAX_MONEY}).` });
         }
         // Reject missing or non-finite balances. Silent coercion to 0 was the
         // root of two bugs: a typo like "$3,000.00" rolled the user to
@@ -700,7 +733,18 @@ router.post('/snapshot', (req, res) => {
       const originMap = parseJsonObject(getConfig('debt_account_origin'));
       const prevForOrigin = getAllDebtAccountBalances();
       let originChanged = false;
-      for (const id of debtBalanceMap.keys()) {
+      // Write-once per-account starting balance. The per-account "% paid off"
+      // was derived from MIN(recorded_at) over the history table, but history is
+      // pruned to 30 rows/account — so after ~30 pulls the "start" silently
+      // advanced to a later (lower) balance and the badge understated progress.
+      // Pinning the true origin here keeps it stable forever.
+      const firstBalMap = parseJsonObject(getConfig('debt_account_first_balance'));
+      let firstBalChanged = false;
+      for (const [id, bal] of debtBalanceMap.entries()) {
+        if (firstBalMap[id] == null && Number.isFinite(Number(bal))) {
+          firstBalMap[id] = Number(bal);
+          firstBalChanged = true;
+        }
         if (originMap[id]) continue; // first sighting only
         let origin;
         if (!gameActive) origin = 'baseline';            // setup inventory
@@ -710,6 +754,7 @@ router.post('/snapshot', (req, res) => {
         originChanged = true;
       }
       if (originChanged) setConfig('debt_account_origin', JSON.stringify(originMap));
+      if (firstBalChanged) setConfig('debt_account_first_balance', JSON.stringify(firstBalMap));
     }
 
     // Determine tier (relative to climb baseline, falls back to rock_bottom if
@@ -838,10 +883,7 @@ router.post('/snapshot', (req, res) => {
     return res.json(response);
   } catch (err) {
     console.error('[api] manual snapshot error:', err);
-    return res.status(500).json({
-      ok: false,
-      error: err && err.message ? err.message : String(err),
-    });
+    return res.status(500).json({ ok: false, error: 'Could not save snapshot.' });
   }
 });
 
@@ -875,10 +917,7 @@ router.post('/start-game', (req, res) => {
     return res.json({ ok: true, gameStartDebt, gameStartAt });
   } catch (err) {
     console.error('[api] start-game', err);
-    return res.status(500).json({
-      ok: false,
-      error: err && err.message ? err.message : String(err),
-    });
+    return res.status(500).json({ ok: false, error: 'Could not start the climb.' });
   }
 });
 
@@ -894,10 +933,7 @@ router.post('/reset-game', (req, res) => {
     return res.json({ ok: true, ...summary });
   } catch (err) {
     console.error('[api] reset-game', err);
-    return res.status(500).json({
-      ok: false,
-      error: err && err.message ? err.message : String(err),
-    });
+    return res.status(500).json({ ok: false, error: 'Could not reset the game.' });
   }
 });
 
