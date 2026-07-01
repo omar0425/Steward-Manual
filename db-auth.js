@@ -1,7 +1,9 @@
 'use strict';
 
 const { DatabaseSync } = require('node:sqlite');
-const { scryptSync, randomBytes, timingSafeEqual, createHash } = require('node:crypto');
+const { scrypt, scryptSync, randomBytes, timingSafeEqual, createHash } = require('node:crypto');
+const { promisify } = require('node:util');
+const scryptAsync = promisify(scrypt);
 const path = require('path');
 const fs = require('fs');
 
@@ -69,8 +71,18 @@ function hashPassword(plain) {
   return `${salt}:${derived}`;
 }
 
+// Async variants run scrypt on the libuv threadpool instead of blocking the main
+// thread. The routes use these so a burst of logins/registrations can't stall the
+// event loop for every other request. The sync versions above are kept for tests
+// and any synchronous caller; both produce/verify the identical salt:key format.
+async function hashPasswordAsync(plain) {
+  const salt = randomBytes(16).toString('hex');
+  const derived = (await scryptAsync(plain, salt, SCRYPT_KEYLEN)).toString('hex');
+  return `${salt}:${derived}`;
+}
+
 function verifyPassword(plain, stored) {
-  const [salt, key] = stored.split(':');
+  const [salt, key] = String(stored || '').split(':');
   if (!salt || !key) return false;
   const derived = scryptSync(plain, salt, SCRYPT_KEYLEN);
   const storedBuf = Buffer.from(key, 'hex');
@@ -78,11 +90,21 @@ function verifyPassword(plain, stored) {
   return timingSafeEqual(derived, storedBuf);
 }
 
+async function verifyPasswordAsync(plain, stored) {
+  const [salt, key] = String(stored || '').split(':');
+  if (!salt || !key) return false;
+  const derived = await scryptAsync(plain, salt, SCRYPT_KEYLEN);
+  const storedBuf = Buffer.from(key, 'hex');
+  if (derived.length !== storedBuf.length) return false;
+  return timingSafeEqual(derived, storedBuf);
+}
+
 // ── User CRUD ─────────────────────────────────────────────────────────────────
 
-function createLocalUser(username, password, email) {
+// Shared insert used by both the sync and async create paths, given an
+// already-computed password hash — so the two never drift.
+function _insertLocalUser(username, hash, email) {
   const now = new Date().toISOString();
-  const hash = hashPassword(password);
   const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
   const info = db.prepare(`
     INSERT INTO users (username, email, password, provider, created_at)
@@ -96,6 +118,14 @@ function createLocalUser(username, password, email) {
   };
 }
 
+function createLocalUser(username, password, email) {
+  return _insertLocalUser(username, hashPassword(password), email);
+}
+
+async function createLocalUserAsync(username, password, email) {
+  return _insertLocalUser(username, await hashPasswordAsync(password), email);
+}
+
 function setUserEmail(userId, email) {
   const normalized = email ? String(email).trim().toLowerCase() : null;
   db.prepare(`UPDATE users SET email = ? WHERE id = ?`).run(normalized, userId);
@@ -104,6 +134,11 @@ function setUserEmail(userId, email) {
 
 function setUserPassword(userId, newPlainPassword) {
   const hash = hashPassword(newPlainPassword);
+  db.prepare(`UPDATE users SET password = ? WHERE id = ?`).run(hash, userId);
+}
+
+async function setUserPasswordAsync(userId, newPlainPassword) {
+  const hash = await hashPasswordAsync(newPlainPassword);
   db.prepare(`UPDATE users SET password = ? WHERE id = ?`).run(hash, userId);
 }
 
@@ -274,6 +309,7 @@ function purgeExpiredPasswordResetTokens() {
 
 module.exports = {
   createLocalUser,
+  createLocalUserAsync,
   findUserByUsername,
   findUserByEmail,
   findUserById,
@@ -281,6 +317,7 @@ module.exports = {
   findOrCreateGoogleUser,
   setUserEmail,
   setUserPassword,
+  setUserPasswordAsync,
   createSession,
   validateSession,
   deleteSession,
@@ -289,6 +326,7 @@ module.exports = {
   deleteUserAccount,
   pruneExpiredSessions,
   verifyPassword,
+  verifyPasswordAsync,
   createPasswordResetToken,
   findValidPasswordResetToken,
   consumePasswordResetToken,

@@ -4,19 +4,19 @@ const express = require('express');
 const { randomBytes } = require('crypto');
 const router  = express.Router();
 const {
-  createLocalUser,
+  createLocalUserAsync,
   findUserByUsername,
   findUserByEmail,
   findUserById,
   findOrCreateGoogleUser,
   setUserEmail,
-  setUserPassword,
+  setUserPasswordAsync,
   createSession,
   deleteSession,
   deleteUserSessions,
   deleteOtherUserSessions,
   deleteUserAccount,
-  verifyPassword,
+  verifyPasswordAsync,
   createPasswordResetToken,
   findValidPasswordResetToken,
   consumePasswordResetToken,
@@ -106,7 +106,7 @@ function _recordRegistration(ip) {
   }
 }
 
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { username, password, email } = req.body || {};
 
@@ -162,7 +162,7 @@ router.post('/register', (req, res) => {
       return res.status(400).json({ ok: false, error: 'Could not create account. Try a different username.' });
     }
 
-    const user = createLocalUser(username.trim(), password, normalizedEmail);
+    const user = await createLocalUserAsync(username.trim(), password, normalizedEmail);
     if (_registerLimiterActive()) _recordRegistration(ip);
     const session = createSession(user.id);
     setSessionCookie(res, session);
@@ -260,7 +260,7 @@ function _clearLoginAttempts(attemptKey) {
   // account shouldn't reset a stuffing run's IP budget across other accounts.
 }
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body || {};
 
@@ -287,12 +287,12 @@ router.post('/login', (req, res) => {
     if (!user || user.provider !== 'local' || !user.password) {
       // Spend equivalent CPU on a fake hash so response timing doesn't reveal
       // whether the username exists as a local account (enumeration oracle).
-      verifyPassword(password, DECOY_PASSWORD_HASH);
+      await verifyPasswordAsync(password, DECOY_PASSWORD_HASH);
       _recordLoginFailure(attemptKey, ip);
       return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
     }
 
-    if (!verifyPassword(password, user.password)) {
+    if (!(await verifyPasswordAsync(password, user.password))) {
       _recordLoginFailure(attemptKey, ip);
       return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
     }
@@ -427,7 +427,7 @@ router.patch('/me/email', (req, res) => {
 // one — and issues a fresh cookie so the caller stays signed in while any
 // stolen session dies.
 
-router.post('/change-password', (req, res) => {
+router.post('/change-password', async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ ok: false, error: 'Not authenticated.' });
@@ -447,13 +447,13 @@ router.post('/change-password', (req, res) => {
       return res.status(400).json({ ok: false, error: 'New password must be 200 characters or fewer.' });
     }
     const user = findUserById(req.user.userId);
-    if (!user || !user.password || !verifyPassword(currentPassword, user.password)) {
+    if (!user || !user.password || !(await verifyPasswordAsync(currentPassword, user.password))) {
       return res.status(401).json({ ok: false, error: 'Current password is incorrect.' });
     }
-    if (verifyPassword(newPassword, user.password)) {
+    if (await verifyPasswordAsync(newPassword, user.password)) {
       return res.status(400).json({ ok: false, error: 'New password must be different from your current password.' });
     }
-    setUserPassword(user.id, newPassword);
+    await setUserPasswordAsync(user.id, newPassword);
     // Rotate everything: any session a thief might hold dies with the old
     // password; the caller continues on a brand-new session.
     deleteUserSessions(user.id);
@@ -601,7 +601,7 @@ router.post('/forgot-password', async (req, res) => {
 //
 // Consumes a single-use token, sets the new password, deletes all sessions
 // for that user (so a thief can't keep a stolen session alive after reset).
-router.post('/reset-password', (req, res) => {
+router.post('/reset-password', async (req, res) => {
   try {
     const { token, password } = req.body || {};
     if (!token || typeof token !== 'string' || !password || typeof password !== 'string') {
@@ -624,13 +624,13 @@ router.post('/reset-password', (req, res) => {
     // door open. Token is NOT consumed on this branch so the user can submit
     // a different password against the same link.
     const fullUser = findUserById(row.user_id);
-    if (fullUser && fullUser.password && verifyPassword(password, fullUser.password)) {
+    if (fullUser && fullUser.password && await verifyPasswordAsync(password, fullUser.password)) {
       return res.status(400).json({
         ok: false,
         error: 'New password must be different from your current password.',
       });
     }
-    setUserPassword(row.user_id, password);
+    await setUserPasswordAsync(row.user_id, password);
     consumePasswordResetToken(row.id);
     // Invalidate every existing session for this user — covers the case where
     // the original account was compromised. The user logs in fresh after reset.

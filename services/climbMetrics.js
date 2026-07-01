@@ -268,6 +268,53 @@ function summarizePerAccountDebtDeltas(prev, curr) {
 }
 
 /**
+ * Newest-first { pulled_at, debt_remaining } synthetic series for STREAK
+ * detection that is immune to account additions and removals. Each step's change
+ * is the sum of balance deltas over ONLY the accounts present at BOTH consecutive
+ * timestamps. So untracking/removing an account (the aggregate drops with no
+ * payment) contributes 0 and can't fake a streak day, and a first-sighting
+ * account can't either — while a genuine balance decrease on a continuing account
+ * still registers as progress. Feeds computeStreak.
+ *
+ * @param {Array<{accountId:string,recordedAt:string,balance:number}>} historyRows
+ * @param {{gameStartAt?:string|null}} [opts]
+ * @returns {Array<{pulled_at:string, debt_remaining:number}>} newest-first
+ */
+function removalSafeStreakSeries(historyRows, { gameStartAt = null } = {}) {
+  const rows = Array.isArray(historyRows) ? historyRows : [];
+  const startMs = gameStartAt ? Date.parse(gameStartAt) : NaN;
+  const byTs = new Map(); // recordedAt → Map(accountId → balance)
+  for (const r of rows) {
+    if (!r || r.accountId == null || !r.recordedAt) continue;
+    const bal = Number(r.balance);
+    const ms = Date.parse(r.recordedAt);
+    if (!Number.isFinite(bal) || !Number.isFinite(ms)) continue;
+    if (Number.isFinite(startMs) && ms < startMs) continue;
+    const ts = String(r.recordedAt);
+    if (!byTs.has(ts)) byTs.set(ts, new Map());
+    byTs.get(ts).set(String(r.accountId), bal);
+  }
+  const stamps = [...byTs.keys()].sort((a, b) => Date.parse(a) - Date.parse(b));
+  if (stamps.length === 0) return [];
+  let running = 0;
+  for (const bal of byTs.get(stamps[0]).values()) running += bal;
+  running = Math.round(running * 100) / 100;
+  const series = [{ pulled_at: stamps[0], debt_remaining: running }];
+  for (let i = 1; i < stamps.length; i++) {
+    const cur = byTs.get(stamps[i]);
+    const prev = byTs.get(stamps[i - 1]);
+    let delta = 0;
+    for (const [id, bal] of cur) {
+      if (prev.has(id)) delta += bal - prev.get(id); // continuing account only
+    }
+    running = Math.round((running + delta) * 100) / 100;
+    series.push({ pulled_at: stamps[i], debt_remaining: running });
+  }
+  series.reverse(); // computeStreak expects newest-first
+  return series;
+}
+
+/**
  * Human-readable rows for last pull: change in debt magnitude per account.
  * Positive delta = balance owed increased; negative = paydown. New accounts: full balance as positive.
  * Removed accounts: negative prior magnitude (label generically).
@@ -975,6 +1022,7 @@ module.exports = {
   buildCorrectedDebtSeries,
   correctedDebtSnapshots,
   recentCorrectedSnapshots,
+  removalSafeStreakSeries,
   summarizePerAccountDebtDeltas,
   perAccountDebtDeltaDisplayRows,
   getLastDebtSyncDebug,

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildCorrectedDebtSeries } = require('../services/climbMetrics');
+const { buildCorrectedDebtSeries, removalSafeStreakSeries, computeStreak } = require('../services/climbMetrics');
 
 // Two accounts present from the start, one forgotten account logged late.
 const HISTORY = [
@@ -60,4 +60,42 @@ test('gameStartAt filters pre-climb pulls', () => {
 
 test('empty history → empty series', () => {
   assert.deepEqual(buildCorrectedDebtSeries([], {}), []);
+});
+
+// ── removalSafeStreakSeries: streak immune to add/remove ────────────────────
+test('removing an account does NOT count as a streak day', () => {
+  const h = [
+    { accountId: 'a', recordedAt: '2026-01-01T00:00:00Z', balance: 5000 },
+    { accountId: 'b', recordedAt: '2026-01-01T00:00:00Z', balance: 5000 },
+    { accountId: 'a', recordedAt: '2026-01-15T00:00:00Z', balance: 5000 }, // b removed, a unchanged
+  ];
+  const series = removalSafeStreakSeries(h);
+  // Only 'a' is common across both pulls and it didn't move → no decrease.
+  assert.equal(series.length, 2);
+  assert.equal(series[0].debt_remaining, series[1].debt_remaining, 'removal is not a drop');
+  assert.equal(computeStreak(series).current, 0, 'no fake streak from removal');
+});
+
+test('a real paydown on a continuing account DOES count as a streak day', () => {
+  const h = [
+    { accountId: 'a', recordedAt: '2026-01-01T00:00:00Z', balance: 5000 },
+    { accountId: 'b', recordedAt: '2026-01-01T00:00:00Z', balance: 5000 },
+    { accountId: 'a', recordedAt: '2026-01-15T00:00:00Z', balance: 4000 }, // paid 1000
+    { accountId: 'b', recordedAt: '2026-01-15T00:00:00Z', balance: 5000 },
+  ];
+  const series = removalSafeStreakSeries(h);
+  assert.ok(series[0].debt_remaining < series[1].debt_remaining, 'real paydown shows as a drop');
+  assert.equal(computeStreak(series).current, 1, 'genuine paydown counts');
+});
+
+test('a first-sighting (added) account does NOT break a streak', () => {
+  const h = [
+    { accountId: 'a', recordedAt: '2026-01-01T00:00:00Z', balance: 5000 },
+    { accountId: 'a', recordedAt: '2026-01-15T00:00:00Z', balance: 4000 }, // paid 1000
+    { accountId: 'c', recordedAt: '2026-01-15T00:00:00Z', balance: 3000 }, // appears now
+  ];
+  const series = removalSafeStreakSeries(h);
+  // 'c' is new at t1 → excluded from the delta, so the $1000 paydown on 'a' stands.
+  assert.ok(series[0].debt_remaining < series[1].debt_remaining, 'addition ignored, paydown stands');
+  assert.equal(computeStreak(series).current, 1);
 });
