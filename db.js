@@ -656,6 +656,20 @@ function initGameState(debtRemaining, pulledAt) {
       INSERT OR IGNORE INTO debt_account_history (user_id, ynab_account_id, recorded_at, balance)
       SELECT user_id, ynab_account_id, ?, last_balance FROM debt_account_balances WHERE user_id = ?
     `).run(at, userId);
+    // Re-pin each account's origin balance to its game-start balance, mirroring
+    // the history re-seed above. Without this, per-account "% paid" would keep
+    // measuring from a pre-game setup entry (persisted during setup pulls) while
+    // the aggregate baseline resets to game start — the two would disagree for a
+    // user who logged several setup pulls before starting the climb.
+    const balRows = db
+      .prepare('SELECT ynab_account_id AS id, last_balance AS bal FROM debt_account_balances WHERE user_id = ?')
+      .all(userId);
+    const firstBalMap = {};
+    for (const r of balRows) {
+      const n = Number(r.bal);
+      if (Number.isFinite(n)) firstBalMap[String(r.id)] = n;
+    }
+    upsert.run(userId, 'debt_account_first_balance', JSON.stringify(firstBalMap));
   });
 }
 

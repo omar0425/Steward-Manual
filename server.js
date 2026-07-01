@@ -118,9 +118,9 @@ app.use((req, res, next) => {
 // the users with enough history to need it. Skip those paths so their larger
 // limit applies.
 const globalJsonParser = express.json();
-const RESTORE_PATH_RE = /^\/admin\/api\/users\/\d+\/restore\/?$/;
+const RESTORE_PATH_RE = /^(?:\/api\/restore|\/admin\/api\/users\/\d+\/restore)\/?$/;
 app.use((req, res, next) => {
-  if (req.path === '/api/restore' || RESTORE_PATH_RE.test(req.path)) return next();
+  if (RESTORE_PATH_RE.test(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
 
