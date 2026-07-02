@@ -299,10 +299,10 @@ function buildDebtAccountsPanel() {
         <p class="tc-section-sublabel">Read-only overview · update balances in the Your Debts panel</p>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-        <button class="apr-edit-btn" id="apr-edit-btn" type="button" onclick="window.toggleAprForm()">Edit APRs</button>
+        <button class="apr-edit-btn" id="apr-edit-btn" type="button">Edit APRs</button>
         <div class="sort-toggle">
-          <button class="sort-toggle-btn active" data-sort="balance" onclick="window.setDebtSortMode('balance')">Balance</button>
-          <button class="sort-toggle-btn" data-sort="apr" onclick="window.setDebtSortMode('apr')">APR</button>
+          <button class="sort-toggle-btn active" data-sort="balance">Balance</button>
+          <button class="sort-toggle-btn" data-sort="apr">APR</button>
         </div>
       </div>
     </div>
@@ -325,6 +325,14 @@ function buildDebtAccountsPanel() {
       <input type="text" class="commitment-reason-input" id="commitment-reason-input" maxlength="120" hidden autocomplete="off" spellcheck="false" />
     </div>
   `;
+  // Wire the APR-edit and sort buttons via listeners instead of inline onclick
+  // handlers, so the CSP can drop script-src 'unsafe-inline'. Bound on the
+  // detached section; listeners survive insertion into the DOM.
+  const aprBtn = section.querySelector('#apr-edit-btn');
+  if (aprBtn) aprBtn.addEventListener('click', () => window.toggleAprForm && window.toggleAprForm());
+  for (const btn of section.querySelectorAll('.sort-toggle-btn')) {
+    btn.addEventListener('click', () => window.setDebtSortMode && window.setDebtSortMode(btn.dataset.sort));
+  }
   return section;
 }
 
