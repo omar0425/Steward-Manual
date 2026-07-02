@@ -88,6 +88,40 @@ function parseJsonObject(raw) {
   } catch { return {}; }
 }
 
+// ── Monte Carlo forecast cache (per snapshot) ─────────────────────────────────
+const FORECAST_CACHE_PREFIX = 'payoff_forecast_at:';
+
+// Stable fingerprint of the forecast inputs. If any of these change the cached
+// result is stale and we recompute; otherwise reloads reuse it for free.
+function forecastSignature(currentDebt, samples, avgApr) {
+  let sum = 0;
+  for (const x of samples) sum += Number(x) || 0;
+  return [
+    Math.round(Number(currentDebt) * 100) || 0,
+    samples.length,
+    Math.round(sum * 100),
+    Math.round((Number(avgApr) || 0) * 100),
+  ].join('|');
+}
+
+function getCachedForecast(pulledAt, currentDebt, samples, avgApr) {
+  const sig = forecastSignature(currentDebt, samples, avgApr);
+  const key = FORECAST_CACHE_PREFIX + pulledAt;
+  const raw = getConfig(key);
+  if (raw) {
+    try {
+      const cached = JSON.parse(raw);
+      if (cached && cached.sig === sig && cached.result) return cached.result;
+    } catch { /* fall through and recompute */ }
+  }
+  const result = monteCarloPayoff(currentDebt, samples, { annualAprPct: avgApr });
+  // Only the latest snapshot's forecast is ever needed — drop stale keys so this
+  // never accumulates one row per historical snapshot.
+  deleteConfigByPrefix(FORECAST_CACHE_PREFIX);
+  setConfig(key, JSON.stringify({ sig, result }));
+  return result;
+}
+
 // ── GET /api/status ───────────────────────────────────────────────────────────
 
 router.get('/status', (req, res) => {
@@ -405,9 +439,14 @@ router.get('/status', (req, res) => {
   // Surfaced on the dashboard and reused as the forecast's effective APR so the
   // two never disagree.
   const avgApr = effectiveAnnualAprPct(planAccounts);
-  const payoffForecast = monteCarloPayoff(snap.debt_remaining, monthlyPaydownSamples(paceSnapshots), {
-    annualAprPct: avgApr,
-  });
+  // Monte Carlo runs up to 2000 simulated payoff paths; recomputing it on every
+  // /status load is wasted work (and, for an erratic payer, a real event-loop
+  // cost). Cache the result per snapshot, keyed by a signature of the actual
+  // inputs (current debt, the paydown samples, and the effective APR) so it's
+  // reused across reloads but recomputed whenever any input changes — e.g. an
+  // APR edit or an undo that doesn't add a new snapshot.
+  const forecastSamples = monthlyPaydownSamples(paceSnapshots);
+  const payoffForecast = getCachedForecast(snap.pulled_at, snap.debt_remaining, forecastSamples, avgApr);
   // Interest kept from the bank SO FAR — savings rate vs starting balances,
   // applied across the months since the climb started. Deterministic, honest.
   let monthsSinceStart = 0;

@@ -81,14 +81,16 @@ if (process.env.NODE_ENV === 'production' && !process.env.RESEND_API_KEY) {
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 
-// Security headers. CSP is pragmatic, not strict: login.html ships inline
-// <script>/<style> blocks and play.js uses one inline onclick, so
-// 'unsafe-inline' stays — the win here is everything else: no framing
-// (clickjacking), no MIME sniffing, no third-party sources of any kind
-// (fonts/icons are self-hosted as of Batch 7), HSTS once behind TLS.
+// Security headers. Scripts are now fully external (login.html's inline block
+// moved to /js/login.js; play.js's inline onclicks became listeners), so
+// script-src drops 'unsafe-inline' — injected <script>/onclick markup no longer
+// executes. style-src keeps 'unsafe-inline' because inline style="" attributes
+// and <style> blocks remain in the markup (far lower risk than script). Plus:
+// no framing (clickjacking), no MIME sniffing, no third-party sources of any
+// kind (fonts/icons are self-hosted), HSTS once behind TLS.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",

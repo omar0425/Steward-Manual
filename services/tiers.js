@@ -3,6 +3,7 @@
 const path = require('path');
 // Single source of truth (also served to the browser as /debt-tier-constants.json).
 const { ROCK_BOTTOM_BAND_BUFFER } = require(path.join(__dirname, '../public/debt-tier-constants.json'));
+const { monthlyPaceFromSnapshots } = require('./pace');
 
 /** Display / API precision for debt tier band % (bar, labels, debug). */
 const DEBT_TIER_BAND_PCT_DECIMALS = 1;
@@ -303,21 +304,13 @@ function nextTierInfo(debtRemaining, snapshots = []) {
   // Pay down to currentTier.threshold to cross into the next tier (see getTier()).
   const gapDollars = Math.max(0, debtRemaining - currentTier.threshold);
 
-  // avg monthly paydown from last 3 snapshots (newest first)
-  let avgMonthlyPaydown = null;
-  if (snapshots.length >= 2) {
-    const usable = snapshots.slice(0, Math.min(snapshots.length, 4));
-    const oldest = usable[usable.length - 1];
-    const newest = usable[0];
-
-    const msElapsed = new Date(newest.pulled_at) - new Date(oldest.pulled_at);
-    const monthsElapsed = msElapsed / (1000 * 60 * 60 * 24 * 30.44);
-
-    if (monthsElapsed > 0) {
-      const totalPaydown = oldest.debt_remaining - newest.debt_remaining;
-      avgMonthlyPaydown = totalPaydown / monthsElapsed;
-    }
-  }
+  // Span-gated monthly paydown — the SAME helper the climb forecasts use. The old
+  // ad-hoc "totalPaydown / monthsElapsed over the last 4 snapshots" only guarded
+  // monthsElapsed > 0, so a handful of same-week entries produced a tiny
+  // denominator and a wildly inflated pace → an absurdly short months-estimate.
+  // monthlyPaceFromSnapshots refuses to project until the window spans real
+  // calendar time (MIN_SPAN_DAYS), returning null otherwise.
+  const avgMonthlyPaydown = monthlyPaceFromSnapshots(snapshots);
 
   const monthsEstimate =
     avgMonthlyPaydown && avgMonthlyPaydown > 0

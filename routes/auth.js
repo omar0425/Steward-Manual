@@ -17,6 +17,7 @@ const {
   deleteOtherUserSessions,
   deleteUserAccount,
   verifyPasswordAsync,
+  needsPasswordRehash,
   createPasswordResetToken,
   findValidPasswordResetToken,
   consumePasswordResetToken,
@@ -295,6 +296,17 @@ router.post('/login', async (req, res) => {
     if (!(await verifyPasswordAsync(password, user.password))) {
       _recordLoginFailure(attemptKey, ip);
       return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
+    }
+
+    // Transparent upgrade: if this account's hash is legacy-format or below the
+    // current scrypt cost, re-hash it now that we hold the plaintext. Failure
+    // must never block a valid login — the old hash still verifies next time.
+    if (needsPasswordRehash(user.password)) {
+      try {
+        await setUserPasswordAsync(user.id, password);
+      } catch (err) {
+        console.error('[auth/login] password rehash failed:', err);
+      }
     }
 
     _clearLoginAttempts(attemptKey);

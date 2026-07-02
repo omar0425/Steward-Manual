@@ -64,39 +64,86 @@ db.exec(`
 // ── Password hashing (scrypt) ─────────────────────────────────────────────────
 
 const SCRYPT_KEYLEN = 64;
+const SCRYPT_MAXMEM = 64 * 1024 * 1024;
+// Current cost parameters. Raise SCRYPT_LN (and thus N) to strengthen hashing;
+// every stored hash carries its OWN params, so old hashes still verify, and
+// needsPasswordRehash() flags any weaker-than-current hash for a transparent
+// upgrade on the user's next successful login.
+const SCRYPT_LN = 14;            // log2(N)
+const SCRYPT_N  = 1 << SCRYPT_LN; // 16384 — Node's default cost
+const SCRYPT_R  = 8;
+const SCRYPT_P  = 1;
+
+function _scryptOpts({ N, r, p }) {
+  return { N, r, p, maxmem: SCRYPT_MAXMEM };
+}
+
+// Parse either the versioned format `scrypt$ln=..,r=..,p=..$saltHex$keyHex` or
+// the legacy `saltHex:keyHex` (which used Node's default params). Returns null
+// if unparseable. Legacy is flagged so needsPasswordRehash can upgrade it.
+function _parseStored(stored) {
+  const s = String(stored || '');
+  if (s.startsWith('scrypt$')) {
+    const parts = s.split('$'); // ['scrypt', 'ln=14,r=8,p=1', salt, key]
+    if (parts.length !== 4 || !parts[2] || !parts[3]) return null;
+    const params = {};
+    for (const kv of parts[1].split(',')) {
+      const [k, v] = kv.split('=');
+      params[k] = Number(v);
+    }
+    const N = Number.isFinite(params.ln) ? (1 << params.ln) : NaN;
+    if (!Number.isFinite(N) || !Number.isFinite(params.r) || !Number.isFinite(params.p)) return null;
+    return { salt: parts[2], keyHex: parts[3], N, r: params.r, p: params.p, ln: params.ln, legacy: false };
+  }
+  const [salt, keyHex] = s.split(':');
+  if (!salt || !keyHex) return null;
+  return { salt, keyHex, N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, ln: SCRYPT_LN, legacy: true };
+}
+
+function _encode(salt, keyHex) {
+  return `scrypt$ln=${SCRYPT_LN},r=${SCRYPT_R},p=${SCRYPT_P}$${salt}$${keyHex}`;
+}
 
 function hashPassword(plain) {
   const salt = randomBytes(16).toString('hex');
-  const derived = scryptSync(plain, salt, SCRYPT_KEYLEN).toString('hex');
-  return `${salt}:${derived}`;
+  const keyHex = scryptSync(plain, salt, SCRYPT_KEYLEN, _scryptOpts({ N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P })).toString('hex');
+  return _encode(salt, keyHex);
 }
 
 // Async variants run scrypt on the libuv threadpool instead of blocking the main
 // thread. The routes use these so a burst of logins/registrations can't stall the
-// event loop for every other request. The sync versions above are kept for tests
-// and any synchronous caller; both produce/verify the identical salt:key format.
+// event loop for every other request. The sync versions are kept for tests and
+// any synchronous caller; both emit and verify the same versioned format.
 async function hashPasswordAsync(plain) {
   const salt = randomBytes(16).toString('hex');
-  const derived = (await scryptAsync(plain, salt, SCRYPT_KEYLEN)).toString('hex');
-  return `${salt}:${derived}`;
+  const keyHex = (await scryptAsync(plain, salt, SCRYPT_KEYLEN, _scryptOpts({ N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P }))).toString('hex');
+  return _encode(salt, keyHex);
 }
 
 function verifyPassword(plain, stored) {
-  const [salt, key] = String(stored || '').split(':');
-  if (!salt || !key) return false;
-  const derived = scryptSync(plain, salt, SCRYPT_KEYLEN);
-  const storedBuf = Buffer.from(key, 'hex');
+  const parsed = _parseStored(stored);
+  if (!parsed) return false;
+  const storedBuf = Buffer.from(parsed.keyHex, 'hex');
+  const derived = scryptSync(plain, parsed.salt, storedBuf.length, _scryptOpts(parsed));
   if (derived.length !== storedBuf.length) return false;
   return timingSafeEqual(derived, storedBuf);
 }
 
 async function verifyPasswordAsync(plain, stored) {
-  const [salt, key] = String(stored || '').split(':');
-  if (!salt || !key) return false;
-  const derived = await scryptAsync(plain, salt, SCRYPT_KEYLEN);
-  const storedBuf = Buffer.from(key, 'hex');
+  const parsed = _parseStored(stored);
+  if (!parsed) return false;
+  const storedBuf = Buffer.from(parsed.keyHex, 'hex');
+  const derived = await scryptAsync(plain, parsed.salt, storedBuf.length, _scryptOpts(parsed));
   if (derived.length !== storedBuf.length) return false;
   return timingSafeEqual(derived, storedBuf);
+}
+
+// True when a stored hash is legacy-format or uses cost params below the current
+// target. The login route rehashes flagged hashes on the next successful login.
+function needsPasswordRehash(stored) {
+  const parsed = _parseStored(stored);
+  if (!parsed) return false;
+  return parsed.legacy || parsed.ln < SCRYPT_LN || parsed.r < SCRYPT_R || parsed.p < SCRYPT_P;
 }
 
 // ── User CRUD ─────────────────────────────────────────────────────────────────
@@ -327,6 +374,7 @@ module.exports = {
   pruneExpiredSessions,
   verifyPassword,
   verifyPasswordAsync,
+  needsPasswordRehash,
   createPasswordResetToken,
   findValidPasswordResetToken,
   consumePasswordResetToken,
