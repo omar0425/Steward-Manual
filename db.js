@@ -813,6 +813,10 @@ function resetAllGameState() {
     for (const key of GAME_STATE_KEYS) del.run(userId, key);
     delPrefix.run(userId, 'steward_ai_dialog_at:%');
     delPrefix.run(userId, 'steward_ai_quote_at:%');
+    // Cached Monte Carlo forecasts are keyed by pulled_at (a prefix, like the
+    // AI caches above) — sweep them so a reset can't leave the old game's
+    // forecast row behind.
+    delPrefix.run(userId, 'payoff_forecast_at:%');
     db.prepare('DELETE FROM snapshots WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_balances WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_history WHERE user_id = ?').run(userId);

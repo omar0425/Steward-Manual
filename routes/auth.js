@@ -725,7 +725,13 @@ router.get('/google/callback', async (req, res) => {
     });
     const tokens = await tokenRes.json();
     if (!tokenRes.ok || !tokens.access_token) {
-      console.error('[auth/google] Token exchange failed:', tokens);
+      // Log only the status + OAuth error code — the raw body can carry a live
+      // access_token on partial failures, and tokens must never reach the logs.
+      console.error(
+        '[auth/google] Token exchange failed: status=%s error=%s',
+        tokenRes.status,
+        tokens && tokens.error ? String(tokens.error) : 'unknown',
+      );
       return res.redirect('/login?error=google_token_failed');
     }
 
@@ -735,7 +741,9 @@ router.get('/google/callback', async (req, res) => {
     });
     const profile = await userRes.json();
     if (!userRes.ok || !profile.email) {
-      console.error('[auth/google] User info failed:', profile);
+      // Status only — the profile object is PII (name, email, picture) and
+      // Railway log streams are retained.
+      console.error('[auth/google] User info failed: status=%s', userRes.status);
       return res.redirect('/login?error=google_profile_failed');
     }
     // Only trust a Google-verified address. An unverified email (some Workspace
@@ -743,7 +751,10 @@ router.get('/google/callback', async (req, res) => {
     // address. `verified_email` is the userinfo field; treat anything but a
     // strict true as unverified.
     if (profile.verified_email !== true) {
-      console.warn('[auth/google] rejected unverified email:', profile.email);
+      // Domain only — enough to debug a Workspace/alias issue without logging
+      // the full address.
+      const domain = String(profile.email).split('@')[1] || 'unknown';
+      console.warn('[auth/google] rejected unverified email: domain=%s', domain);
       return res.redirect('/login?error=google_unverified');
     }
 

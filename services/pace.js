@@ -65,7 +65,10 @@ function projectDebtFree(snapshots, currentDebt, { monthlyPace, now = Date.now()
   return {
     onTrack: true,
     monthlyPace: pace,
-    monthsToZero: Math.ceil(monthsToZero),
+    // Nearest month (floored at 1) so the label agrees with debtFreeDate:
+    // ceil() said "2 months" beside a date only ~31 days out whenever the
+    // exact figure was just past a whole month (e.g. 1.01).
+    monthsToZero: Math.max(1, Math.round(monthsToZero)),
     debtFreeDate: date.toISOString().slice(0, 10),
   };
 }

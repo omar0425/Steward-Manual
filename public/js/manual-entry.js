@@ -1132,7 +1132,10 @@ function showReclassifyDialog() {
       if (res.ok && data && data.ok) {
         closeDialog();
         await manualRefresh();
-        void resyncSavedDebtsFromServer();
+        // Awaited: if this resync silently failed, the editable rows kept
+        // pre-correction baselines and the next save could misread the delta
+        // (the stale-baseline guard is the backstop, but don't lean on it).
+        await resyncSavedDebtsFromServer();
       } else {
         applyBtn.disabled = false;
         applyBtn.textContent = 'Apply';
@@ -1211,7 +1214,10 @@ function showUndoConfirm() {
       if (res.ok && data && data.ok) {
         closeDialog();
         await manualRefresh();
-        void resyncSavedDebtsFromServer();
+        // Awaited for the same reason as reclassify: an undo rolls balances
+        // back, so stale prevBalance baselines here are exactly the state
+        // that misclassifies the user's next edit.
+        await resyncSavedDebtsFromServer();
       } else {
         btn.disabled = false;
         btn.textContent = 'Undo it';
@@ -1265,7 +1271,7 @@ async function handleRestoreFile(file) {
     const data = await readJsonRes(res);
     if (res.ok && data && data.ok) {
       await manualRefresh();
-      void resyncSavedDebtsFromServer();
+      await resyncSavedDebtsFromServer();
       window.alert('Restored. Your data has been rebuilt from the backup.');
     } else {
       window.alert(`Restore failed: ${(data && data.error) || 'unknown error'}`);

@@ -93,3 +93,24 @@ test('markNudged: upserts the config row', () => {
     cleanup([u.id]);
   }
 });
+
+test('nudge selector: mixed-precision timestamps compare as time, not strings', () => {
+  // A restored backup can carry pulled_at without milliseconds. As STRINGS,
+  // "…56.456Z" > "…57Z" (because "4" < "5" digit-by-digit fails the other way):
+  // lexicographic comparison misordered these and re-nudged users mid-lapse.
+  const u = makeUser({ email: `${NOW}-precision@x.test`, snapshotAgoDays: null });
+  try {
+    // Snapshot WITHOUT milliseconds, 20 days ago — the string ends "…00Z".
+    const snapAt = new Date(NOW - 20 * DAY).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    db.prepare(`INSERT INTO snapshots (user_id, source, pulled_at) VALUES (?, 'manual', ?)`)
+      .run(u.id, snapAt);
+    // Nudged AFTER that snapshot (5 days ago), WITH milliseconds.
+    markNudged(u.id, new Date(NOW - 5 * DAY).toISOString());
+    // The nudge is newer than the snapshot → same lapse → must NOT re-select,
+    // regardless of the precision mismatch between the two strings.
+    const ids = selectUsersNeedingNudge({ now: NOW, staleDays: 10 }).map((p) => p.id);
+    assert.ok(!ids.includes(u.id), 'nudge newer than snapshot must suppress re-nudge');
+  } finally {
+    cleanup([u.id]);
+  }
+});
