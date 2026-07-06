@@ -2307,17 +2307,47 @@ body[data-setup-mode="first"] .setup-welcome {
 .commitment-btn--ghost:hover { background: var(--gold-soft); color: var(--gold-2, var(--gold)); border-color: var(--gold); }
 /* ── Saved Debts List ─────────────────────────────────────────────────────── */
 .saved-debts-list { display: flex; flex-direction: column; gap: 0; }
-/* Bug #8 — fixed grid columns (name | balance | remove) so balances snap to one
-   column down the list instead of floating with name length. */
+/* Bug #8 — fixed grid columns (name | balance | verify | remove) so balances
+   snap to one column down the list instead of floating with name length. */
 .saved-debt-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 12px;
   padding: 6px 0;
   min-height: 46px;
   border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
 }
+/* Name + "checked Nd ago" stack in the first column; min-width lets the name's
+   ellipsis keep working inside the grid track. */
+.saved-debt-namewrap { min-width: 0; }
+.saved-debt-verified {
+  font-size: 11px;
+  color: var(--text-3, rgba(255,255,255,0.35));
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saved-debt-verified.is-stale { color: var(--amber, #d4a030); }
+/* Reconcile tick — stamps "checked against the real account" without a save. */
+.saved-debt-verify {
+  background: none;
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  color: var(--text-3, rgba(255,255,255,0.35));
+  font-size: 13px;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.saved-debt-verify:hover {
+  color: var(--gold, #d4af37);
+  border-color: var(--gold, #d4af37);
+  background: var(--gold-soft, rgba(212,175,55,0.1));
+}
+.saved-debt-verify:disabled { opacity: 0.5; cursor: default; }
 .saved-debt-balance { justify-self: end; }
 .saved-debt-row:first-child { border-top: 1px solid var(--border, rgba(255,255,255,0.06)); }
 .saved-debt-name {
@@ -2811,6 +2841,8 @@ body[data-setup-mode="first"] .setup-welcome {
   .saved-debt-row { gap: 8px; }
   .saved-debt-balance-input { width: 108px; font-size: 14px; padding: 6px 8px; }
   .saved-debt-name { font-size: 14px; }
+  .saved-debt-verified { font-size: 10px; }
+  .saved-debt-verify { padding: 5px 7px; }
   /* Confirm-changes dialog — on a phone the default (small buttons floated to
      the right of a wide card) leaves a big awkward gap and reads as unfinished.
      Tighten the spacing and let Cancel/Save share the full width as balanced,

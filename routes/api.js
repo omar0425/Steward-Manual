@@ -25,6 +25,8 @@ const {
   lastNonZeroFinancials,
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
+  markDebtAccountVerified,
+  getDebtAccountVerifiedAt,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
 const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
@@ -140,10 +142,19 @@ router.get('/status', (req, res) => {
 
   const { gameStartDebt, gameStartAt } = getGameStart();
   const setupDebtSync = getLastDebtSyncDebugForStatus();
-  const setupDebtAccountLines =
+  let setupDebtAccountLines =
     setupDebtSync && Array.isArray(setupDebtSync.current_account_lines)
       ? setupDebtSync.current_account_lines
       : null;
+  if (Array.isArray(setupDebtAccountLines) && setupDebtAccountLines.length) {
+    // Same reconcile-stamp join the play-mode branch does below, so the
+    // saved-debts rows read consistently during setup too.
+    const setupVerifiedAt = getDebtAccountVerifiedAt();
+    setupDebtAccountLines = setupDebtAccountLines.map((line) => ({
+      ...line,
+      lastVerifiedAt: setupVerifiedAt.get(String(line.id)) || null,
+    }));
+  }
 
   if (gameStartDebt == null) {
     // Tailor setup message based on whether the user actually has debt to
@@ -286,14 +297,18 @@ router.get('/status', (req, res) => {
   // original (first-ever recorded) balance. Attached for the panel to render.
   if (Array.isArray(debtAccountLines) && debtAccountLines.length) {
     const firstBalances = getDebtAccountFirstBalances();
+    // Reconcile stamps — when the user last confirmed each balance against the
+    // real account (via the ✓ tick or by entering a changed number).
+    const verifiedAt = getDebtAccountVerifiedAt();
     debtAccountLines = debtAccountLines.map((line) => {
       const start = Number(firstBalances.get(String(line.id)));
       const bal = Number(line.balance);
+      const out = { ...line, lastVerifiedAt: verifiedAt.get(String(line.id)) || null };
       if (Number.isFinite(start) && start > 0 && Number.isFinite(bal)) {
         const pct = Math.max(0, Math.min(100, Math.round(((start - bal) / start) * 1000) / 10));
-        return { ...line, startBalance: roundMoney(start), pctPaid: pct };
+        return { ...out, startBalance: roundMoney(start), pctPaid: pct };
       }
-      return line;
+      return out;
     });
   }
 
@@ -1070,6 +1085,29 @@ router.post('/climb/reclassify-added-debt', express.json(), (req, res) => {
   } catch (err) {
     console.error('[api] reclassify-added-debt', err);
     return res.status(500).json({ ok: false, error: 'Reclassification failed.' });
+  }
+});
+
+// ── POST /api/debt-account/verify ─────────────────────────────────────────────
+// Reconcile tick: stamp "I checked this balance against the real account and
+// it's still right." Deliberately does NOT create a snapshot — confirming an
+// unchanged number is not a turn, so tier / streak / forecast are untouched.
+// (A CHANGED balance gets stamped automatically on save; see
+// replaceDebtAccountBalances.)
+router.post('/debt-account/verify', express.json(), (req, res) => {
+  try {
+    const id = req.body && req.body.id;
+    if (typeof id !== 'string' || id === '' || id.length > 200) {
+      return res.status(400).json({ ok: false, error: 'Provide the account id to verify.' });
+    }
+    const verifiedAt = markDebtAccountVerified(id);
+    if (!verifiedAt) {
+      return res.status(404).json({ ok: false, error: 'No tracked account with that id.' });
+    }
+    return res.json({ ok: true, id, verifiedAt });
+  } catch (err) {
+    console.error('[api] debt-account/verify', err);
+    return res.status(500).json({ ok: false, error: 'Could not record the check.' });
   }
 });
 

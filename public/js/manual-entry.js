@@ -115,6 +115,91 @@ function collectSavedDebtUpdates() {
   return accounts;
 }
 
+/* ── Reconcile stamp (per-account "last checked") ─────────────────────────────
+   A balance in a manual-entry app quietly rots: an untouched number is
+   indistinguishable from a verified one. Each row shows when the account was
+   last checked against the real statement, turning amber once it's older than
+   a statement cycle. The ✓ tick stamps "still correct" WITHOUT creating a
+   snapshot; entering a changed balance stamps automatically on save. */
+
+const VERIFY_STALE_DAYS = 30; // one statement cycle
+
+function verifiedAgeDays(iso) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
+function formatCheckedAgo(iso) {
+  const days = verifiedAgeDays(iso);
+  if (days == null) return null;
+  if (days <= 0) return 'checked today';
+  if (days === 1) return 'checked yesterday';
+  if (days < 14) return `checked ${days}d ago`;
+  if (days < 60) return `checked ${Math.floor(days / 7)}w ago`;
+  return `checked ${Math.floor(days / 30)}mo ago`;
+}
+
+function renderVerifiedMeta(row) {
+  const el = row.querySelector('.saved-debt-verified');
+  if (!el) return;
+  const iso = row.dataset.lastVerifiedAt || '';
+  const label = iso ? formatCheckedAgo(iso) : null;
+  if (!label) {
+    // No claim either way — muted, not amber. One ✓ (or one changed-balance
+    // save) and it starts tracking.
+    el.textContent = 'not checked yet';
+    el.classList.remove('is-stale');
+    return;
+  }
+  const days = verifiedAgeDays(iso);
+  el.textContent = label;
+  el.classList.toggle('is-stale', days != null && days > VERIFY_STALE_DAYS);
+}
+
+/* Show a transient notice in the meta slot (e.g. "save your change first"),
+   then restore the regular checked-ago label. */
+function flashVerifiedMeta(row, text) {
+  const el = row.querySelector('.saved-debt-verified');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('is-stale');
+  window.setTimeout(() => renderVerifiedMeta(row), 2500);
+}
+
+async function verifyAccountRow(row, btn) {
+  const id = row.dataset.accountId;
+  if (!id) return;
+  // A dirty edit means the number on screen isn't the stored one — the stamp
+  // belongs to the save (which applies it automatically for changed balances).
+  const input = row.querySelector('.saved-debt-balance-input');
+  const curr = Math.round(parseFloat(input && input.value));
+  const prev = Math.round(parseFloat(row.dataset.prevBalance));
+  if (Number.isFinite(curr) && Number.isFinite(prev) && curr !== prev) {
+    flashVerifiedMeta(row, 'balance edited — Update Balances to save');
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const res = await fetch(stewardApiUrl('/api/debt-account/verify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
+    if (res.ok && data && data.ok && data.verifiedAt) {
+      row.dataset.lastVerifiedAt = data.verifiedAt;
+      renderVerifiedMeta(row);
+    } else {
+      flashVerifiedMeta(row, (data && data.error) || 'could not record the check');
+    }
+  } catch (_) {
+    flashVerifiedMeta(row, 'network error — try again');
+  }
+  btn.disabled = false;
+}
+
 /* ── Render saved debts list ──────────────────────────────────────────────── */
 
 function renderSavedDebtsList(debtLines) {
@@ -156,18 +241,27 @@ function renderSavedDebtsList(debtLines) {
     row.dataset.accountId = acct.id;
     row.dataset.name = acct.name;
     row.dataset.prevBalance = acct.balance;
+    if (acct.lastVerifiedAt) row.dataset.lastVerifiedAt = acct.lastVerifiedAt;
     row.innerHTML = `
-      <div class="saved-debt-name"></div>
+      <div class="saved-debt-namewrap">
+        <div class="saved-debt-name"></div>
+        <div class="saved-debt-verified"></div>
+      </div>
       <div class="saved-debt-balance">
         <span class="saved-debt-dollar">$</span>
         <input type="number" class="saved-debt-balance-input" step="any" min="0" inputmode="numeric" value="${formatBalanceForInput(acct.balance)}" />
       </div>
+      <button type="button" class="saved-debt-verify" title="Mark as checked against the real account">&#10003;</button>
       <button type="button" class="saved-debt-remove" title="Remove">&times;</button>
     `;
     const savedNameEl = row.querySelector('.saved-debt-name');
     savedNameEl.textContent = acct.name;
     savedNameEl.title = acct.name;
     row.querySelector('.saved-debt-remove').setAttribute('aria-label', `Remove ${acct.name}`);
+    renderVerifiedMeta(row);
+    const verifyBtn = row.querySelector('.saved-debt-verify');
+    verifyBtn.setAttribute('aria-label', `Mark ${acct.name} as checked`);
+    verifyBtn.addEventListener('click', () => { void verifyAccountRow(row, verifyBtn); });
 
     // Live total update on input
     const input = row.querySelector('.saved-debt-balance-input');
