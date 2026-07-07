@@ -1300,11 +1300,16 @@ router.post('/config/notifications-sent', express.json(), (req, res) => {
 router.post('/config/cutscene-seen', express.json(), (req, res) => {
   setConfig('pending_cutscene', '0');
   // Rotate: the clip just watched becomes "last", so the next fire picks the
-  // other one (never the same clip twice in a row).
+  // other one. Deliberately do NOT clear cutscene_next_index — the client
+  // posts cutscene-seen the moment the player OPENS (consuming the trigger
+  // whatever happens), while the <video> keeps issuing range requests for the
+  // rest of playback. Un-pinning here made pause→resume fall back to seed
+  // selection, which can resolve to the OTHER clip — the browser then asks
+  // for byte ranges of a different file and playback never recovers. The
+  // stale pin is harmless: the next fire overwrites it from last_index.
   const shown = getConfig('cutscene_next_index');
   if (shown != null && shown !== '') {
     setConfig('cutscene_last_index', String(shown));
-    setConfig('cutscene_next_index', '');
   }
   res.json({ ok: true });
 });
