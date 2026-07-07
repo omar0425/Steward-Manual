@@ -84,15 +84,61 @@ function injectStylesOnce() {
   document.head.appendChild(style);
 }
 
+// Track whether the server has confirmed the "seen" post for this playback, so
+// the page-hide backup only fires when it's still needed (and never twice).
+let _seenConfirmed = false;
+
+/**
+ * Tell the server this cutscene was consumed so it plays exactly once. The old
+ * version was a plain fire-and-forget fetch, which mobile browsers routinely
+ * kill when the tab is backgrounded mid-clip — leaving the flag armed, so the
+ * SAME video replayed on the next sign-on. Now:
+ *   - `keepalive: true` lets the request outlive a page/tab teardown, and
+ *   - a pagehide/visibilitychange backup re-sends via sendBeacon if the first
+ *     attempt hasn't been confirmed yet.
+ * Idempotent: the route just sets the flag to 0, so a double-send is harmless.
+ */
 async function clearFlag() {
-  // Consume the trigger so it plays exactly once, regardless of playback outcome.
+  const url = stewardApiUrl('/api/config/cutscene-seen');
   try {
-    await fetch(stewardApiUrl('/api/config/cutscene-seen'), {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
+      keepalive: true,
     });
-  } catch (_) { /* best-effort; the flag clears on next successful POST */ }
+    if (res && res.ok) _seenConfirmed = true;
+  } catch (_) { /* the pagehide backup below is the safety net */ }
+}
+
+// Backup delivery: if the primary POST hasn't been confirmed by the time the
+// user backgrounds or closes the tab, sendBeacon queues the "seen" post at the
+// OS level so it survives the teardown. Registered once.
+let _seenBackupWired = false;
+function wireSeenBackup() {
+  if (_seenBackupWired) return;
+  _seenBackupWired = true;
+  const flush = () => {
+    if (_seenConfirmed) return;
+    try {
+      if (navigator.sendBeacon) {
+        const ok = navigator.sendBeacon(
+          stewardApiUrl('/api/config/cutscene-seen'),
+          new Blob(['{}'], { type: 'application/json' }),
+        );
+        if (ok) _seenConfirmed = true;
+      } else {
+        // No beacon (older browsers) → keepalive fetch is the fallback.
+        void clearFlag();
+      }
+    } catch (_) { /* nothing more we can do */ }
+  };
+  // pagehide covers tab close + bfcache; visibilitychange→hidden covers the
+  // mobile "switched apps" case that was dropping the original request.
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush();
+  });
 }
 
 function dismiss(overlay, onKey) {
@@ -205,6 +251,8 @@ export function maybePlayCutscene(status) {
   if (_played) return;
   if (!status || status.cutsceneReady !== true) return;
   _played = true;
-  clearFlag();
+  _seenConfirmed = false;
+  wireSeenBackup();   // arm the pagehide/visibility backup before playback
+  void clearFlag();   // primary keepalive attempt
   showCutscene();
 }

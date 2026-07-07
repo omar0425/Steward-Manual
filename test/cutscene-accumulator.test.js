@@ -135,6 +135,26 @@ test('route: accumulates across saves, fires once, rotates clips on seen', async
   });
 });
 
+test('route: cutscene-seen is idempotent — double delivery clears once and stays clear', async () => {
+  // The client now sends "seen" via a keepalive POST AND a pagehide sendBeacon
+  // backup, so on a backgrounded phone BOTH can land. Two deliveries must be
+  // harmless and leave the flag cleared (this is what stops the replay).
+  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+    await saveDebt(baseUrl, 10000);
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    await saveDebt(baseUrl, 9400); // $600 → arms the cutscene
+    assert.equal(await cutsceneReady(baseUrl), true);
+
+    const first = await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+    assert.equal(first.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false, 'first delivery clears the flag');
+
+    const second = await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+    assert.equal(second.status, 200, 'a redundant second delivery is accepted, not an error');
+    assert.equal(await cutsceneReady(baseUrl), false, 'flag stays cleared — no replay');
+  });
+});
+
 test('route: pause→resume serves the SAME clip after cutscene-seen (byte-level)', async () => {
   // Repro of the user-reported bug: the client posts cutscene-seen when the
   // player OPENS; every pause→resume then issues a fresh range request. With
