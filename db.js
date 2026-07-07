@@ -854,6 +854,8 @@ function resetAllGameState() {
     'cutscene_paydown_bucket',
     'cutscene_next_index',
     'cutscene_last_index',
+    'steward_chat_history',
+    'steward_situation_note',
     'steward_ai_ledger',
     'steward_ai_nicknames',
     'steward_ai_last_if_do_nothing_at',
