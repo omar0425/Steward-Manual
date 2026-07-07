@@ -83,7 +83,9 @@ export function render(status, snapshots) {
   // "Account CLEARED" — one-shot celebration armed by the snapshot route.
   maybeCelebrateCleared(status);
 
-  // Personal easter egg: plays once when the server arms it (every 75th login).
+  // Personal easter egg (cutscene user only): the server arms it when one
+  // balance update clears $500+ of debt; plays once, then cutscene-seen.
+  // (An old comment here said "every 75th login" — that trigger never shipped.)
   maybePlayCutscene(status);
 
   if (typeof window.stewardVnextEnhance === 'function') {
