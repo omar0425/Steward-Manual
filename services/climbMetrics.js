@@ -16,6 +16,8 @@ const {
   deleteDebtAccountHistoryAt,
   debtAccountHistoryRows,
   exportUserData,
+  getDebtAccountVerifiedAt,
+  setDebtAccountVerifiedAt,
 } = require('../db');
 
 const KEY_BASELINE = 'climb_baseline_debt';
@@ -606,6 +608,12 @@ function captureUndoState(snapshotId, prevBalances, label = 'update', appendedAt
       gameStart: getConfig('game_start_debt'),
     },
     balances: mapToObj(prevBalances),
+    // Pre-pull reconcile stamps, so undo can put them back exactly. Without
+    // this, the balance-replace during an undo re-stamps every rolled-back
+    // account as "checked today" — the check it records is the very entry
+    // being reversed. (Older entries lack this field; undo leaves stamps
+    // alone for those.)
+    verifiedAt: Object.fromEntries(getDebtAccountVerifiedAt()),
   };
   const stack = readUndoStack();
   stack.push(entry);
@@ -658,6 +666,16 @@ function undoLastPull() {
     }
   }
   replaceDebtAccountBalances(restored);
+
+  // Restore the pre-pull reconcile stamps the replace just overwrote (it
+  // stamps changed balances "now", but these balances changed by REVERSAL,
+  // not by a fresh check). Entries from before stamps existed skip this.
+  if (entry && entry.verifiedAt && typeof entry.verifiedAt === 'object') {
+    for (const id of restored.keys()) {
+      const saved = entry.verifiedAt[String(id)];
+      setDebtAccountVerifiedAt(id, saved == null ? null : String(saved));
+    }
+  }
 
   let snapshotDeleted = 0;
   if (entry && entry.snapshotId != null) {

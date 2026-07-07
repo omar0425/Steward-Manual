@@ -241,7 +241,9 @@ function buildAprForm(panel) {
       if (raw === '') {
         delete _aprRates[id];
       } else {
-        const val = parseFloat(raw);
+        // Accept a comma decimal ("22,5") — parseFloat stops at the comma and
+        // silently saved 22 for a user who typed 22.5 the way their locale does.
+        const val = parseFloat(raw.replace(',', '.'));
         if (Number.isFinite(val) && val >= 0 && val <= 100) {
           _aprRates[id] = Math.round(val * 100) / 100;
         }

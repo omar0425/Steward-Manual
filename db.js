@@ -183,6 +183,15 @@ function ensureUserScopedTables() {
 }
 
 ensureUserScopedTables();
+
+// Migration: per-account reconcile stamp — when the user last confirmed the
+// balance against the real account (via the ✓ tick or by entering a changed
+// number). Older rows NULL. Runs after ensureUserScopedTables so a rebuilt
+// legacy table gets the column too.
+if (!tableColumns('debt_account_balances').some((c) => c.name === 'last_verified_at')) {
+  db.exec(`ALTER TABLE debt_account_balances ADD COLUMN last_verified_at TEXT`);
+}
+
 _schemaInitDone = true;
 
 // ── Transactions ──────────────────────────────────────────────────────────────
@@ -303,10 +312,20 @@ function getAllDebtAccountBalances() {
 function replaceDebtAccountBalances(balanceByAccountId) {
   const now = new Date().toISOString();
   const userId = currentUserId();
+  // Prior rows, read before the delete so the reconcile stamp survives the
+  // replace. Entering a CHANGED balance is itself a verification (the user just
+  // read the real account), so those rows — and brand-new accounts — get
+  // stamped `now`; an untouched balance keeps whatever stamp it had.
+  const prior = new Map(
+    db.prepare(`
+      SELECT ynab_account_id AS id, last_balance AS bal, last_verified_at AS verifiedAt
+      FROM debt_account_balances WHERE user_id = ?
+    `).all(userId).map((r) => [String(r.id), r]),
+  );
   const del = db.prepare(`DELETE FROM debt_account_balances WHERE user_id = ?`);
   const ins = db.prepare(`
-    INSERT INTO debt_account_balances (user_id, ynab_account_id, last_balance, updated_at)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO debt_account_balances (user_id, ynab_account_id, last_balance, updated_at, last_verified_at)
+    VALUES (?, ?, ?, ?, ?)
   `);
   transaction(() => {
     del.run(userId);
@@ -319,9 +338,49 @@ function replaceDebtAccountBalances(balanceByAccountId) {
         );
         continue;
       }
-      ins.run(userId, String(id), b, now);
+      const prev = prior.get(String(id));
+      const changed = !prev || Math.round(Number(prev.bal) * 100) !== Math.round(b * 100);
+      ins.run(userId, String(id), b, now, changed ? now : (prev.verifiedAt || null));
     }
   });
+}
+
+/**
+ * Stamp an account as reconciled ("I checked this against the real statement
+ * and it's still right") WITHOUT creating a snapshot — confirming an unchanged
+ * balance is not a turn. Returns the ISO stamp, or null if no such account.
+ */
+function markDebtAccountVerified(accountId) {
+  if (accountId == null || accountId === '') return null;
+  const now = new Date().toISOString();
+  const info = db
+    .prepare(`UPDATE debt_account_balances SET last_verified_at = ? WHERE user_id = ? AND ynab_account_id = ?`)
+    .run(now, currentUserId(), String(accountId));
+  return info.changes > 0 ? now : null;
+}
+
+/**
+ * Overwrite an account's reconcile stamp with an exact value (or clear it with
+ * null). Used by undo to put back the PRE-pull stamps — the replace done during
+ * an undo would otherwise mark rolled-back balances as "checked today".
+ */
+function setDebtAccountVerifiedAt(accountId, iso) {
+  if (accountId == null || accountId === '') return 0;
+  return db
+    .prepare(`UPDATE debt_account_balances SET last_verified_at = ? WHERE user_id = ? AND ynab_account_id = ?`)
+    .run(iso == null ? null : String(iso), currentUserId(), String(accountId)).changes;
+}
+
+/** Map(accountId → ISO last_verified_at) for the current user; unstamped rows omitted. */
+function getDebtAccountVerifiedAt() {
+  const rows = db
+    .prepare(`SELECT ynab_account_id AS id, last_verified_at AS verifiedAt FROM debt_account_balances WHERE user_id = ?`)
+    .all(currentUserId());
+  const m = new Map();
+  for (const r of rows) {
+    if (r.verifiedAt) m.set(String(r.id), String(r.verifiedAt));
+  }
+  return m;
 }
 
 // ── Per-account balance history (spark lines, last 30 entries per account) ───
@@ -448,7 +507,8 @@ function exportUserData() {
     `SELECT * FROM snapshots WHERE user_id = ? ORDER BY pulled_at ASC, id ASC`,
   ).all(userId);
   const debtAccountBalances = db.prepare(
-    `SELECT ynab_account_id AS accountId, last_balance AS balance, updated_at AS updatedAt
+    `SELECT ynab_account_id AS accountId, last_balance AS balance, updated_at AS updatedAt,
+            last_verified_at AS lastVerifiedAt
      FROM debt_account_balances WHERE user_id = ? ORDER BY ynab_account_id`,
   ).all(userId);
   const debtAccountHistory = db.prepare(
@@ -504,8 +564,8 @@ function importUserData(data, { force = false } = {}) {
       (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insBal = db.prepare(`
-    INSERT OR REPLACE INTO debt_account_balances (user_id, ynab_account_id, last_balance, updated_at)
-    VALUES (?, ?, ?, ?)
+    INSERT OR REPLACE INTO debt_account_balances (user_id, ynab_account_id, last_balance, updated_at, last_verified_at)
+    VALUES (?, ?, ?, ?, ?)
   `);
   const insHist = db.prepare(`
     INSERT OR IGNORE INTO debt_account_history (user_id, ynab_account_id, recorded_at, balance)
@@ -541,7 +601,12 @@ function importUserData(data, { force = false } = {}) {
       const id = b && (b.accountId != null ? b.accountId : b.ynab_account_id);
       const bal = num(b && (b.balance != null ? b.balance : b.last_balance), NaN);
       if (id == null || !Number.isFinite(bal) || bal < 0) { skipped.balances += 1; continue; }
-      insBal.run(userId, String(id), Math.round(bal * 100) / 100, String(b.updatedAt || b.updated_at || now));
+      const verifiedAt = b.lastVerifiedAt || b.last_verified_at;
+      insBal.run(
+        userId, String(id), Math.round(bal * 100) / 100,
+        String(b.updatedAt || b.updated_at || now),
+        verifiedAt ? String(verifiedAt) : null,
+      );
       counts.balances += 1;
     }
     for (const h of history) {
@@ -760,6 +825,10 @@ function resetAllGameState() {
     for (const key of GAME_STATE_KEYS) del.run(userId, key);
     delPrefix.run(userId, 'steward_ai_dialog_at:%');
     delPrefix.run(userId, 'steward_ai_quote_at:%');
+    // Cached Monte Carlo forecasts are keyed by pulled_at (a prefix, like the
+    // AI caches above) — sweep them so a reset can't leave the old game's
+    // forecast row behind.
+    delPrefix.run(userId, 'payoff_forecast_at:%');
     db.prepare('DELETE FROM snapshots WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_balances WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM debt_account_history WHERE user_id = ?').run(userId);
@@ -804,6 +873,9 @@ module.exports = {
   resetAllGameState,
   getAllDebtAccountBalances,
   replaceDebtAccountBalances,
+  markDebtAccountVerified,
+  getDebtAccountVerifiedAt,
+  setDebtAccountVerifiedAt,
   getConfig,
   setConfig,
   setConfigIfAbsent,

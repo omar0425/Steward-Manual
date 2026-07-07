@@ -32,6 +32,7 @@ require('./inactivity-nudge.test');
 require('./steward-ai-paydown.test');
 require('./steward-ai-pace.test');
 require('./classify-debt.test');
+require('./verify-account.test');
 require('./nicknames.test');
 require('./pace-projection.test');
 require('./forecast.test');

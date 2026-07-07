@@ -1,26 +1,11 @@
-block below.                      ║
-║    --state-accent / --state-progress-* remain wired to layout.js.       ║
-║                                                                          ║
-║  STEP 3 — THEME TOGGLE                                                   ║
-║    Add data-theme="dark" to <body>.                                      ║
-║    Toggle: document.body.dataset.theme = isDark ? 'light' : 'dark'      ║
-║    Persist: localStorage.setItem('steward-theme', newTheme)             ║
-║    Load:    document.body.dataset.theme =                                ║
-║               localStorage.getItem('steward-theme') || 'dark'           ║
-║                                                                          ║
-║  STEP 4 — NEW DOM IDs  (all marked // ← NEW in HTML comments)           ║
-║    See the NEW RENDER FIELDS table at the bottom of this file.          ║
-║                                                                          ║
-║  STEP 5 — applyDashboardTheme() compatibility                           ║
-║    --state-progress-start / --state-progress-end power all tier bars.  ║
-║    layout.js sets these on #dashboard — no changes needed.              ║
-╚══════════════════════════════════════════════════════════════════════════╝
--->
-<title>Steward — Financial Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-<style>
+/* ══════════════════════════════════════════════════════════════════════
+   STEWARD STYLESHEET
+   Theme tokens (dark default + light via [data-theme="light"]) live at the
+   top; --state-accent / --state-progress-* are set at runtime by layout.js.
+   NOTE: this file must start with valid CSS — a leftover HTML fragment here
+   once swallowed the :root radius tokens (CSS error recovery consumes
+   everything up to and including the first { } block it can't parse).
+   ══════════════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════════════════
    DESIGN TOKENS
@@ -2307,17 +2292,47 @@ body[data-setup-mode="first"] .setup-welcome {
 .commitment-btn--ghost:hover { background: var(--gold-soft); color: var(--gold-2, var(--gold)); border-color: var(--gold); }
 /* ── Saved Debts List ─────────────────────────────────────────────────────── */
 .saved-debts-list { display: flex; flex-direction: column; gap: 0; }
-/* Bug #8 — fixed grid columns (name | balance | remove) so balances snap to one
-   column down the list instead of floating with name length. */
+/* Bug #8 — fixed grid columns (name | balance | verify | remove) so balances
+   snap to one column down the list instead of floating with name length. */
 .saved-debt-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 12px;
   padding: 6px 0;
   min-height: 46px;
   border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
 }
+/* Name + "checked Nd ago" stack in the first column; min-width lets the name's
+   ellipsis keep working inside the grid track. */
+.saved-debt-namewrap { min-width: 0; }
+.saved-debt-verified {
+  font-size: 11px;
+  color: var(--text-3, rgba(255,255,255,0.35));
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saved-debt-verified.is-stale { color: var(--amber, #d4a030); }
+/* Reconcile tick — stamps "checked against the real account" without a save. */
+.saved-debt-verify {
+  background: none;
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  color: var(--text-3, rgba(255,255,255,0.35));
+  font-size: 13px;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.saved-debt-verify:hover {
+  color: var(--gold, #d4af37);
+  border-color: var(--gold, #d4af37);
+  background: var(--gold-soft, rgba(212,175,55,0.1));
+}
+.saved-debt-verify:disabled { opacity: 0.5; cursor: default; }
 .saved-debt-balance { justify-self: end; }
 .saved-debt-row:first-child { border-top: 1px solid var(--border, rgba(255,255,255,0.06)); }
 .saved-debt-name {
@@ -2811,6 +2826,8 @@ body[data-setup-mode="first"] .setup-welcome {
   .saved-debt-row { gap: 8px; }
   .saved-debt-balance-input { width: 108px; font-size: 14px; padding: 6px 8px; }
   .saved-debt-name { font-size: 14px; }
+  .saved-debt-verified { font-size: 10px; }
+  .saved-debt-verify { padding: 5px 7px; }
   /* Confirm-changes dialog — on a phone the default (small buttons floated to
      the right of a wide card) leaves a big awkward gap and reads as unfinished.
      Tighten the spacing and let Cancel/Save share the full width as balanced,
@@ -3157,3 +3174,94 @@ textarea:focus {
     }
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   REFINEMENT PASS — selection color, touch targets, control sizing.
+   Token-driven; works in both themes.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Text selection carries the brand — a gold wash instead of browser blue. */
+::selection { background: var(--gold-glow, rgba(200,168,76,0.28)); color: var(--text); }
+
+/* The per-row icon buttons (reconcile ✓, remove ×) center their glyph and
+   keep a comfortable click size on desktop. */
+.saved-debt-verify,
+.saved-debt-remove,
+.debt-account-entry-row .debt-acct-remove {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; min-height: 30px;
+}
+
+/* Phones: 44px touch targets for the row/panel controls the 600px nav block
+   doesn't already cover. The saved-debt rows are ≥46px tall, so the larger
+   hit areas fit without changing row height. */
+@media (max-width: 600px) {
+  /* 40×44 keeps a comfortable thumb target while leaving the name column
+     enough width that "Visa Signature"-length names don't truncate at 375px. */
+  .saved-debt-verify,
+  .saved-debt-remove,
+  .debt-account-entry-row .debt-acct-remove { min-width: 40px; min-height: 44px; }
+  .saved-debt-balance-input { width: 96px; }
+  .apr-edit-btn,
+  .apr-form-save,
+  .apr-form-cancel,
+  .pay-next-tab,
+  .sort-toggle-btn,
+  .turn-show-all-btn,
+  .refresh-btn,
+  .ask-steward-chip { min-height: 40px; }
+  /* ⓘ explanation dots: 16px is un-tappable; grow the hit circle. */
+  .info-dot { width: 26px; height: 26px; font-size: 14px; }
+}
+
+/* ── Depth + feedback upgrade ─────────────────────────────────────────────
+   Material on the primary CTAs, glass behind modals, entrance motion on
+   dialog cards, and press feedback on the small controls. Token-driven;
+   all motion respects prefers-reduced-motion. */
+
+/* Primary gold CTAs: soft vertical gradient with an inner top-light and a
+   gold halo — reads as a physical button instead of a flat fill. The ghost
+   variant keeps its outline treatment. */
+.commitment-btn:not(.commitment-btn--ghost) {
+  background: linear-gradient(180deg, var(--gold-2), var(--gold));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 12px var(--gold-glow);
+}
+.commitment-btn:not(.commitment-btn--ghost):hover {
+  background: linear-gradient(180deg, var(--gold-2), var(--gold-2));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 18px var(--gold-glow);
+}
+.commitment-btn:not(:disabled):active { transform: translateY(0) scale(0.995); }
+
+/* Modal dim becomes glass: blur the page behind the card so the dialog
+   floats over the dashboard rather than over a black sheet — the same
+   frosted language the sticky nav already speaks. */
+.paydown-confirm-overlay,
+.steward-ai-overlay {
+  backdrop-filter: blur(7px) saturate(0.85);
+  -webkit-backdrop-filter: blur(7px) saturate(0.85);
+}
+
+/* Dialog cards rise in softly. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes steward-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .paydown-confirm-card,
+  .steward-ai-card { animation: steward-card-in 180ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+}
+
+/* Programmatic scrolls (the FAB's scrollIntoView, anchor jumps) land clear
+   of the 56px sticky nav instead of tucking the panel's title under it. */
+.section-panel,
+.manual-entry-panel,
+.hero-section { scroll-margin-top: 68px; }
+
+/* Tactile press on the small controls that already respond to hover. */
+.saved-debt-verify:active,
+.saved-debt-remove:active,
+.pay-next-tab:active,
+.apr-edit-btn:active,
+.refresh-btn:active,
+.turn-show-all-btn:active,
+.ask-steward-chip:active { transform: scale(0.96); }

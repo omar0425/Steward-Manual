@@ -42,7 +42,14 @@ function selectUsersNeedingNudge({ now = Date.now(), staleDays = staleDaysSettin
     .filter((r) => {
       const nudge = getNudge.get(r.id, NUDGE_KEY);
       // Already nudged for THIS lapse (nudge newer than their last activity)?
-      return !(nudge && nudge.value > r.lastSnapshotAt);
+      // Compare as timestamps, not strings: a restored backup can carry
+      // pulled_at values without milliseconds, and mixed precision breaks
+      // lexicographic ISO comparison ("…56.456Z" > "…57Z" is true as strings).
+      if (!nudge) return true;
+      const nudgedAt = Date.parse(nudge.value);
+      const lastAt = Date.parse(r.lastSnapshotAt);
+      if (!Number.isFinite(nudgedAt) || !Number.isFinite(lastAt)) return true;
+      return nudgedAt <= lastAt;
     })
     .map((r) => ({
       ...r,

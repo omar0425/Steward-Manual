@@ -359,7 +359,19 @@ function sendMainShell(req, res) {
 app.get(['/', '/index.html'], requireAuth, sendMainShell);
 app.get(['/play', '/play/'], requireAuth, sendMainShell);
 
-app.use(express.static(publicDir));
+// Static cache policy. Without one, browsers heuristically cache css/js and
+// can keep serving a stale bundle after a deploy. Fonts never change (the
+// filenames encode family+weight) so they get a long immutable cache; every
+// other asset must revalidate — ETag/Last-Modified make that a cheap 304.
+app.use(express.static(publicDir, {
+  setHeaders(res, filePath) {
+    if (/\.(woff2?|ttf|otf)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  },
+}));
 
 // SPA fallback (auth-guarded)
 app.get('*', requireAuth, (req, res) => {

@@ -21,6 +21,19 @@ test('projectDebtFree: no usable pace → not on track, no invented date', () =>
   assert.equal(r.debtFreeDate, undefined);
 });
 
+test('projectDebtFree: monthsToZero label agrees with debtFreeDate (no ceil inflation)', () => {
+  // 101 / 100 = 1.01 months — the date lands ~31 days out, so the label must
+  // say 1 month, not 2 (ceil used to inflate it a full month past the date).
+  const r = projectDebtFree([], 101, { monthlyPace: 100, now: NOW });
+  assert.equal(r.onTrack, true);
+  assert.equal(r.monthsToZero, 1);
+  const expected = new Date(NOW + 1.01 * DAYS_PER_MONTH * 86400000).toISOString().slice(0, 10);
+  assert.equal(r.debtFreeDate, expected);
+  // Tiny remainders still round up to the ≥1 floor rather than "0 months".
+  const tiny = projectDebtFree([], 30, { monthlyPace: 100, now: NOW });
+  assert.equal(tiny.monthsToZero, 1);
+});
+
 test('projectDebtFree: zero debt → already free', () => {
   const r = projectDebtFree([], 0, { monthlyPace: 500, now: NOW });
   assert.equal(r.onTrack, true);
