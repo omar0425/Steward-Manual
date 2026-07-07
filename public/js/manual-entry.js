@@ -668,6 +668,139 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   }
 }
 
+/* ── Quick Update ─────────────────────────────────────────────────────────────
+   The fastest path through the core loop: one account per step, balance
+   prefilled, Enter advances, and the final step hands off to the SAME
+   "Update Balances" pipeline (stale-guard → confirmation → classification →
+   save), so no logic is duplicated. Values are staged in memory and applied
+   to the row inputs only on Finish — Esc/Cancel leaves everything untouched. */
+
+function openQuickUpdate() {
+  const rows = Array.from(document.querySelectorAll('#saved-debts-rows .saved-debt-row'));
+  if (rows.length === 0) return;
+  const existing = document.getElementById('quick-update-overlay');
+  if (existing) existing.remove();
+  const previouslyFocused = document.activeElement;
+
+  const steps = rows.map((row) => ({
+    row,
+    name: row.dataset.name || 'Account',
+    prev: Math.round(parseFloat(row.dataset.prevBalance)),
+    staged: null, // filled as the user advances
+  }));
+  let idx = 0;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'quick-update-overlay';
+  overlay.className = 'paydown-confirm-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'quick-update-title');
+  overlay.innerHTML = `
+    <div class="paydown-confirm-card quick-update-card">
+      <h3 class="paydown-confirm-title" id="quick-update-title">Quick update</h3>
+      <div class="quick-update-progress" id="quick-update-progress"></div>
+      <div class="quick-update-name" id="quick-update-name"></div>
+      <div class="quick-update-prev" id="quick-update-prev"></div>
+      <div class="apr-form-input-wrap quick-update-wrap">
+        <span class="apr-form-suffix" style="left:12px;right:auto;">$</span>
+        <input type="number" id="quick-update-input" class="apr-form-input quick-update-input"
+               min="0" step="1" inputmode="numeric" style="padding-left:26px;" />
+      </div>
+      <div class="paydown-confirm-actions">
+        <button type="button" class="paydown-confirm-cancel" id="quick-update-back">Back</button>
+        <button type="button" class="paydown-confirm-save" id="quick-update-next">Next</button>
+      </div>
+      <p class="quick-update-hint">Enter ↵ moves to the next account · Esc cancels</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const input = overlay.querySelector('#quick-update-input');
+  const backBtn = overlay.querySelector('#quick-update-back');
+
+  const close = () => {
+    document.removeEventListener('keydown', onKey, true);
+    overlay.remove();
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
+    }
+  };
+
+  const showStep = () => {
+    const s = steps[idx];
+    overlay.querySelector('#quick-update-progress').textContent = `${idx + 1} of ${steps.length}`;
+    overlay.querySelector('#quick-update-name').textContent = s.name;
+    overlay.querySelector('#quick-update-prev').textContent =
+      Number.isFinite(s.prev) ? `currently $${s.prev.toLocaleString()}` : '';
+    input.value = s.staged != null ? String(s.staged)
+      : Number.isFinite(s.prev) ? String(s.prev) : '';
+    overlay.querySelector('#quick-update-next').textContent = idx === steps.length - 1 ? 'Finish' : 'Next';
+    backBtn.textContent = idx === 0 ? 'Cancel' : 'Back';
+    try { input.focus(); input.select(); } catch (_) { /* ignore */ }
+  };
+
+  const stageCurrent = () => {
+    const v = Math.round(parseFloat(input.value));
+    if (!Number.isFinite(v) || v < 0) {
+      input.classList.add('quick-update-invalid');
+      window.setTimeout(() => input.classList.remove('quick-update-invalid'), 900);
+      return false;
+    }
+    steps[idx].staged = v;
+    return true;
+  };
+
+  const finish = () => {
+    // Apply every staged value to the real row inputs, then hand off to the
+    // normal Update Balances pipeline (which re-reads the DOM).
+    for (const s of steps) {
+      if (s.staged == null) continue;
+      const rowInput = s.row.querySelector('.saved-debt-balance-input');
+      if (rowInput) {
+        rowInput.value = String(s.staged);
+        rowInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+    close();
+    const updateBtn = document.getElementById('update-balances-btn');
+    if (updateBtn) updateBtn.click();
+  };
+
+  const advance = () => {
+    if (!stageCurrent()) return;
+    if (idx === steps.length - 1) { finish(); return; }
+    idx += 1;
+    showStep();
+  };
+
+  const goBack = () => {
+    if (idx === 0) { close(); return; }
+    stageCurrent(); // keep what they typed, even if they go back over it
+    idx -= 1;
+    showStep();
+  };
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  };
+  document.addEventListener('keydown', onKey, true);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); advance(); }
+  });
+  overlay.querySelector('#quick-update-next').addEventListener('click', advance);
+  backBtn.addEventListener('click', goBack);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  showStep();
+}
+
+// Delegated so it works whichever render created the button.
+document.addEventListener('click', (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('#quick-update-btn');
+  if (btn) { e.preventDefault(); openQuickUpdate(); }
+});
+
 /* ── Save snapshot ────────────────────────────────────────────────────────── */
 
 /* After the server confirms a save, rebuild the editable "saved debts" list

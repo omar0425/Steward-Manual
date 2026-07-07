@@ -18,6 +18,8 @@ import {
 } from './render-debts.js';
 import { maybePlayCutscene } from './cutscene.js';
 import { renderCalculator } from './render-calculator.js';
+import { setWhatIfBasis } from './views/networth-chart.js';
+import { maybeCelebrateCleared } from './celebration.js';
 
 export { refreshDebtPanelData, setDebtSortMode, toggleAprForm };
 
@@ -74,6 +76,12 @@ export function render(status, snapshots) {
   renderPayThisNext(stats);
   fillThisTurnPanel(stats);
   renderCalculator(stats);
+  // Exact-amortization basis for the chart panel's what-if slider — lets it
+  // work from the user's average payment even when no chart projection is up.
+  setWhatIfBasis(stats);
+
+  // "Account CLEARED" — one-shot celebration armed by the snapshot route.
+  maybeCelebrateCleared(status);
 
   // Personal easter egg: plays once when the server arms it (every 75th login).
   maybePlayCutscene(status);

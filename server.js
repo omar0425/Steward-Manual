@@ -276,6 +276,20 @@ if (process.env.NODE_ENV === 'production') {
   if (typeof nudgeHandle.unref === 'function') nudgeHandle.unref();
 }
 
+// ── Payment due-date reminders (production only) ──────────────────────────────
+// Sweeps every 6h: accounts with a due day set and a balance still owed get one
+// reminder per statement cycle, 0–3 days before the due date, over web push
+// (if the user opted in) and email (if a provider is configured). Runs more
+// often than daily so a reminder isn't skipped when the server was asleep at
+// the daily tick.
+if (process.env.NODE_ENV === 'production') {
+  const { runDueReminderSweep } = require('./services/reminders');
+  const dueSweep = () => { runDueReminderSweep().catch((err) => console.error('[reminders] sweep failed:', err)); };
+  setTimeout(dueSweep, 90 * 1000);
+  const dueHandle = setInterval(dueSweep, 6 * 60 * 60 * 1000);
+  if (typeof dueHandle.unref === 'function') dueHandle.unref();
+}
+
 app.get('/admin/backup', (req, res) => {
   if (!BACKUP_TOKEN) {
     return res.status(501).json({ ok: false, error: 'Backups not configured. Set STEWARD_BACKUP_TOKEN.' });

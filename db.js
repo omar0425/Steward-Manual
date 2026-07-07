@@ -116,6 +116,22 @@ db.exec(`
     value TEXT NOT NULL,
     PRIMARY KEY (user_id, key)
   );
+
+  -- App-level (not user-scoped) settings: VAPID keys for web push, etc.
+  CREATE TABLE IF NOT EXISTS app_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  -- Web-push subscriptions (one row per browser/device the user opted in on).
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    user_id    INTEGER NOT NULL,
+    endpoint   TEXT NOT NULL,
+    p256dh     TEXT NOT NULL,
+    auth       TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, endpoint)
+  );
 `);
 
 function tableColumns(table) {
@@ -754,6 +770,50 @@ function setConfigIfAbsent(key, value) {
   return getConfig(key);
 }
 
+// ── App-level meta (NOT user-scoped) ─────────────────────────────────────────
+// For values that belong to the deployment, not a user — e.g. the VAPID key
+// pair web push signs with (generated once, must stay stable across restarts).
+
+function getAppMeta(key) {
+  const row = db.prepare(`SELECT value FROM app_meta WHERE key = ?`).get(String(key));
+  return row ? row.value : null;
+}
+
+function setAppMeta(key, value) {
+  db.prepare(`INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`).run(String(key), String(value));
+}
+
+// ── Web-push subscriptions ────────────────────────────────────────────────────
+
+function savePushSubscription({ endpoint, p256dh, auth }) {
+  db.prepare(`
+    INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(currentUserId(), String(endpoint), String(p256dh), String(auth), new Date().toISOString());
+}
+
+function deletePushSubscription(endpoint) {
+  return db
+    .prepare(`DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?`)
+    .run(currentUserId(), String(endpoint)).changes;
+}
+
+function hasPushSubscription() {
+  return !!db.prepare(`SELECT 1 FROM push_subscriptions WHERE user_id = ? LIMIT 1`).get(currentUserId());
+}
+
+/** Cross-user: all subscriptions for one user id (reminder sweep runs outside withUser). */
+function listPushSubscriptionsForUser(userId) {
+  return db
+    .prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?`)
+    .all(Number(userId));
+}
+
+/** Cross-user delete by exact endpoint — used to prune dead (404/410) subscriptions. */
+function deletePushSubscriptionAnyUser(endpoint) {
+  return db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).run(String(endpoint)).changes;
+}
+
 /**
  * Full game reset — clears all DB-backed gameplay history so the next
  * snapshot starts a clean game.
@@ -782,6 +842,8 @@ function resetAllGameState() {
     'last_aggregate_debt_for_climb',
     'last_debt_sync_debug_snapshot_v1',
     'notifications_sent',
+    'pending_account_cleared',
+    'due_reminders_sent',
     'promise_made_at',
     'promise_text',
     'turn_start_at',
@@ -876,6 +938,13 @@ module.exports = {
   markDebtAccountVerified,
   getDebtAccountVerifiedAt,
   setDebtAccountVerifiedAt,
+  getAppMeta,
+  setAppMeta,
+  savePushSubscription,
+  deletePushSubscription,
+  hasPushSubscription,
+  listPushSubscriptionsForUser,
+  deletePushSubscriptionAnyUser,
   getConfig,
   setConfig,
   setConfigIfAbsent,

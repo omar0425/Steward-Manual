@@ -27,6 +27,8 @@ const {
   getDebtAccountFirstBalances,
   markDebtAccountVerified,
   getDebtAccountVerifiedAt,
+  savePushSubscription,
+  deletePushSubscription,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
 const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
@@ -443,6 +445,25 @@ router.get('/status', (req, res) => {
     startBalance: Number(planFirstBalances.get(String(id))),
   }));
   const payoffPlan = buildPayoffPlan(planAccounts);
+  // Attach payment terms: the sum of known minimum payments across accounts
+  // that still carry a balance. Lets the "Pay this next" card say "cover your
+  // ~$X of minimums first, then put every extra dollar here" — which is the
+  // actually-correct avalanche/snowball instruction.
+  if (payoffPlan) {
+    const planTerms = parseJsonObject(getConfig('debt_terms'));
+    let minimumsMonthly = 0;
+    let minimumsKnown = 0;
+    for (const a of planAccounts) {
+      const t = planTerms[a.id];
+      const min = t && Number(t.minPayment);
+      if (Number(a.balance) > 0 && Number.isFinite(min) && min > 0) {
+        minimumsMonthly += min;
+        minimumsKnown += 1;
+      }
+    }
+    payoffPlan.minimumsMonthly = Math.round(minimumsMonthly * 100) / 100;
+    payoffPlan.minimumsKnown = minimumsKnown;
+  }
   // "Interest saved" — how much less interest your balances cost per month now
   // versus your starting balances (money paydown has kept from the bank).
   const interestSaved = interestSavedSinceStart(planAccounts);
@@ -502,6 +523,9 @@ router.get('/status', (req, res) => {
     // Personal easter egg: armed by the snapshot route on a $500+ debt drop for
     // the cutscene user. The dashboard plays it once, then POSTs cutscene-seen.
     cutsceneReady: getConfig('pending_cutscene') === '1',
+    // One-shot "account CLEARED" celebration(s) armed by the snapshot route
+    // when a balance hits exactly 0. Dismissed via account-cleared-seen.
+    accountCleared: parseJsonArray(getConfig('pending_account_cleared')),
     stats: {
       debtRemaining:    snap.debt_remaining,
       debtDirection,
@@ -888,6 +912,28 @@ router.post('/snapshot', (req, res) => {
         // Per-account classifications route this pull's increases to new debt,
         // interest, or the baseline (forgot-a-debt) — see applyClimbMetricsOnPull.
         applyClimbMetricsOnPull(debtRemaining, prevBalances, debtBalanceMap, increaseClassifications);
+
+        // Account CLEARED — a balance going >0 → exactly 0 in this pull is the
+        // emotional peak of the whole climb. Arm a one-shot celebration the
+        // client shows on the next status load (cleared by account-cleared-seen).
+        const clearedNow = [];
+        const firstBalances = getDebtAccountFirstBalances();
+        for (const [id, bal] of debtBalanceMap) {
+          const prevBal = Number(prevBalances.get(id));
+          if (bal === 0 && Number.isFinite(prevBal) && prevBal > 0) {
+            const row = debtDisplayRows.find((r) => r.id === id);
+            const start = Number(firstBalances.get(String(id)));
+            clearedNow.push({
+              id,
+              name: (row && row.name) || 'Account',
+              startBalance: Number.isFinite(start) && start > 0 ? Math.round(start) : Math.round(prevBal),
+              clearedAt: now,
+            });
+          }
+        }
+        if (clearedNow.length > 0) {
+          setConfig('pending_account_cleared', JSON.stringify(clearedNow));
+        }
       }
 
       // Build display rows for the debt sync debug
@@ -1034,6 +1080,42 @@ router.post('/config/interest-rates', express.json(), (req, res) => {
   }
   setConfig(INTEREST_RATES_KEY, JSON.stringify(clean));
   res.json({ ok: true, rates: clean });
+});
+
+// ── GET/POST /api/config/debt-terms ───────────────────────────────────────────
+// Per-account payment terms: minimum monthly payment + statement due day.
+// Stored like interest_rates (user preference, survives a game reset). Shape:
+//   { terms: { <accountId>: { minPayment?: number, dueDay?: number } } }
+// dueDay is the day-of-month (1–31); months shorter than the due day clamp to
+// their last day when reminders compute the real date.
+
+const DEBT_TERMS_KEY = 'debt_terms';
+
+router.get('/config/debt-terms', (req, res) => {
+  res.json({ terms: parseJsonObject(getConfig(DEBT_TERMS_KEY)) });
+});
+
+router.post('/config/debt-terms', express.json(), (req, res) => {
+  const { terms } = req.body || {};
+  if (typeof terms !== 'object' || terms === null || Array.isArray(terms)) {
+    return res.status(400).json({ ok: false, error: 'terms (object) required' });
+  }
+  const entries = Object.entries(terms);
+  if (entries.length > 500) {
+    return res.status(400).json({ ok: false, error: 'Too many term entries.' });
+  }
+  const clean = {};
+  for (const [id, t] of entries) {
+    if (!t || typeof t !== 'object' || Array.isArray(t)) continue;
+    const out = {};
+    const min = Number(t.minPayment);
+    if (Number.isFinite(min) && min > 0 && min <= 1e7) out.minPayment = Math.round(min * 100) / 100;
+    const day = Number(t.dueDay);
+    if (Number.isInteger(day) && day >= 1 && day <= 31) out.dueDay = day;
+    if (Object.keys(out).length > 0) clean[String(id).slice(0, 100)] = out;
+  }
+  setConfig(DEBT_TERMS_KEY, JSON.stringify(clean));
+  res.json({ ok: true, terms: clean });
 });
 
 // ── GET /api/debt-history ─────────────────────────────────────────────────────
@@ -1199,6 +1281,61 @@ router.post('/config/notifications-sent', express.json(), (req, res) => {
 
 router.post('/config/cutscene-seen', express.json(), (req, res) => {
   setConfig('pending_cutscene', '0');
+  res.json({ ok: true });
+});
+
+// ── Web push (payment reminders) ──────────────────────────────────────────────
+// Zero-config: the VAPID pair is generated on first use and stored app-side.
+// The client fetches the public key, subscribes via the service worker, and
+// registers the subscription here. One row per device/browser.
+
+router.get('/push/public-key', (req, res) => {
+  try {
+    const { getPublicKey } = require('../services/push');
+    return res.json({ ok: true, publicKey: getPublicKey() });
+  } catch (err) {
+    console.error('[api] push/public-key', err);
+    return res.status(500).json({ ok: false, error: 'Push is unavailable.' });
+  }
+});
+
+router.post('/push/subscribe', express.json(), (req, res) => {
+  try {
+    const sub = req.body && req.body.subscription;
+    const endpoint = sub && typeof sub.endpoint === 'string' ? sub.endpoint : null;
+    const keys = sub && sub.keys && typeof sub.keys === 'object' ? sub.keys : null;
+    if (!endpoint || !endpoint.startsWith('https://') || endpoint.length > 1000 ||
+        !keys || typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string' ||
+        keys.p256dh.length > 300 || keys.auth.length > 100) {
+      return res.status(400).json({ ok: false, error: 'A valid push subscription is required.' });
+    }
+    savePushSubscription({ endpoint, p256dh: keys.p256dh, auth: keys.auth });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[api] push/subscribe', err);
+    return res.status(500).json({ ok: false, error: 'Could not save the subscription.' });
+  }
+});
+
+router.post('/push/unsubscribe', express.json(), (req, res) => {
+  try {
+    const endpoint = req.body && req.body.endpoint;
+    if (typeof endpoint !== 'string' || !endpoint) {
+      return res.status(400).json({ ok: false, error: 'endpoint required' });
+    }
+    const removed = deletePushSubscription(endpoint);
+    return res.json({ ok: true, removed });
+  } catch (err) {
+    console.error('[api] push/unsubscribe', err);
+    return res.status(500).json({ ok: false, error: 'Could not remove the subscription.' });
+  }
+});
+
+// ── POST /api/config/account-cleared-seen ─────────────────────────────────────
+// Dismisses the armed "account CLEARED" celebration so it shows exactly once.
+
+router.post('/config/account-cleared-seen', express.json(), (req, res) => {
+  setConfig('pending_account_cleared', '');
   res.json({ ok: true });
 });
 

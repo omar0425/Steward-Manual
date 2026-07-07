@@ -196,14 +196,22 @@ test.describe('Ship-readiness sweep', () => {
     await addDebtAccounts(page, STARTING);
     await startClimb(page);
 
-    // Zero out one account.
+    // Zero out one account. Clearing a balance fires the one-shot
+    // "account CLEARED" celebration — verify it, then dismiss so the next
+    // steps can interact with the page.
     await updateBalances(page, { Visa: 0 });
+    const clearedOverlay = page.locator('#account-cleared-overlay');
+    await expect(clearedOverlay).toBeVisible({ timeout: 8000 });
+    await expect(clearedOverlay.locator('.cleared-name')).toHaveText('Visa');
+    await page.locator('#cleared-dismiss').click();
+    await expect(clearedOverlay).toHaveCount(0);
     let s = await probe(page);
     const visaRow = s.readonlyRows.find((r) => (r.name || '').includes('Visa'));
     expect(visaRow).toBeTruthy();
 
-    // Zero out everything → debt-free.
+    // Zero out everything → debt-free (dismiss the follow-up celebration too).
     await updateBalances(page, { MC: 0, Car: 0, Student: 0 });
+    await page.locator('#cleared-dismiss').click({ timeout: 8000 }).catch(() => {});
     s = await probe(page);
     expect(s.debtTotal).toBe('$0');
     expect(s.tierName).toMatch(/debt free/i);

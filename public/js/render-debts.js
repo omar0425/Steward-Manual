@@ -7,6 +7,7 @@ import { createInfoDot } from './info-popover.js';
 
 let _aprRates = {};
 let _debtHistory = {};
+let _debtTerms = {}; // { accountId: { minPayment?, dueDay? } }
 let _lastDebtStats = null;
 let _debtSortMode = (() => {
   try { return localStorage.getItem('steward-debt-sort') || 'balance'; } catch { return 'balance'; }
@@ -54,12 +55,18 @@ export function renderPayThisNext(stats) {
   if (targetEl) targetEl.innerHTML = `<span class="pay-next-name">${escapeText(t.name)}</span><span class="pay-next-bal">${fmtDollar(Math.round(t.balance))}${aprBit}</span>`;
 
   if (reasonEl) {
+    // With known minimums the advice can be the actually-correct instruction:
+    // cover every minimum first, then aim all extra at the target.
+    const mins = Number(plan.minimumsMonthly);
+    const minsBit = Number.isFinite(mins) && mins > 0
+      ? ` Cover your ~${fmtDollar(Math.round(mins))}/mo of minimums across all cards first — then every extra dollar goes here.`
+      : '';
     if (method === 'avalanche' && plan.avalanche) {
       const mi = Number(plan.avalanche.monthlyInterest);
       const miBit = Number.isFinite(mi) && mi > 0 ? ` It's costing you about ${fmtDollar(Math.round(mi))}/mo in interest right now.` : '';
-      reasonEl.textContent = `Highest interest rate — clearing this first saves you the most money.${miBit}`;
+      reasonEl.textContent = `Highest interest rate — clearing this first saves you the most money.${miBit}${minsBit}`;
     } else {
-      reasonEl.textContent = `Smallest balance — knock it out fast for a quick win, then roll that payment into the next one.`;
+      reasonEl.textContent = `Smallest balance — knock it out fast for a quick win, then roll that payment into the next one.${minsBit}`;
     }
   }
 
@@ -107,15 +114,18 @@ export function queuePaidOffCelebration(name) {
 async function loadDebtPanelData(options = {}) {
   const rerender = options.rerender !== false;
   try {
-    const [ratesRes, histRes] = await Promise.all([
+    const [ratesRes, histRes, termsRes] = await Promise.all([
       fetch(stewardApiUrl('/api/config/interest-rates')),
       fetch(stewardApiUrl(`/api/debt-history?t=${Date.now()}`)),
+      fetch(stewardApiUrl('/api/config/debt-terms')),
     ]);
     const ratesData = await ratesRes.json();
     const histData  = await histRes.json();
+    const termsData = await termsRes.json();
     _aprRates    = (ratesData && typeof ratesData.rates === 'object' && !Array.isArray(ratesData.rates)) ? ratesData.rates : {};
     _debtHistory = (histData && typeof histData.byAccount === 'object') ? histData.byAccount : {};
-  } catch { _aprRates = {}; _debtHistory = {}; }
+    _debtTerms   = (termsData && typeof termsData.terms === 'object' && !Array.isArray(termsData.terms)) ? termsData.terms : {};
+  } catch { _aprRates = {}; _debtHistory = {}; _debtTerms = {}; }
   if (rerender && _lastDebtStats) fillDebtAccountsList(_lastDebtStats);
 }
 
@@ -133,12 +143,19 @@ export function setDebtSortMode(mode) {
 
 async function saveAprRates() {
   try {
-    const res = await fetch(stewardApiUrl('/api/config/interest-rates'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rates: _aprRates }),
-    });
-    return res.ok;
+    const [ratesRes, termsRes] = await Promise.all([
+      fetch(stewardApiUrl('/api/config/interest-rates'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rates: _aprRates }),
+      }),
+      fetch(stewardApiUrl('/api/config/debt-terms'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ terms: _debtTerms }),
+      }),
+    ]);
+    return ratesRes.ok && termsRes.ok;
   } catch {
     return false;
   }
@@ -180,6 +197,18 @@ function buildAprForm(panel) {
   const form = document.createElement('form');
   form.className = 'apr-form';
 
+  // Column headings — three fields per account now (rate, minimum, due day).
+  const head = document.createElement('div');
+  head.className = 'apr-form-row apr-form-head';
+  head.innerHTML = `
+    <span class="apr-form-label"></span>
+    <div class="apr-form-fields">
+      <span class="apr-col-head">APR</span>
+      <span class="apr-col-head">Min/mo</span>
+      <span class="apr-col-head">Due day</span>
+    </div>`;
+  form.appendChild(head);
+
   for (const acct of accounts) {
     const row = document.createElement('div');
     row.className = 'apr-form-row';
@@ -189,30 +218,68 @@ function buildAprForm(panel) {
     label.textContent = acct.name || 'Account';
     label.htmlFor = `apr-input-${acct.id}`;
 
+    const fields = document.createElement('div');
+    fields.className = 'apr-form-fields';
+
+    // APR %
     const wrap = document.createElement('div');
     wrap.className = 'apr-form-input-wrap';
-
     const input = document.createElement('input');
     input.type = 'number';
     input.id = `apr-input-${acct.id}`;
     input.min = '0';
     input.max = '100';
     input.step = '0.01';
-    input.className = 'apr-form-input';
+    input.className = 'apr-form-input apr-rate-input';
     input.dataset.accountId = acct.id;
     const hint = suggestAprHint(acct.name);
     input.placeholder = hint ? `e.g. ${hint}` : '—';
     const rateVal = _aprRates[acct.id];
     if (rateVal != null && Number.isFinite(rateVal)) input.value = rateVal;
-
     const suffix = document.createElement('span');
     suffix.className = 'apr-form-suffix';
     suffix.textContent = '%';
-
     wrap.appendChild(input);
     wrap.appendChild(suffix);
+
+    const terms = _debtTerms[acct.id] || {};
+
+    // Minimum payment $
+    const minWrap = document.createElement('div');
+    minWrap.className = 'apr-form-input-wrap';
+    const minInput = document.createElement('input');
+    minInput.type = 'number';
+    minInput.min = '0';
+    minInput.step = '1';
+    minInput.inputMode = 'numeric';
+    minInput.className = 'apr-form-input apr-term-min';
+    minInput.dataset.accountId = acct.id;
+    minInput.placeholder = '$';
+    minInput.setAttribute('aria-label', `${acct.name || 'Account'} minimum monthly payment`);
+    if (Number(terms.minPayment) > 0) minInput.value = Math.round(Number(terms.minPayment));
+    minWrap.appendChild(minInput);
+
+    // Due day (1–31)
+    const dueWrap = document.createElement('div');
+    dueWrap.className = 'apr-form-input-wrap';
+    const dueInput = document.createElement('input');
+    dueInput.type = 'number';
+    dueInput.min = '1';
+    dueInput.max = '31';
+    dueInput.step = '1';
+    dueInput.inputMode = 'numeric';
+    dueInput.className = 'apr-form-input apr-term-due';
+    dueInput.dataset.accountId = acct.id;
+    dueInput.placeholder = '1–31';
+    dueInput.setAttribute('aria-label', `${acct.name || 'Account'} payment due day of month`);
+    if (Number.isInteger(Number(terms.dueDay))) dueInput.value = Number(terms.dueDay);
+    dueWrap.appendChild(dueInput);
+
+    fields.appendChild(wrap);
+    fields.appendChild(minWrap);
+    fields.appendChild(dueWrap);
     row.appendChild(label);
-    row.appendChild(wrap);
+    row.appendChild(fields);
     form.appendChild(row);
   }
 
@@ -234,7 +301,7 @@ function buildAprForm(panel) {
   save.className = 'apr-form-save';
   save.textContent = 'Save rates';
   save.addEventListener('click', async () => {
-    const inputs = form.querySelectorAll('.apr-form-input');
+    const inputs = form.querySelectorAll('.apr-rate-input');
     for (const inp of inputs) {
       const id = inp.dataset.accountId;
       const raw = inp.value.trim();
@@ -248,6 +315,23 @@ function buildAprForm(panel) {
           _aprRates[id] = Math.round(val * 100) / 100;
         }
       }
+    }
+    // Payment terms: minimum monthly payment + statement due day per account.
+    for (const inp of form.querySelectorAll('.apr-term-min')) {
+      const id = inp.dataset.accountId;
+      const t = _debtTerms[id] || {};
+      const val = parseFloat(inp.value.trim().replace(',', '.'));
+      if (Number.isFinite(val) && val > 0) t.minPayment = Math.round(val * 100) / 100;
+      else delete t.minPayment;
+      if (Object.keys(t).length > 0) _debtTerms[id] = t; else delete _debtTerms[id];
+    }
+    for (const inp of form.querySelectorAll('.apr-term-due')) {
+      const id = inp.dataset.accountId;
+      const t = _debtTerms[id] || {};
+      const val = Math.round(parseFloat(inp.value.trim()));
+      if (Number.isInteger(val) && val >= 1 && val <= 31) t.dueDay = val;
+      else delete t.dueDay;
+      if (Object.keys(t).length > 0) _debtTerms[id] = t; else delete _debtTerms[id];
     }
     save.disabled = true;
     save.textContent = 'Saving…';

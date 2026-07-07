@@ -8,6 +8,7 @@ import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } 
 import { readPromiseMadeFlag, hydratePromiseFromServer, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor, initAccountSecurity } from './commitment.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
 import { maybeShowStewardAiComment, initAskSteward } from './steward-ai.js';
+import { initPushToggle } from './push-client.js';
 
 const STARTUP_UI_DEBUG = false;
 
@@ -394,6 +395,9 @@ export function initDashboardBoot() {
   initAskSteward();
   initStickyUpdateFab();
   initRecalcNowBtn();
+  // Payment-reminder push toggle (registers the service worker; hides itself
+  // where push isn't supported). Fire-and-forget — never blocks boot.
+  void initPushToggle();
   const root = document.getElementById('commitment-screen');
   if (!root) {
     initStartGameGate();
