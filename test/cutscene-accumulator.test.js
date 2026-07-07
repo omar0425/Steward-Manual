@@ -110,10 +110,18 @@ test('route: accumulates across saves, fires once, rotates clips on seen', async
     assert.equal(await cutsceneReady(baseUrl), true);
     assert.equal(withUser(1, () => getConfig('cutscene_next_index')), '0');
 
-    // Watching it clears the flag and rotates the pointer.
+    // Watching it clears the flag and rotates the pointer — but the PIN must
+    // survive: the client posts cutscene-seen the moment the player opens,
+    // and the <video> keeps issuing range requests afterward. Clearing the
+    // pin here made pause→resume resolve to a different clip mid-stream
+    // (broken playback). The stale pin is overwritten by the next fire.
     await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
     assert.equal(await cutsceneReady(baseUrl), false);
     assert.equal(withUser(1, () => getConfig('cutscene_last_index')), '0');
+    assert.equal(
+      withUser(1, () => getConfig('cutscene_next_index')), '0',
+      'pinned clip index must survive cutscene-seen so mid-playback range requests stay on the same file',
+    );
 
     // Next fire advances the rotation (with a 2-clip pool that's clip 1; a
     // 1-clip pool can only re-pick 0 — derive from whatever pool is active).
@@ -125,6 +133,41 @@ test('route: accumulates across saves, fires once, rotates clips on seen', async
       String(1 % poolLen),
     );
   });
+});
+
+test('route: pause→resume serves the SAME clip after cutscene-seen (byte-level)', async () => {
+  // Repro of the user-reported bug: the client posts cutscene-seen when the
+  // player OPENS; every pause→resume then issues a fresh range request. With
+  // a 2-clip pool, un-pinning on seen made the fallback resolve to the OTHER
+  // clip — different bytes mid-stream, playback never recovers.
+  const clipA = Buffer.from('CLIP-A-' + 'a'.repeat(64));
+  const clipB = Buffer.from('CLIP-B-' + 'b'.repeat(64));
+  const origin = express();
+  origin.get('/a.mp4', (req, res) => { res.setHeader('Content-Type', 'video/mp4'); res.end(clipA); });
+  origin.get('/b.mp4', (req, res) => { res.setHeader('Content-Type', 'video/mp4'); res.end(clipB); });
+  const originSrv = await new Promise((resolve) => { const s = origin.listen(0, () => resolve(s)); });
+  const port = originSrv.address().port;
+  const envBefore = process.env.STEWARD_CUTSCENE_VIDEOS;
+  process.env.STEWARD_CUTSCENE_VIDEOS = `http://127.0.0.1:${port}/a.mp4,http://127.0.0.1:${port}/b.mp4`;
+  try {
+    await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+      await saveDebt(baseUrl, 10000);
+      await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+      await saveDebt(baseUrl, 9400); // $600 → fires, pins a clip
+      assert.equal(await cutsceneReady(baseUrl), true);
+
+      const first = Buffer.from(await (await fetch(`${baseUrl}/api/cutscene/video?v=1`)).arrayBuffer());
+      // Player opened → client consumes the trigger immediately.
+      await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+      // User pauses, then resumes → browser re-requests the stream.
+      const resumed = Buffer.from(await (await fetch(`${baseUrl}/api/cutscene/video?v=1`)).arrayBuffer());
+      assert.ok(first.equals(resumed), 'resume must stream the same clip that started playing');
+    });
+  } finally {
+    if (envBefore === undefined) delete process.env.STEWARD_CUTSCENE_VIDEOS;
+    else process.env.STEWARD_CUTSCENE_VIDEOS = envBefore;
+    await new Promise((r) => originSrv.close(r));
+  }
 });
 
 test('route: never fires for other users, no matter the drop', async () => {
