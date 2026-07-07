@@ -33,6 +33,8 @@ require('./steward-ai-paydown.test');
 require('./steward-ai-pace.test');
 require('./classify-debt.test');
 require('./verify-account.test');
+require('./payoff-math.test');
+require('./roadmap-features.test');
 require('./nicknames.test');
 require('./pace-projection.test');
 require('./forecast.test');

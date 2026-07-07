@@ -299,7 +299,7 @@ function buildDebtAccountsPanel() {
         <p class="tc-section-sublabel">Read-only overview · update balances in the Your Debts panel</p>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-        <button class="apr-edit-btn" id="apr-edit-btn" type="button">Edit APRs</button>
+        <button class="apr-edit-btn" id="apr-edit-btn" type="button">APRs & terms</button>
         <div class="sort-toggle">
           <button class="sort-toggle-btn active" data-sort="balance">Balance</button>
           <button class="sort-toggle-btn" data-sort="apr">APR</button>
@@ -458,6 +458,8 @@ function buildManualEntryForm() {
       </div>
       <div class="manual-entry-actions">
         <button type="button" class="commitment-btn" id="update-balances-btn">Update Balances</button>
+        <button type="button" class="commitment-btn commitment-btn--ghost" id="quick-update-btn"
+                title="Step through each account in seconds — Enter moves to the next.">⚡ Quick update</button>
         <button type="button" class="commitment-btn setup-start-btn" id="start-climb-btn" hidden>Start Climb</button>
         <p class="data-strip-msg" id="snapshot-save-msg"></p>
         <button type="button" class="undo-last-btn" id="undo-last-btn" hidden>↶ Undo last update (entered the wrong amount?)</button>
@@ -513,6 +515,7 @@ function buildDataStrip() {
          title="Everything (snapshots, account history, settings) as a JSON file \u2014 your complete personal backup.">\u2913 JSON</a>
       <button type="button" class="refresh-btn" id="import-data-btn"
          title="Restore everything from a JSON backup you exported earlier. Replaces your current data.">\u21a5 Restore</button>
+      <button type="button" class="refresh-btn" id="push-reminders-btn" hidden>\ud83d\udd15 Enable reminders</button>
       <input type="file" id="import-data-file" accept="application/json,.json" hidden />
     </div>
   `;

@@ -1,6 +1,7 @@
 'use strict';
 
 import { getInterestSummary } from '../render-debts.js';
+import { whatIfExtra } from '../payoff-math.js';
 
 /**
  * Debt Reduction Chart - renders debt remaining into the #networth-chart-svg element.
@@ -8,9 +9,11 @@ import { getInterestSummary } from '../render-debts.js';
  */
 
 /* ── What-if slider ──────────────────────────────────────────────────────────
-   "Extra $N/mo → debt-free X months sooner, saving ~$Y interest." Driven by
-   the same pace numbers as the dashed projection; only visible while a
-   projection is active. Slider value persists across sessions. */
+   "Extra $N/mo → debt-free X months sooner, saving ~$Y interest." Prefers an
+   EXACT month-by-month amortization (payoff-math.js) fed from the status
+   render — average payment + blended APR — so the interest figure is a true
+   simulation; falls back to the chart projection's pace approximation for
+   users whose stats can't be simulated yet. Slider value persists. */
 
 const WHATIF_STORAGE_KEY = 'steward-whatif-extra';
 // First-visit default (multiple of the slider's step). Starting above $0 means
@@ -19,6 +22,25 @@ const WHATIF_STORAGE_KEY = 'steward-whatif-extra';
 const WHATIF_DEFAULT = 100;
 let _projState = null; // { latest, dailyPace, lastDateMs, daysToZero } when projecting
 let _whatifBound = false;
+let _whatifBasis = null; // { debt, apr, basePayment } — exact-amortization inputs
+
+/** Fed from render.js on every status render. */
+export function setWhatIfBasis(stats) {
+  const debt = Number(stats && stats.debtRemaining);
+  const basePayment = Number(stats && stats.avgMonthlyPayment) || Number(stats && stats.monthlyPace) || 0;
+  const apr = Number(stats && stats.avgApr) || 0;
+  _whatifBasis = Number.isFinite(debt) && debt > 0 && basePayment > 0
+    ? { debt, apr, basePayment }
+    : null;
+  syncWhatIfSection();
+}
+
+function monthsPhrase(m) {
+  if (m < 24) return `${m} month${m === 1 ? '' : 's'}`;
+  const y = Math.floor(m / 12);
+  const rem = m % 12;
+  return rem === 0 ? `${y} years` : `${y} yr ${rem} mo`;
+}
 
 function readWhatifExtra() {
   try {
@@ -32,7 +54,7 @@ function updateWhatIfReadout() {
   const slider = document.getElementById('whatif-slider');
   const amountEl = document.getElementById('whatif-amount');
   const readout = document.getElementById('whatif-readout');
-  if (!slider || !readout || !_projState) return;
+  if (!slider || !readout || (!_projState && !_whatifBasis)) return;
 
   const extra = Number(slider.value) || 0;
   if (amountEl) amountEl.textContent = `$${extra.toLocaleString()}`;
@@ -42,6 +64,37 @@ function updateWhatIfReadout() {
     return;
   }
 
+  // Preferred path: exact amortization from the user's real average payment
+  // and blended APR — interest compounds monthly instead of being averaged.
+  if (_whatifBasis) {
+    const r = whatIfExtra(_whatifBasis.debt, _whatifBasis.apr, _whatifBasis.basePayment, extra);
+    if (r) {
+      const payoff = new Date(Date.now() + r.newMonths * 30.44 * 86400000);
+      const when = payoff.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      let text = `Debt-free around ${when}`;
+      if (r.monthsSooner >= 1) text += ` — ${monthsPhrase(r.monthsSooner)} sooner`;
+      if (r.interestSaved >= 10) text += `, keeping ~$${Math.round(r.interestSaved).toLocaleString()} from the bank`;
+      readout.textContent = text + '.';
+      readout.classList.add('is-live');
+      return;
+    }
+    // Basis exists but the base payment loses to interest — that is itself the
+    // most important thing the slider can say. Does the EXTRA fix it?
+    const rescued = whatIfExtra(_whatifBasis.debt, _whatifBasis.apr, _whatifBasis.basePayment + extra, 0);
+    if (rescued) {
+      readout.textContent = `Your current pace loses to interest — but +$${extra.toLocaleString()}/mo clears it in ${monthsPhrase(rescued.baseMonths)}.`;
+      readout.classList.add('is-live');
+      return;
+    }
+    if (!_projState) {
+      readout.textContent = 'Interest is outrunning this pace — drag higher to find the payment that beats it.';
+      readout.classList.remove('is-live');
+      return;
+    }
+    // fall through to the projection approximation
+  }
+
+  if (!_projState) return;
   const { latest, dailyPace, lastDateMs, daysToZero } = _projState;
   const newPace = dailyPace + (extra * 12) / 365;
   const newDays = latest / newPace;
@@ -69,7 +122,7 @@ function syncWhatIfSection() {
   const section = document.getElementById('whatif-section');
   const slider = document.getElementById('whatif-slider');
   if (!section || !slider) return;
-  if (!_projState) {
+  if (!_projState && !_whatifBasis) {
     section.hidden = true;
     return;
   }
