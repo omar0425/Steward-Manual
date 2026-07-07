@@ -35,6 +35,10 @@ require('./classify-debt.test');
 require('./verify-account.test');
 require('./payoff-math.test');
 require('./roadmap-features.test');
+// Shares the runner's DB via BOTH the API router and direct db requires, so it
+// must run before admin-restore (which cache-clears ../db and rebinds it to an
+// isolated file — direct reads after that point see the wrong database).
+require('./cutscene-accumulator.test');
 require('./nicknames.test');
 require('./pace-projection.test');
 require('./forecast.test');
