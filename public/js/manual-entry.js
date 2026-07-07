@@ -153,8 +153,11 @@ function renderVerifiedMeta(row) {
     return;
   }
   const days = verifiedAgeDays(iso);
-  el.textContent = label;
-  el.classList.toggle('is-stale', days != null && days > VERIFY_STALE_DAYS);
+  const stale = days != null && days > VERIFY_STALE_DAYS;
+  // Fresh checks lead with a tick so the row scans at a glance; stale ones
+  // drop it — the amber color carries the "look at this again" signal.
+  el.textContent = stale ? label : `✓ ${label}`;
+  el.classList.toggle('is-stale', stale);
 }
 
 /* Show a transient notice in the meta slot (e.g. "save your change first"),

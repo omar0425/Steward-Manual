@@ -359,6 +359,18 @@ function markDebtAccountVerified(accountId) {
   return info.changes > 0 ? now : null;
 }
 
+/**
+ * Overwrite an account's reconcile stamp with an exact value (or clear it with
+ * null). Used by undo to put back the PRE-pull stamps — the replace done during
+ * an undo would otherwise mark rolled-back balances as "checked today".
+ */
+function setDebtAccountVerifiedAt(accountId, iso) {
+  if (accountId == null || accountId === '') return 0;
+  return db
+    .prepare(`UPDATE debt_account_balances SET last_verified_at = ? WHERE user_id = ? AND ynab_account_id = ?`)
+    .run(iso == null ? null : String(iso), currentUserId(), String(accountId)).changes;
+}
+
 /** Map(accountId → ISO last_verified_at) for the current user; unstamped rows omitted. */
 function getDebtAccountVerifiedAt() {
   const rows = db
@@ -863,6 +875,7 @@ module.exports = {
   replaceDebtAccountBalances,
   markDebtAccountVerified,
   getDebtAccountVerifiedAt,
+  setDebtAccountVerifiedAt,
   getConfig,
   setConfig,
   setConfigIfAbsent,

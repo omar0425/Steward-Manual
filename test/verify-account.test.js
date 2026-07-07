@@ -163,6 +163,43 @@ test('verify does not create a snapshot or touch climb metrics', async () => {
   });
 });
 
+test('undo restores the pre-pull reconcile stamps, not "checked today"', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalDebt: 4500,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 4500 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    // Establish a known stamp, then make the pull that will be undone.
+    await sleep(10);
+    res = await postJson(baseUrl, '/api/debt-account/verify', { id: 'visa' });
+    const stampBefore = (await res.json()).verifiedAt;
+
+    await sleep(10);
+    res = await postJson(baseUrl, '/api/snapshot', {
+      totalDebt: 4000,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 4000 }],
+    });
+    assert.equal(res.status, 200);
+    const stampAfterPull = (await statusLines(baseUrl)).get('visa').lastVerifiedAt;
+    assert.notEqual(stampAfterPull, stampBefore, 'the pull itself re-stamps the changed balance');
+
+    // Undo the pull — the balance rolls back AND the stamp must roll back too.
+    await sleep(10);
+    res = await fetch(`${baseUrl}/api/climb/undo-last`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    const lines = await statusLines(baseUrl);
+    assert.equal(Math.round(lines.get('visa').balance), 4500, 'balance rolled back');
+    assert.equal(
+      lines.get('visa').lastVerifiedAt, stampBefore,
+      'undo must restore the pre-pull stamp — a reversal is not a fresh check',
+    );
+  });
+});
+
 test('export includes lastVerifiedAt so a restore round-trips the stamps', async () => {
   await withApp(async (baseUrl) => {
     let res = await postJson(baseUrl, '/api/snapshot', {
