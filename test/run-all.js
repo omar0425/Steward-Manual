@@ -39,6 +39,7 @@ require('./roadmap-features.test');
 // must run before admin-restore (which cache-clears ../db and rebinds it to an
 // isolated file — direct reads after that point see the wrong database).
 require('./cutscene-accumulator.test');
+require('./steward-chat.test');
 require('./nicknames.test');
 require('./pace-projection.test');
 require('./forecast.test');

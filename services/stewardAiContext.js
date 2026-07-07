@@ -471,6 +471,37 @@ function buildContext() {
     .reverse() // oldest → newest
     .map((s) => ({ date: s.pulled_at.slice(0, 10), debt: dollars(s.debt_remaining) }));
 
+  // Payment terms the player entered (minimum payment / statement due day per
+  // account) and the next real due dates — what "I missed two payments, I have
+  // an extra $1000" advice actually needs. Only accounts still carrying a
+  // balance are listed; minimumsMonthly is the sum of known minimums.
+  let termsList = [];
+  let minimumsMonthly = 0;
+  try {
+    const termsCfg = JSON.parse(getConfig('debt_terms') || '{}') || {};
+    const { nextDueDate } = require('./reminders');
+    for (const a of annotatedAccounts) {
+      const t = termsCfg[a.id];
+      if (!t || Number(a.balance) <= 0) continue;
+      const entry = { name: safe(a.name) };
+      const min = Number(t.minPayment);
+      if (Number.isFinite(min) && min > 0) {
+        entry.minPayment = Math.round(min);
+        minimumsMonthly += min;
+      }
+      if (Number.isInteger(Number(t.dueDay))) {
+        entry.dueDay = Number(t.dueDay);
+        const due = nextDueDate(t.dueDay, Date.now());
+        if (due) entry.nextDueDate = due.toISOString().slice(0, 10);
+      }
+      if (entry.minPayment != null || entry.dueDay != null) termsList.push(entry);
+    }
+  } catch { termsList = []; minimumsMonthly = 0; }
+
+  // The player's standing note about their situation (income change, missed
+  // payments, plans) — background they told the Steward directly.
+  const situationNote = String(getConfig('steward_situation_note') || '').slice(0, 2000);
+
   return {
     skip: false,
     snapshot: { pulledAt: snap.pulled_at },
@@ -538,6 +569,12 @@ function buildContext() {
         },
       },
       accounts: payloadAccounts,
+      // Minimum payments + due days the player entered (accounts still owing
+      // only). minimumsMonthly = total of the known minimums per month.
+      terms: termsList.length ? { accounts: termsList, minimumsMonthly: Math.round(minimumsMonthly) } : null,
+      // Standing background the player wrote for you ("my situation") — treat
+      // it as something they told you directly; weigh it in every answer.
+      situationNote: situationNote || null,
       payoffPlan,
       turnDeltas,
       forecasts,

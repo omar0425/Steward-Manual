@@ -1595,6 +1595,109 @@ router.post('/steward-ai/tier-quote', (req, res) => {
   })();
 });
 
+// ── Steward Chat (beta — the owner's account only) ────────────────────────────
+// A real conversation with the Steward: persistent thread + a standing
+// "situation note" the AI always knows, grounded in the same context payload
+// as the dialog modes (now including payment terms). Gated to the same single
+// account as the cutscene easter egg while it's being tested; every route 404s
+// for anyone else so the surface simply doesn't exist for other users.
+
+const CHAT_HISTORY_KEY = 'steward_chat_history';
+const SITUATION_NOTE_KEY = 'steward_situation_note';
+const CHAT_MAX_TURNS = 40;      // kept messages (user + assistant combined)
+const CHAT_MAX_MSG_CHARS = 1500;
+
+function isChatBetaUser(req) {
+  return !!(req.user && isCutsceneUser(req.user.username));
+}
+
+function readChatHistory() {
+  const arr = parseJsonArray(getConfig(CHAT_HISTORY_KEY));
+  return arr
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string')
+    .map((m) => ({ role: m.role, text: m.text.slice(0, 2000), at: typeof m.at === 'string' ? m.at : null }));
+}
+
+function writeChatHistory(history) {
+  setConfig(CHAT_HISTORY_KEY, JSON.stringify(history.slice(-CHAT_MAX_TURNS)));
+}
+
+router.get('/steward-ai/chat', (req, res) => {
+  // The probe runs on EVERY dashboard boot, so a 404 here would put a red
+  // "Failed to load resource" line in every non-beta user's console (and trip
+  // the e2e console guard). Answer 200 with beta:false instead; the write
+  // routes below stay hard-404 so the surface can't be driven by others.
+  if (!isChatBetaUser(req)) return res.json({ ok: true, beta: false });
+  res.json({
+    ok: true,
+    beta: true,
+    enabled: stewardAi.isConfigured(),
+    messages: readChatHistory(),
+    situationNote: String(getConfig(SITUATION_NOTE_KEY) || ''),
+  });
+});
+
+router.post('/steward-ai/chat', express.json(), (req, res) => {
+  if (!isChatBetaUser(req)) return res.status(404).end();
+  (async () => {
+    try {
+      const { message } = req.body || {};
+      if (!message || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ ok: false, error: 'A message is required.' });
+      }
+      if (message.length > CHAT_MAX_MSG_CHARS) {
+        return res.status(400).json({ ok: false, error: `Keep it under ${CHAT_MAX_MSG_CHARS} characters.` });
+      }
+      if (!stewardAi.isConfigured()) {
+        return res.status(503).json({ ok: false, error: 'The Steward is asleep — no AI key is configured on the server.' });
+      }
+      const ctx = stewardAiContext.buildContext();
+      if (ctx.skip || !ctx.payload) {
+        return res.json({
+          ok: true,
+          reply: 'Add your debts and start the climb first — then I will have real numbers to talk through with you.',
+          ephemeral: true,
+        });
+      }
+      const history = readChatHistory();
+      history.push({ role: 'user', text: message.trim(), at: new Date().toISOString() });
+      const result = await stewardAi.generateChatReply({
+        history: history.slice(-CHAT_MAX_TURNS),
+        payload: ctx.payload,
+      });
+      if (!result || !result.ok || !result.text) {
+        return res.status(200).json({ ok: false, error: 'The Steward could not answer just now. Try again in a moment.' });
+      }
+      history.push({ role: 'assistant', text: result.text, at: new Date().toISOString() });
+      writeChatHistory(history);
+      return res.json({ ok: true, reply: result.text });
+    } catch (err) {
+      console.error('[api] steward-ai/chat', err);
+      return res.status(500).json({ ok: false, error: 'Chat failed.' });
+    }
+  })();
+});
+
+router.post('/steward-ai/chat/clear', express.json(), (req, res) => {
+  if (!isChatBetaUser(req)) return res.status(404).end();
+  setConfig(CHAT_HISTORY_KEY, '[]');
+  res.json({ ok: true });
+});
+
+// The standing "my situation" note — injected into EVERY AI surface (chat,
+// ask, dialog modes) via stewardAiContext, so the Steward always knows the
+// backstory without the player re-explaining it.
+router.post('/steward-ai/situation-note', express.json(), (req, res) => {
+  if (!isChatBetaUser(req)) return res.status(404).end();
+  const { note } = req.body || {};
+  if (note != null && typeof note !== 'string') {
+    return res.status(400).json({ ok: false, error: 'note must be a string' });
+  }
+  const clean = String(note || '').trim().slice(0, 2000);
+  setConfig(SITUATION_NOTE_KEY, clean);
+  res.json({ ok: true, situationNote: clean });
+});
+
 // ── GET /api/steward-ai/ledger ────────────────────────────────────────────────
 // Returns the persisted journal entries so a future "Ledger" page can render
 // the chronicle. No model call.
