@@ -16,7 +16,11 @@
  */
 
 const CUTSCENE_USERNAME = 'LoudFlipFlopz';
-const BALANCE_DROP_TRIGGER = 500; // dollars of debt cleared in one update
+const BALANCE_DROP_TRIGGER = 500; // legacy per-save trigger (kept for compat/tests)
+// Accumulator bounds: the reward paces itself to the remaining fight.
+const TRIGGER_MAX = 500; // early climb: fire every ~$500 of total paydown
+const TRIGGER_MIN = 100; // end game: never demand more than $100 per fire
+const TRIGGER_PCT = 0.10; // between the bounds: ~10% of what's still owed
 
 // Stable Dropbox direct-download form: dl.dropboxusercontent.com + persistent
 // rlkey (no short-lived `st` token). Verified to stream with range support.
@@ -44,16 +48,64 @@ function isCutsceneUser(username) {
 }
 
 /**
- * Should THIS update fire the cutscene? True only for the cutscene user, and
- * only when total debt fell by at least BALANCE_DROP_TRIGGER in the update.
- *
- * @param {string} username    the username whose balance changed
- * @param {number} dropAmount  prevTotalDebt - newTotalDebt (positive = paid down)
+ * LEGACY per-save trigger (superseded by the accumulator below, kept because
+ * it is a documented, tested pure function): true only for the cutscene user
+ * when a single update dropped total debt by BALANCE_DROP_TRIGGER+.
  */
 function paydownTriggersCutscene(username, dropAmount) {
   if (!isCutsceneUser(username)) return false;
   const d = Number(dropAmount);
   return Number.isFinite(d) && d >= BALANCE_DROP_TRIGGER;
+}
+
+/**
+ * Dollars of cumulative paydown required for the next fire, scaled to the
+ * debt still owed: $500 while the mountain is big, tapering to $100 near the
+ * summit so the reward never goes silent at the finish line.
+ *   $50,000 owed → $500 · $3,000 owed → $300 · $800 owed → $100
+ */
+function cutsceneThreshold(currentDebt) {
+  const d = Number(currentDebt);
+  if (!Number.isFinite(d) || d <= 0) return TRIGGER_MIN;
+  return Math.max(TRIGGER_MIN, Math.min(TRIGGER_MAX, Math.round(d * TRIGGER_PCT)));
+}
+
+/**
+ * Feed one save's paydown into the accumulator and decide whether to fire.
+ * Only positive drops accumulate — a month where interest pushed the balance
+ * up doesn't drain credit already earned. One fire per save; the remainder
+ * past the threshold carries over toward the next one.
+ *
+ * @param {number} bucket       cumulative paydown banked since the last fire
+ * @param {number} drop         this save's total-debt drop (may be ≤ 0)
+ * @param {number} currentDebt  debt remaining after this save
+ * @returns {{ fire: boolean, bucket: number, threshold: number }}
+ */
+function accumulateCutsceneProgress(bucket, drop, currentDebt) {
+  const threshold = cutsceneThreshold(currentDebt);
+  let b = Number(bucket);
+  if (!Number.isFinite(b) || b < 0) b = 0;
+  const d = Number(drop);
+  if (Number.isFinite(d) && d > 0) b = Math.round((b + d) * 100) / 100;
+  if (b >= threshold) {
+    return { fire: true, bucket: Math.round((b - threshold) * 100) / 100, threshold };
+  }
+  return { fire: false, bucket: b, threshold };
+}
+
+/**
+ * Rotate the clip pool: never the same clip twice in a row (with two clips,
+ * perfect alternation). No/invalid last index → start at 0.
+ */
+function nextCutsceneIndex(lastIndex, poolLength) {
+  const len = Number(poolLength);
+  if (!Number.isInteger(len) || len <= 0) return null;
+  // Explicit null/absent check first: Number(null) is 0, which would read as
+  // "clip 0 played last" and wrongly start a fresh rotation at clip 1.
+  if (lastIndex == null || lastIndex === '') return 0;
+  const last = Number(lastIndex);
+  if (!Number.isInteger(last) || last < 0 || last >= len) return 0;
+  return (last + 1) % len;
 }
 
 /**
@@ -86,6 +138,9 @@ module.exports = {
   cutsceneVideos,
   isCutsceneUser,
   paydownTriggersCutscene,
+  cutsceneThreshold,
+  accumulateCutsceneProgress,
+  nextCutsceneIndex,
   pickCutsceneVideo,
   selectCutsceneVideo,
 };

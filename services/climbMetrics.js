@@ -606,6 +606,9 @@ function captureUndoState(snapshotId, prevBalances, label = 'update', appendedAt
       last: getConfig(KEY_LAST),
       baseline: getConfig(KEY_BASELINE),
       gameStart: getConfig('game_start_debt'),
+      // Cutscene paydown accumulator — undoing a mistyped entry must also
+      // take back the reward credit it banked.
+      cutsceneBucket: getConfig('cutscene_paydown_bucket'),
     },
     balances: mapToObj(prevBalances),
     // Pre-pull reconcile stamps, so undo can put them back exactly. Without
@@ -657,6 +660,10 @@ function undoLastPull() {
   restoreConfigValue(KEY_LAST, prev.last);
   restoreConfigValue(KEY_BASELINE, prev.baseline);
   restoreConfigValue('game_start_debt', prev.gameStart);
+  // Older undo entries predate the field: leave the bucket alone for those.
+  if ('cutsceneBucket' in prev) {
+    restoreConfigValue('cutscene_paydown_bucket', prev.cutsceneBucket);
+  }
 
   const restored = new Map();
   if (entry && entry.balances && typeof entry.balances === 'object') {

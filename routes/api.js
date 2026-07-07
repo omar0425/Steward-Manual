@@ -33,7 +33,13 @@ const {
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
 const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
-const { isCutsceneUser, paydownTriggersCutscene, selectCutsceneVideo } = require('../services/cutscene');
+const {
+  isCutsceneUser,
+  selectCutsceneVideo,
+  cutsceneVideos,
+  accumulateCutsceneProgress,
+  nextCutsceneIndex,
+} = require('../services/cutscene');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -971,13 +977,25 @@ router.post('/snapshot', (req, res) => {
       setConfig('last_aggregate_debt_for_climb', String(debtRemaining));
     }
 
-    // Cutscene trigger: this update cleared $500+ of total debt. Arms a flag the
-    // dashboard plays once on its next load (cutscene user only).
-    if (gameActive && Number.isFinite(prevTotalDebtForCutscene)) {
+    // Cutscene trigger (cutscene user only): cumulative paydown accumulates
+    // across saves and fires when it crosses a threshold scaled to the debt
+    // still owed ($500 early, tapering to $100 near the end) — so splitting a
+    // payment over several Quick Updates earns exactly the same reward, and
+    // the videos never go silent at the finish line. The remainder past the
+    // threshold carries toward the next fire. Clips rotate (never the same
+    // one twice in a row); the chosen index is pinned at arm time so every
+    // range request of one playback resolves to the same file.
+    if (gameActive && Number.isFinite(prevTotalDebtForCutscene) && isCutsceneUser(req.user && req.user.username)) {
       const drop = roundMoney(prevTotalDebtForCutscene - debtRemaining);
-      if (paydownTriggersCutscene(req.user && req.user.username, drop)) {
+      const bucketBefore = Number(getConfig('cutscene_paydown_bucket'));
+      const result = accumulateCutsceneProgress(bucketBefore, drop, debtRemaining);
+      if (result.fire) {
         setConfig('pending_cutscene', '1');
+        const last = parseInt(getConfig('cutscene_last_index') ?? '', 10);
+        const next = nextCutsceneIndex(last, cutsceneVideos().length);
+        if (next != null) setConfig('cutscene_next_index', String(next));
       }
+      setConfig('cutscene_paydown_bucket', String(result.bucket));
     }
     }); // end transaction — snapshot + balances + history + climb metrics commit together
 
@@ -1281,6 +1299,13 @@ router.post('/config/notifications-sent', express.json(), (req, res) => {
 
 router.post('/config/cutscene-seen', express.json(), (req, res) => {
   setConfig('pending_cutscene', '0');
+  // Rotate: the clip just watched becomes "last", so the next fire picks the
+  // other one (never the same clip twice in a row).
+  const shown = getConfig('cutscene_next_index');
+  if (shown != null && shown !== '') {
+    setConfig('cutscene_last_index', String(shown));
+    setConfig('cutscene_next_index', '');
+  }
   res.json({ ok: true });
 });
 
@@ -1348,10 +1373,14 @@ router.post('/config/account-cleared-seen', express.json(), (req, res) => {
 // through, never buffered whole.
 router.get('/cutscene/video', async (req, res) => {
   if (!req.user || !isCutsceneUser(req.user.username)) return res.status(404).end();
-  // Stable per-play selection from the client's seed so every range request in
-  // one playback resolves to the SAME clip (a per-request random pick corrupts
-  // seeking — the browser would fetch a byte range of one clip and get another).
-  const url = selectCutsceneVideo(req.query && req.query.v);
+  // Prefer the rotation index pinned when the cutscene was ARMED — it's stable
+  // across every range request of a playback and guarantees no clip repeats
+  // back-to-back. Legacy fallback: the client's per-play seed (also stable).
+  const pool = cutsceneVideos();
+  const pinned = parseInt(getConfig('cutscene_next_index') ?? '', 10);
+  const url = Number.isInteger(pinned) && pinned >= 0 && pinned < pool.length
+    ? pool[pinned]
+    : selectCutsceneVideo(req.query && req.query.v);
   if (!url) return res.status(404).end();
 
   const headers = {};

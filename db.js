@@ -851,6 +851,9 @@ function resetAllGameState() {
     // AI commentary + cutscene state — a reset must not leave stale narration,
     // nicknames, fired-mode timers, or an armed cutscene describing the old game.
     'pending_cutscene',
+    'cutscene_paydown_bucket',
+    'cutscene_next_index',
+    'cutscene_last_index',
     'steward_ai_ledger',
     'steward_ai_nicknames',
     'steward_ai_last_if_do_nothing_at',
