@@ -43,7 +43,7 @@ const DASHBOARD_ONBOARDING_STEPS = [
   {
     lead: 'This is where you update your numbers.',
     body: [
-      'Edit balances inline whenever you make a payment, then hit Update Balances. Add new debts here too \u2014 this is your main action surface.',
+      'Edit balances inline whenever you make a payment, then hit Update Balances \u2014 or use \u26a1 Quick update to step through every account in seconds (Enter jumps to the next one). The \u201c\u2713 checked\u201d line under each name shows when you last verified that balance against the real statement; it turns amber when it\u2019s been over a month.',
     ],
     resolveTarget: () =>
       onboardingResolveDashboardTarget('#manual-entry-panel')
@@ -52,9 +52,25 @@ const DASHBOARD_ONBOARDING_STEPS = [
   {
     lead: 'Debt Accounts breaks down what you owe.',
     body: [
-      'Sort by Balance or APR, edit APRs, and use the sparkline plus recent change to see which accounts are moving.',
+      'Sort by Balance or APR, and open APRs & terms to set each account\u2019s interest rate, minimum payment, and due day \u2014 those three numbers power the interest math, the payoff advice, and payment reminders.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('#debt-accounts-list'),
+  },
+  {
+    lead: 'Pay this next is your strategy card.',
+    body: [
+      'Save most attacks the highest interest rate; Quick win clears the smallest balance first. Once minimum payments are set, it tells you the exact move: cover every minimum, then aim all extra dollars at the target.',
+    ],
+    resolveTarget: () => onboardingResolveDashboardTarget('#pay-next-section:not([hidden])'),
+  },
+  {
+    lead: 'The chart asks: what if you paid more?',
+    body: [
+      'Your debt line, plus a slider that runs the real math \u2014 drag it to see how many months sooner you\u2019d be free and how much interest you\u2019d keep from the bank at +$N per month.',
+    ],
+    resolveTarget: () =>
+      onboardingResolveDashboardTarget('#whatif-section:not([hidden])')
+        || onboardingResolveDashboardTarget('#networth-chart-svg'),
   },
   {
     lead: 'Total Cleared is your permanent record.',
@@ -64,9 +80,9 @@ const DASHBOARD_ONBOARDING_STEPS = [
     resolveTarget: () => onboardingResolveDashboardTarget('#stat-cumulative-paydown'),
   },
   {
-    lead: 'We stamp every save.',
+    lead: 'We stamp every save \u2014 and this strip is your toolbox.',
     body: [
-      'Last snapshot and freshness live here so you know when your data was last touched. Stale numbers mean the climb is paused, not over.',
+      'Last snapshot and freshness show when your data was last touched. Down here you can also export a backup (JSON/CSV), restore one, and turn on \ud83d\udd14 payment reminders \u2014 a notification a few days before each due date on this device.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('.data-strip'),
   },
