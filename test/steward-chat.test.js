@@ -1,9 +1,10 @@
 'use strict';
 
-// Steward Chat (beta): gating, validation, history/note persistence, and the
-// context payload additions (payment terms + situation note). Model calls are
-// never made here — the suite runs keyless, so the configured-check paths are
-// what's exercised.
+// Steward Chat: validation, history/note persistence, and the context payload
+// additions (payment terms + situation note + memories). Chat is available to
+// every authenticated user (the old single-account beta gate is gone). Model
+// calls are never made here — the suite runs keyless, so the configured-check
+// paths are what's exercised.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -53,19 +54,18 @@ test.beforeEach(() => {
   withUser(1, resetAllGameState);
 });
 
-test('chat: writes are invisible (404) to non-beta users; the probe answers beta:false', async () => {
+test('chat: available to every authenticated user (beta gate removed)', async () => {
   await withApp('SomebodyElse', async (baseUrl) => {
-    // The GET probe runs on every dashboard boot — it must answer cleanly
-    // (a 404 would put a console error in every regular user's devtools).
     const probe = await fetch(`${baseUrl}/api/steward-ai/chat`);
     assert.equal(probe.status, 200);
     const body = await probe.json();
-    assert.equal(body.beta, false);
-    assert.equal(body.messages, undefined, 'no thread data leaks to non-beta users');
-    // The write surface simply does not exist for them.
-    assert.equal((await postJson(baseUrl, '/api/steward-ai/chat', { message: 'hi' })).status, 404);
-    assert.equal((await fetch(`${baseUrl}/api/steward-ai/chat/clear`, { method: 'POST' })).status, 404);
-    assert.equal((await postJson(baseUrl, '/api/steward-ai/situation-note', { note: 'x' })).status, 404);
+    assert.equal(body.beta, true, 'chat is on for everyone now');
+    assert.deepEqual(body.messages, []);
+    assert.deepEqual(body.memories, []);
+    // The write surface exists for them too (keyless → honest 503, not 404).
+    assert.equal((await postJson(baseUrl, '/api/steward-ai/chat', { message: 'hi' })).status, 503);
+    assert.equal((await fetch(`${baseUrl}/api/steward-ai/chat/clear`, { method: 'POST' })).status, 200);
+    assert.equal((await postJson(baseUrl, '/api/steward-ai/situation-note', { note: 'x' })).status, 200);
   });
 });
 

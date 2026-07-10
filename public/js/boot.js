@@ -399,9 +399,12 @@ export function initDashboardBoot() {
   // Payment-reminder push toggle (registers the service worker; hides itself
   // where push isn't supported). Fire-and-forget — never blocks boot.
   void initPushToggle();
-  // Steward Chat beta: upgrades the Ask panel into a conversation for the
-  // beta account (the probe 404s for everyone else). Fire-and-forget.
+  // Steward Chat: upgrades the Ask panel into a real conversation (with the
+  // Steward's ledger tools + memory). Fire-and-forget.
   void initStewardChat();
+  // Chat writes to the ledger via AI tools; give it a way to refresh the
+  // dashboard so recorded entries show up without a manual reload.
+  window.stewardRefreshDashboard = () => load({ refresh: true });
   const root = document.getElementById('commitment-screen');
   if (!root) {
     initStartGameGate();

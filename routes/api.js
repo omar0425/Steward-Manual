@@ -653,13 +653,28 @@ function exceedsMoneyCap(n) {
 const MAX_DEBT_ACCOUNTS = 200;
 
 router.post('/snapshot', (req, res) => {
+  const out = saveSnapshotForUser(req.body, req.user && req.user.username);
+  return res.status(out.status).json(out.body);
+});
+
+// 400 helper for saveSnapshotForUser — keeps the validation returns terse.
+function bad(error) {
+  return { status: 400, body: { ok: false, error } };
+}
+
+/**
+ * The full snapshot write path — validation, financial-field preservation,
+ * origin/classification bookkeeping, the atomic transaction, undo capture,
+ * climb metrics, celebrations. Extracted from the route so the Steward AI's
+ * tools and the manual-entry form share ONE code path; both callers get
+ * identical validation and identical undo behavior. Returns { status, body }.
+ * Must run inside withUser().
+ */
+function saveSnapshotForUser(rawBody, username) {
   try {
-    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const body = rawBody && typeof rawBody === 'object' ? rawBody : {};
     if (Object.keys(body).length === 0) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Snapshot body is empty. Include totalAssets, totalDebt, or debtAccounts.',
-      });
+      return bad('Snapshot body is empty. Include totalAssets, totalDebt, or debtAccounts.');
     }
     const {
       totalAssets = 0,
@@ -686,26 +701,17 @@ router.post('/snapshot', (req, res) => {
     };
     const negativeField = Object.entries(moneyFields).find(([, value]) => isNegativeFinite(value));
     if (negativeField) {
-      return res.status(400).json({
-        ok: false,
-        error: `${negativeField[0]} cannot be negative`,
-      });
+      return bad(`${negativeField[0]} cannot be negative`);
     }
     const oversizedField = Object.entries(moneyFields).find(([, value]) => exceedsMoneyCap(value));
     if (oversizedField) {
-      return res.status(400).json({
-        ok: false,
-        error: `${oversizedField[0]} is unrealistically large (max ${MAX_MONEY}).`,
-      });
+      return bad(`${oversizedField[0]} is unrealistically large (max ${MAX_MONEY}).`);
     }
     // Reject non-finite money fields. Silent coercion (Number("$3,000") → NaN → 0)
     // previously zeroed totals and credited phantom paydown.
     for (const [name, value] of Object.entries(moneyFields)) {
       if (value !== undefined && value !== null && value !== '' && !Number.isFinite(Number(value))) {
-        return res.status(400).json({
-          ok: false,
-          error: `${name} must be a number (got ${JSON.stringify(value)})`,
-        });
+        return bad(`${name} must be a number (got ${JSON.stringify(value)})`);
       }
     }
 
@@ -745,43 +751,34 @@ router.post('/snapshot', (req, res) => {
 
     if (Array.isArray(debtAccounts) && debtAccounts.length > 0) {
       if (debtAccounts.length > MAX_DEBT_ACCOUNTS) {
-        return res.status(400).json({
-          ok: false,
-          error: `Too many debt accounts (max ${MAX_DEBT_ACCOUNTS}).`,
-        });
+        return bad(`Too many debt accounts (max ${MAX_DEBT_ACCOUNTS}).`);
       }
       let sumFromAccounts = 0;
       for (const acct of debtAccounts) {
         if (!acct || typeof acct !== 'object') {
-          return res.status(400).json({ ok: false, error: 'debtAccounts entries must be objects' });
+          return bad('debtAccounts entries must be objects');
         }
         // Cap the id length too — it's a map key and a stored column; only `name`
         // was previously bounded.
         const id  = String(acct.id || `acct-${debtDisplayRows.length}`).slice(0, 100);
         if (debtBalanceMap.has(id)) {
-          return res.status(400).json({ ok: false, error: `Duplicate debt account id: ${id}` });
+          return bad(`Duplicate debt account id: ${id}`);
         }
         if (isNegativeFinite(acct.balance)) {
-          return res.status(400).json({ ok: false, error: `Debt account ${id} balance cannot be negative` });
+          return bad(`Debt account ${id} balance cannot be negative`);
         }
         if (exceedsMoneyCap(acct.balance)) {
-          return res.status(400).json({ ok: false, error: `Debt account ${id} balance is unrealistically large (max ${MAX_MONEY}).` });
+          return bad(`Debt account ${id} balance is unrealistically large (max ${MAX_MONEY}).`);
         }
         // Reject missing or non-finite balances. Silent coercion to 0 was the
         // root of two bugs: a typo like "$3,000.00" rolled the user to
         // "wealthy", and an omitted field silently recorded the account as
         // paid off. Both are now explicit 400s.
         if (acct.balance === undefined || acct.balance === null || acct.balance === '') {
-          return res.status(400).json({
-            ok: false,
-            error: `Debt account ${id} is missing a balance. Send 0 explicitly to mark it paid off.`,
-          });
+          return bad(`Debt account ${id} is missing a balance. Send 0 explicitly to mark it paid off.`);
         }
         if (!Number.isFinite(Number(acct.balance))) {
-          return res.status(400).json({
-            ok: false,
-            error: `Debt account ${id} balance must be a number (got ${JSON.stringify(acct.balance)})`,
-          });
+          return bad(`Debt account ${id} balance must be a number (got ${JSON.stringify(acct.balance)})`);
         }
         const bal = Math.round(roundMoney(acct.balance));
         const rawName = typeof acct.name === 'string' && acct.name.trim() ? acct.name.trim() : 'Account';
@@ -985,7 +982,7 @@ router.post('/snapshot', (req, res) => {
     // threshold carries toward the next fire. Clips rotate (never the same
     // one twice in a row); the chosen index is pinned at arm time so every
     // range request of one playback resolves to the same file.
-    if (gameActive && Number.isFinite(prevTotalDebtForCutscene) && isCutsceneUser(req.user && req.user.username)) {
+    if (gameActive && Number.isFinite(prevTotalDebtForCutscene) && isCutsceneUser(username)) {
       const drop = roundMoney(prevTotalDebtForCutscene - debtRemaining);
       const bucketBefore = Number(getConfig('cutscene_paydown_bucket'));
       const result = accumulateCutsceneProgress(bucketBefore, drop, debtRemaining);
@@ -1011,12 +1008,12 @@ router.post('/snapshot', (req, res) => {
       const labels = preservedFields.map((p) => p.field).join(', ');
       response.message = `Snapshot saved. Kept your last non-zero value for: ${labels}. To record an actual zero, resend with "allowZero": true.`;
     }
-    return res.json(response);
+    return { status: 200, body: response };
   } catch (err) {
     console.error('[api] manual snapshot error:', err);
-    return res.status(500).json({ ok: false, error: 'Could not save snapshot.' });
+    return { status: 500, body: { ok: false, error: 'Could not save snapshot.' } };
   }
-});
+}
 
 // ── POST /api/start-game ──────────────────────────────────────────────────────
 
@@ -1595,20 +1592,392 @@ router.post('/steward-ai/tier-quote', (req, res) => {
   })();
 });
 
-// ── Steward Chat (beta — the owner's account only) ────────────────────────────
+// ── Steward AI tools ──────────────────────────────────────────────────────────
+// The bounded action set the chat model can call. Every write funnels through
+// the app's existing validated paths (saveSnapshotForUser for balances — same
+// undo capture as the manual form; merge-writes for terms/APRs), so the model
+// can never bypass validation or create an un-undoable state. Deliberately
+// EXCLUDED: reset game, start game, delete accounts, import/export — those are
+// player-only controls in the UI.
+
+const stewardAiMemory = require('../services/stewardAiMemory');
+
+/** Current accounts as [{id, name, balance}] using the persisted name map. */
+function listCurrentAccounts() {
+  const balances = getAllDebtAccountBalances();
+  const nameMap = parseJsonObject(getConfig('debt_account_name_map'));
+  const rows = [];
+  for (const [id, balance] of balances.entries()) {
+    rows.push({ id, name: String(nameMap[id] || id), balance: Number(balance) || 0 });
+  }
+  return rows;
+}
+
+/**
+ * Resolve a model-supplied account reference (id, name, or nickname — any
+ * case) to exactly one account. Returns { ok, account } or { ok:false, error }
+ * with the available names so the model can self-correct in the next round.
+ */
+function resolveAccountRef(ref) {
+  const wanted = String(ref || '').trim().toLowerCase();
+  const accounts = listCurrentAccounts();
+  if (!wanted) return { ok: false, error: 'No account given.', accounts };
+  if (accounts.length === 0) {
+    return { ok: false, error: 'There are no debt accounts yet. Add one first with add_debt_account.' };
+  }
+  const nicknames = parseJsonObject(getConfig('steward_ai_nicknames'));
+  const matches = accounts.filter((a) => {
+    if (a.id.toLowerCase() === wanted) return true;
+    if (a.name.toLowerCase() === wanted) return true;
+    const nick = nicknames[a.id];
+    return typeof nick === 'string' && nick.toLowerCase() === wanted;
+  });
+  // Fall back to substring matching only when exact matching found nothing.
+  const found = matches.length > 0 ? matches : accounts.filter(
+    (a) => a.name.toLowerCase().includes(wanted) || a.id.toLowerCase().includes(wanted),
+  );
+  const names = accounts.map((a) => a.name).join(', ');
+  if (found.length === 1) return { ok: true, account: found[0] };
+  if (found.length === 0) {
+    return { ok: false, error: `No account matches "${ref}". The accounts are: ${names}.` };
+  }
+  return {
+    ok: false,
+    error: `"${ref}" matches more than one account (${found.map((a) => a.name).join(', ')}). Ask the player which one they mean.`,
+  };
+}
+
+function fmtUsd(n) {
+  return '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
+}
+
+/** Slug id for a new account, unique against the existing ids. */
+function newAccountId(name, existing) {
+  const base = String(name || 'account').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'account';
+  const taken = new Set(existing.map((a) => a.id));
+  if (!taken.has(base)) return base;
+  for (let i = 2; i < 100; i++) {
+    if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+/** Merge one account's terms into debt_terms (same ranges the route enforces). */
+function mergeDebtTerms(accountId, { minPayment, dueDay }) {
+  const terms = parseJsonObject(getConfig(DEBT_TERMS_KEY));
+  const entry = terms[accountId] && typeof terms[accountId] === 'object' ? terms[accountId] : {};
+  const applied = [];
+  if (minPayment !== undefined) {
+    const min = Number(minPayment);
+    if (!Number.isFinite(min) || min <= 0 || min > 1e7) {
+      return { ok: false, error: 'minPayment must be a positive dollar amount.' };
+    }
+    entry.minPayment = Math.round(min * 100) / 100;
+    applied.push(`minimum payment ${fmtUsd(entry.minPayment)}/mo`);
+  }
+  if (dueDay !== undefined) {
+    const day = Number(dueDay);
+    if (!Number.isInteger(day) || day < 1 || day > 31) {
+      return { ok: false, error: 'dueDay must be a day of the month, 1-31.' };
+    }
+    entry.dueDay = day;
+    applied.push(`due on the ${day}${day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : day >= 21 && day % 10 === 1 ? 'st' : day >= 21 && day % 10 === 2 ? 'nd' : day >= 21 && day % 10 === 3 ? 'rd' : 'th'}`);
+  }
+  if (applied.length === 0) return { ok: false, error: 'Provide minPayment and/or dueDay.' };
+  terms[accountId] = entry;
+  setConfig(DEBT_TERMS_KEY, JSON.stringify(terms));
+  return { ok: true, applied };
+}
+
+/** Merge one account's APR into interest_rates (0-100, like the route). */
+function mergeInterestRate(accountId, aprPercent) {
+  const n = Number(aprPercent);
+  if (!Number.isFinite(n) || n < 0 || n > 100) {
+    return { ok: false, error: 'aprPercent must be between 0 and 100.' };
+  }
+  const rates = parseJsonObject(getConfig(INTEREST_RATES_KEY));
+  rates[accountId] = Math.round(n * 100) / 100;
+  setConfig(INTEREST_RATES_KEY, JSON.stringify(rates));
+  return { ok: true, apr: rates[accountId] };
+}
+
+// A data write happened → cached AI dialog/quotes describe stale figures.
+function dropAiCachesAfterWrite() {
+  deleteConfigByPrefix('steward_ai_dialog_at:');
+  deleteConfigByPrefix('steward_ai_quote_at:');
+}
+
+const CLASSIFICATION_REASONS = ['purchase', 'new_loan', 'interest', 'preexisting'];
+
+const STEWARD_AI_TOOLS = [
+  {
+    name: 'update_debt_balances',
+    description:
+      'Record new balances for one or more EXISTING debt accounts (a payment, an interest hit, ' +
+      'a purchase, or a corrected figure). Balances are the amount still owed. This creates a ' +
+      'check-in entry exactly like the player updating balances themselves, and it is undoable. ' +
+      'For a balance that INCREASED, set reason so the rise is classified honestly.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        changes: {
+          type: 'array',
+          description: 'One entry per account whose balance changed.',
+          items: {
+            type: 'object',
+            properties: {
+              account: { type: 'string', description: 'Account name, nickname, or id as the player refers to it.' },
+              newBalance: { type: 'number', description: 'The new amount still owed, in dollars. 0 means paid off.' },
+              reason: {
+                type: 'string',
+                enum: CLASSIFICATION_REASONS,
+                description: 'Only for increases: purchase (new spending), new_loan, interest (interest charged), or preexisting (debt that existed all along, just now reported).',
+              },
+            },
+            required: ['account', 'newBalance'],
+          },
+        },
+      },
+      required: ['changes'],
+    },
+  },
+  {
+    name: 'add_debt_account',
+    description:
+      'Add a NEW debt account the player is not tracking yet, with its current balance. ' +
+      'Optionally set its APR, minimum payment, and due day in the same call. Set preexisting=true ' +
+      'when the player already had this debt and is only now telling you about it (so it does not ' +
+      'count as new borrowing).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Display name, e.g. "Chase Sapphire" or "Car loan".' },
+        balance: { type: 'number', description: 'Current amount owed, in dollars.' },
+        aprPercent: { type: 'number', description: 'Annual interest rate as a percentage, e.g. 24.99.' },
+        minPayment: { type: 'number', description: 'Minimum monthly payment in dollars.' },
+        dueDay: { type: 'integer', description: 'Day of month the payment is due (1-31).' },
+        preexisting: { type: 'boolean', description: 'True when this debt existed before — folds into the baseline instead of counting as new debt.' },
+      },
+      required: ['name', 'balance'],
+    },
+  },
+  {
+    name: 'set_debt_terms',
+    description: "Set or update an existing account's minimum monthly payment and/or statement due day.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        account: { type: 'string', description: 'Account name, nickname, or id.' },
+        minPayment: { type: 'number', description: 'Minimum monthly payment in dollars.' },
+        dueDay: { type: 'integer', description: 'Day of month the payment is due (1-31).' },
+      },
+      required: ['account'],
+    },
+  },
+  {
+    name: 'set_interest_rate',
+    description: "Set or update an existing account's APR (annual interest rate).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        account: { type: 'string', description: 'Account name, nickname, or id.' },
+        aprPercent: { type: 'number', description: 'Annual rate as a percentage, 0-100.' },
+      },
+      required: ['account', 'aprPercent'],
+    },
+  },
+  {
+    name: 'undo_last_entry',
+    description:
+      'Reverse the most recent balance entry (yours or the player\'s) — use when the player says ' +
+      'the last recorded update was wrong. Only the latest entry can be undone.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'manage_memory',
+    description:
+      'Keep, revise, or drop a durable fact about the player that should survive across ' +
+      'conversations (pay schedule, goals, upcoming expenses, preferences, hardships). ' +
+      'Existing memories arrive in the FIGURES as memories[{id, fact}]. Never store balances or ' +
+      'figures the ledger already tracks.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['save', 'update', 'delete'] },
+        id: { type: 'integer', description: 'Memory id (required for update/delete).' },
+        fact: { type: 'string', description: 'One short sentence (required for save/update).' },
+      },
+      required: ['action'],
+    },
+  },
+];
+
+/**
+ * Execute one tool call from the chat model. Synchronous (SQLite), runs inside
+ * the request's withUser scope. Returns a JSON-able object; { ok:false } is
+ * fed back to the model as an error result it can react to. `summary` on
+ * success is shown to the player as the receipt line.
+ */
+function executeStewardTool(name, input, username) {
+  const arg = input && typeof input === 'object' ? input : {};
+
+  if (name === 'update_debt_balances') {
+    const changes = Array.isArray(arg.changes) ? arg.changes : [];
+    if (changes.length === 0) return { ok: false, error: 'changes[] is empty.' };
+    if (changes.length > 20) return { ok: false, error: 'Too many changes in one entry (max 20).' };
+    const accounts = listCurrentAccounts();
+    if (accounts.length === 0) {
+      return { ok: false, error: 'No debt accounts exist yet — use add_debt_account first.' };
+    }
+    const byId = new Map(accounts.map((a) => [a.id, { ...a }]));
+    const classifications = {};
+    const lines = [];
+    for (const ch of changes) {
+      const resolved = resolveAccountRef(ch && ch.account);
+      if (!resolved.ok) return { ok: false, error: resolved.error };
+      const acct = byId.get(resolved.account.id);
+      const newBal = Number(ch.newBalance);
+      if (!Number.isFinite(newBal) || newBal < 0) {
+        return { ok: false, error: `New balance for ${acct.name} must be a non-negative number.` };
+      }
+      const prev = acct.balance;
+      acct.balance = Math.round(newBal);
+      if (acct.balance > prev && ch.reason && CLASSIFICATION_REASONS.includes(ch.reason)) {
+        classifications[acct.id] = ch.reason;
+      }
+      const delta = Math.round(prev - acct.balance);
+      const move = delta > 0 ? `paid down ${fmtUsd(delta)}` : delta < 0 ? `up ${fmtUsd(-delta)}` : 'unchanged';
+      lines.push(`${acct.name}: ${fmtUsd(prev)} → ${fmtUsd(acct.balance)} (${move}).`);
+    }
+    const debtAccounts = [...byId.values()].map((a) => ({ id: a.id, name: a.name, balance: a.balance }));
+    const totalDebt = debtAccounts.reduce((s, a) => s + a.balance, 0);
+    const out = saveSnapshotForUser({ totalDebt, debtAccounts, classifications }, username);
+    if (out.status !== 200) {
+      return { ok: false, error: (out.body && out.body.error) || 'The entry was rejected.' };
+    }
+    dropAiCachesAfterWrite();
+    return { ok: true, dataChanged: true, summary: lines.join(' '), tier: out.body.tier };
+  }
+
+  if (name === 'add_debt_account') {
+    const nameClean = String(arg.name || '').trim().slice(0, 100);
+    if (!nameClean) return { ok: false, error: 'The account needs a name.' };
+    const balance = Number(arg.balance);
+    if (!Number.isFinite(balance) || balance < 0) {
+      return { ok: false, error: 'balance must be a non-negative dollar amount.' };
+    }
+    const accounts = listCurrentAccounts();
+    const clash = accounts.find((a) => a.name.toLowerCase() === nameClean.toLowerCase());
+    if (clash) {
+      return { ok: false, error: `An account named "${clash.name}" already exists — use update_debt_balances for it.` };
+    }
+    const id = newAccountId(nameClean, accounts);
+    const debtAccounts = accounts.map((a) => ({ id: a.id, name: a.name, balance: a.balance }));
+    debtAccounts.push({ id, name: nameClean, balance: Math.round(balance) });
+    const classifications = arg.preexisting === true ? { [id]: 'preexisting' } : {};
+    const totalDebt = debtAccounts.reduce((s, a) => s + a.balance, 0);
+    const out = saveSnapshotForUser({ totalDebt, debtAccounts, classifications }, username);
+    if (out.status !== 200) {
+      return { ok: false, error: (out.body && out.body.error) || 'The entry was rejected.' };
+    }
+    const extras = [];
+    if (arg.aprPercent !== undefined) {
+      const r = mergeInterestRate(id, arg.aprPercent);
+      if (r.ok) extras.push(`APR ${r.apr}%`);
+    }
+    if (arg.minPayment !== undefined || arg.dueDay !== undefined) {
+      const t = mergeDebtTerms(id, { minPayment: arg.minPayment, dueDay: arg.dueDay });
+      if (t.ok) extras.push(...t.applied);
+    }
+    dropAiCachesAfterWrite();
+    return {
+      ok: true,
+      dataChanged: true,
+      summary: `Added ${nameClean} at ${fmtUsd(balance)}${extras.length ? ` (${extras.join(', ')})` : ''}.`,
+    };
+  }
+
+  if (name === 'set_debt_terms') {
+    const resolved = resolveAccountRef(arg.account);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
+    const t = mergeDebtTerms(resolved.account.id, { minPayment: arg.minPayment, dueDay: arg.dueDay });
+    if (!t.ok) return t;
+    return { ok: true, dataChanged: true, summary: `${resolved.account.name}: ${t.applied.join(', ')}.` };
+  }
+
+  if (name === 'set_interest_rate') {
+    const resolved = resolveAccountRef(arg.account);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
+    const r = mergeInterestRate(resolved.account.id, arg.aprPercent);
+    if (!r.ok) return r;
+    return { ok: true, dataChanged: true, summary: `${resolved.account.name}: APR set to ${r.apr}%.` };
+  }
+
+  if (name === 'undo_last_entry') {
+    if (getGameStart().gameStartDebt == null) {
+      return { ok: false, error: 'No active climb to undo.' };
+    }
+    if (!hasUndoState()) {
+      return { ok: false, error: 'There is nothing to undo — no recent entry is on the undo stack.' };
+    }
+    const label = peekUndoLabel();
+    const result = undoLastPull();
+    if (!result || !result.undone) {
+      return { ok: false, error: 'The undo could not be applied.' };
+    }
+    dropAiCachesAfterWrite();
+    return { ok: true, dataChanged: true, summary: `Reversed the last ${label === 'correction' ? 'correction' : 'entry'}.` };
+  }
+
+  if (name === 'manage_memory') {
+    const action = String(arg.action || '');
+    if (action === 'save') {
+      const r = stewardAiMemory.saveMemory(arg.fact, 'ai');
+      if (!r.ok) return r;
+      return { ok: true, summary: r.duplicate ? 'Already noted.' : `Noted: ${String(arg.fact).trim().slice(0, 120)}` };
+    }
+    if (action === 'update') {
+      const r = stewardAiMemory.updateMemory(arg.id, arg.fact);
+      if (!r.ok) return r;
+      return { ok: true, summary: `Updated a note: ${String(arg.fact).trim().slice(0, 120)}` };
+    }
+    if (action === 'delete') {
+      const r = stewardAiMemory.deleteMemory(arg.id);
+      if (!r.ok) return r;
+      return { ok: true, summary: 'Dropped a note.' };
+    }
+    return { ok: false, error: 'action must be save, update, or delete.' };
+  }
+
+  return { ok: false, error: `Unknown tool: ${name}` };
+}
+
+// ── Steward Chat ──────────────────────────────────────────────────────────────
 // A real conversation with the Steward: persistent thread + a standing
 // "situation note" the AI always knows, grounded in the same context payload
-// as the dialog modes (now including payment terms). Gated to the same single
-// account as the cutscene easter egg while it's being tested; every route 404s
-// for anyone else so the surface simply doesn't exist for other users.
+// as the dialog modes (including payment terms + memories). Formerly gated to
+// a single beta account; now available to every authenticated user — each
+// user's Steward sees and touches only their own data (withUser scoping).
 
 const CHAT_HISTORY_KEY = 'steward_chat_history';
 const SITUATION_NOTE_KEY = 'steward_situation_note';
 const CHAT_MAX_TURNS = 40;      // kept messages (user + assistant combined)
 const CHAT_MAX_MSG_CHARS = 1500;
 
-function isChatBetaUser(req) {
-  return !!(req.user && isCutsceneUser(req.user.username));
+// Cost guard: each chat turn can spend up to ~7 model calls (tool rounds), and
+// there is no other rate limiting in the app. A generous daily per-user cap
+// keeps a runaway client or a very chatty day from becoming a surprise bill.
+const CHAT_DAILY_LIMIT = 200;
+const CHAT_USAGE_KEY = 'steward_ai_chat_usage';
+
+/** Increment today's chat-turn counter; false when the daily cap is spent. */
+function consumeChatBudget() {
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = parseJsonObject(getConfig(CHAT_USAGE_KEY));
+  const count = usage.date === today ? (Number(usage.count) || 0) : 0;
+  if (count >= CHAT_DAILY_LIMIT) return false;
+  setConfig(CHAT_USAGE_KEY, JSON.stringify({ date: today, count: count + 1 }));
+  return true;
 }
 
 function readChatHistory() {
@@ -1623,22 +1992,17 @@ function writeChatHistory(history) {
 }
 
 router.get('/steward-ai/chat', (req, res) => {
-  // The probe runs on EVERY dashboard boot, so a 404 here would put a red
-  // "Failed to load resource" line in every non-beta user's console (and trip
-  // the e2e console guard). Answer 200 with beta:false instead; the write
-  // routes below stay hard-404 so the surface can't be driven by others.
-  if (!isChatBetaUser(req)) return res.json({ ok: true, beta: false });
   res.json({
     ok: true,
     beta: true,
     enabled: stewardAi.isConfigured(),
     messages: readChatHistory(),
     situationNote: String(getConfig(SITUATION_NOTE_KEY) || ''),
+    memories: stewardAiMemory.readMemories(),
   });
 });
 
 router.post('/steward-ai/chat', express.json(), (req, res) => {
-  if (!isChatBetaUser(req)) return res.status(404).end();
   (async () => {
     try {
       const { message } = req.body || {};
@@ -1651,6 +2015,9 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
       if (!stewardAi.isConfigured()) {
         return res.status(503).json({ ok: false, error: 'The Steward is asleep — no AI key is configured on the server.' });
       }
+      if (!consumeChatBudget()) {
+        return res.status(429).json({ ok: false, error: 'The Steward has talked enough for one day — try again tomorrow.' });
+      }
       const ctx = stewardAiContext.buildContext();
       if (ctx.skip || !ctx.payload) {
         return res.json({
@@ -1661,16 +2028,27 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
       }
       const history = readChatHistory();
       history.push({ role: 'user', text: message.trim(), at: new Date().toISOString() });
-      const result = await stewardAi.generateChatReply({
+      const username = req.user && req.user.username;
+      const result = await stewardAi.generateChatReplyWithTools({
         history: history.slice(-CHAT_MAX_TURNS),
         payload: ctx.payload,
+        tools: STEWARD_AI_TOOLS,
+        executeTool: (name, input) => executeStewardTool(name, input, username),
       });
       if (!result || !result.ok || !result.text) {
         return res.status(200).json({ ok: false, error: 'The Steward could not answer just now. Try again in a moment.' });
       }
       history.push({ role: 'assistant', text: result.text, at: new Date().toISOString() });
       writeChatHistory(history);
-      return res.json({ ok: true, reply: result.text });
+      const actions = Array.isArray(result.actions) ? result.actions : [];
+      return res.json({
+        ok: true,
+        reply: result.text,
+        actions,
+        // True when a ledger write happened this turn → the client refreshes
+        // the dashboard so the numbers on screen match what was recorded.
+        dataChanged: actions.some((a) => a.tool !== 'manage_memory'),
+      });
     } catch (err) {
       console.error('[api] steward-ai/chat', err);
       return res.status(500).json({ ok: false, error: 'Chat failed.' });
@@ -1679,7 +2057,6 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
 });
 
 router.post('/steward-ai/chat/clear', express.json(), (req, res) => {
-  if (!isChatBetaUser(req)) return res.status(404).end();
   setConfig(CHAT_HISTORY_KEY, '[]');
   res.json({ ok: true });
 });
@@ -1688,7 +2065,6 @@ router.post('/steward-ai/chat/clear', express.json(), (req, res) => {
 // ask, dialog modes) via stewardAiContext, so the Steward always knows the
 // backstory without the player re-explaining it.
 router.post('/steward-ai/situation-note', express.json(), (req, res) => {
-  if (!isChatBetaUser(req)) return res.status(404).end();
   const { note } = req.body || {};
   if (note != null && typeof note !== 'string') {
     return res.status(400).json({ ok: false, error: 'note must be a string' });
@@ -1696,6 +2072,24 @@ router.post('/steward-ai/situation-note', express.json(), (req, res) => {
   const clean = String(note || '').trim().slice(0, 2000);
   setConfig(SITUATION_NOTE_KEY, clean);
   res.json({ ok: true, situationNote: clean });
+});
+
+// ── Steward memory (player-visible) ──────────────────────────────────────────
+// The chat panel lists what the Steward remembers; the player can delete any
+// fact directly (the AI manages its own via the manage_memory tool).
+
+router.get('/steward-ai/memory', (req, res) => {
+  res.json({ ok: true, memories: stewardAiMemory.readMemories() });
+});
+
+router.post('/steward-ai/memory/delete', express.json(), (req, res) => {
+  const id = Number(req.body && req.body.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ ok: false, error: 'A memory id is required.' });
+  }
+  const result = stewardAiMemory.deleteMemory(id);
+  if (!result.ok) return res.status(404).json(result);
+  res.json({ ok: true, memories: stewardAiMemory.readMemories() });
 });
 
 // ── GET /api/steward-ai/ledger ────────────────────────────────────────────────
@@ -1932,3 +2326,7 @@ router.get('/health', (req, res) => {
 });
 
 module.exports = router;
+// Exported for tests: the Steward AI tool surface (must run inside withUser()).
+module.exports.executeStewardTool = executeStewardTool;
+module.exports.STEWARD_AI_TOOLS = STEWARD_AI_TOOLS;
+module.exports.saveSnapshotForUser = saveSnapshotForUser;
