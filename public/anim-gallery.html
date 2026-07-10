@@ -38,14 +38,16 @@
   body.is-paused .steward-wrap * { animation-play-state: paused !important; }
   /* The hidden props are switched off two different ways: the racecar via inline
      CSS vars (which beat normal stylesheet rules → need !important), and the
-     Mercedes + mansion via hard-coded opacity:0 rules. Force both on. */
+     mansion via hard-coded opacity/display rules. Force both on. */
   body.reveal-props .steward-wrap {
     --car-opacity: 1 !important; --ring-opacity: 1 !important;
     --coin-shower-opacity: 1 !important; --ornament-opacity: 1 !important;
+    --ledger-opacity: 1 !important; --coinup-opacity: 1 !important;
+    --blueprint-opacity: 1 !important; --watch-opacity: 1 !important;
   }
-  /* These props are display:none in the product now; re-show them for inspection. */
+  /* In the product the racecar shows only at winning and the mansion only at
+     wealthy; re-show them everywhere for inspection. */
   body.reveal-props .sw-racecar,
-  body.reveal-props .wealthy-merc,
   body.reveal-props .wealthy-mansion { display: block !important; opacity: 1 !important; }
 </style>
 </head>
