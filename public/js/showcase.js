@@ -1,5 +1,7 @@
 'use strict';
 
+import { loadCharacterTemplate } from './template-loader.js';
+
 /* ── All 10 tiers — flavor text + accent colors ────────────────────── */
 const ALL_TIERS = [
   { id: 'rock_bottom', label: 'Buried', badge: '01',
@@ -332,9 +334,13 @@ function mountShowcaseGrid(rockBottomBuffer) {
   markActiveFromApi();
 }
 
-fetch('debt-tier-constants.json')
-  .then(r => (r.ok ? r.json() : {}))
-  .then(j => {
+/* The character template is shared with the dashboard (steward-template.html)
+   and fetched once — the showcase no longer carries its own inline copy. */
+Promise.all([
+  fetch('debt-tier-constants.json').then(r => (r.ok ? r.json() : {})).catch(() => ({})),
+  loadCharacterTemplate(),
+])
+  .then(([j]) => {
     const buf = Number(j.ROCK_BOTTOM_BAND_BUFFER);
     mountShowcaseGrid(Number.isFinite(buf) ? buf : 10000);
   })
