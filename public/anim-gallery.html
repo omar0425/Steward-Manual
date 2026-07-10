@@ -42,8 +42,11 @@
   body.reveal-props .steward-wrap {
     --car-opacity: 1 !important; --ring-opacity: 1 !important;
     --coin-shower-opacity: 1 !important; --ornament-opacity: 1 !important;
+    --ledger-opacity: 1 !important; --coinup-opacity: 1 !important;
+    --blueprint-opacity: 1 !important; --watch-opacity: 1 !important;
   }
-  /* These props are display:none in the product now; re-show them for inspection. */
+  /* In the product the racecar shows only at winning, the mansion only at
+     wealthy, and the Mercedes not at all; re-show everything for inspection. */
   body.reveal-props .sw-racecar,
   body.reveal-props .wealthy-merc,
   body.reveal-props .wealthy-mansion { display: block !important; opacity: 1 !important; }
