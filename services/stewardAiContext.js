@@ -502,6 +502,14 @@ function buildContext() {
   // payments, plans) — background they told the Steward directly.
   const situationNote = String(getConfig('steward_situation_note') || '').slice(0, 2000);
 
+  // Durable facts the Steward has kept across conversations (stewardAiMemory).
+  // Injected into every surface so the player never has to repeat themselves.
+  // Bounded by MEMORY_MAX, so this stays a small token cost.
+  let memories = [];
+  try {
+    memories = require('./stewardAiMemory').readMemories().map((m) => ({ id: m.id, fact: m.fact }));
+  } catch { memories = []; }
+
   return {
     skip: false,
     snapshot: { pulledAt: snap.pulled_at },
@@ -575,6 +583,9 @@ function buildContext() {
       // Standing background the player wrote for you ("my situation") — treat
       // it as something they told you directly; weigh it in every answer.
       situationNote: situationNote || null,
+      // Facts the Steward chose to remember from past conversations. Trusted
+      // background, same standing as situationNote.
+      memories: memories.length ? memories : null,
       payoffPlan,
       turnDeltas,
       forecasts,

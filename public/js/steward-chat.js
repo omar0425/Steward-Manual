@@ -1,15 +1,17 @@
 'use strict';
 
-/* Steward Chat (beta) — upgrades the "Ask the Steward" panel into a real
-   conversation for the beta account. The probe (GET /api/steward-ai/chat)
-   404s for everyone else, so this module silently does nothing for them and
-   they keep the one-shot chip Q&A.
+/* Steward Chat — upgrades the "Ask the Steward" panel into a real
+   conversation, for every signed-in user.
 
-   What the beta gets:
+   What you get:
    - a persistent thread (server-side, survives reloads/devices)
    - a free-text box — explain the situation, ask anything
-   - a standing "My situation" note the Steward always knows (injected into
-     every AI surface, not just chat)
+   - the Steward can ACT: tell it about a payment, a new card, a due date or
+     an APR and it records the entry through the app's own validated write
+     path (undoable; a 📒 receipt line shows exactly what was recorded, and
+     the dashboard refreshes to match)
+   - a standing "My situation" note plus a visible, deletable list of facts
+     the Steward remembers across conversations
    - the suggestion chips feed the chat instead of the one-shot endpoint */
 
 import { stewardApiUrl } from './api.js';
@@ -43,6 +45,17 @@ function appendMsg(threadEl, role, text) {
   return row;
 }
 
+function appendActionReceipts(threadEl, actions) {
+  for (const a of actions) {
+    if (!a || !a.summary) continue;
+    const row = el('div', 'steward-chat-msg steward-chat-msg--action');
+    row.appendChild(el('span', 'steward-chat-who', '📒'));
+    row.appendChild(el('span', 'steward-chat-text', a.summary));
+    threadEl.appendChild(row);
+  }
+  threadEl.scrollTop = threadEl.scrollHeight;
+}
+
 async function sendChat(threadEl, input, sendBtn, message) {
   if (_busy || !message.trim()) return;
   _busy = true;
@@ -61,7 +74,20 @@ async function sendChat(threadEl, input, sendBtn, message) {
     const data = await res.json().catch(() => null);
     pending.classList.remove('steward-chat-msg--pending');
     if (data && data.ok && data.reply) {
-      pending.querySelector('.steward-chat-text').textContent = data.reply;
+      // Ledger receipts render before the prose reply, in entry order.
+      if (Array.isArray(data.actions) && data.actions.length) {
+        pending.remove();
+        appendActionReceipts(threadEl, data.actions);
+        appendMsg(threadEl, 'assistant', data.reply);
+        void refreshMemoryList();
+      } else {
+        pending.querySelector('.steward-chat-text').textContent = data.reply;
+      }
+      // The Steward wrote to the ledger — refresh the dashboard so the
+      // numbers on screen match what was just recorded.
+      if (data.dataChanged && typeof window.stewardRefreshDashboard === 'function') {
+        void window.stewardRefreshDashboard();
+      }
     } else {
       pending.classList.add('steward-chat-msg--error');
       pending.querySelector('.steward-chat-text').textContent =
@@ -78,10 +104,54 @@ async function sendChat(threadEl, input, sendBtn, message) {
   try { input.focus(); } catch (_) { /* ignore */ }
 }
 
+// ── "What the Steward remembers" — player-visible memory with delete ─────────
+let _memoryListEl = null;
+
+function renderMemories(listEl, memories) {
+  listEl.textContent = '';
+  if (!memories || memories.length === 0) {
+    listEl.appendChild(el('p', 'steward-chat-memory-empty',
+      'Nothing yet. Tell the Steward something worth remembering — or say "remember that…"'));
+    return;
+  }
+  for (const m of memories) {
+    const row = el('div', 'steward-chat-memory-row');
+    row.appendChild(el('span', 'steward-chat-memory-fact', m.fact));
+    const del = el('button', 'steward-chat-memory-del', '✕');
+    del.type = 'button';
+    del.title = 'Forget this';
+    del.setAttribute('aria-label', `Forget: ${m.fact}`);
+    del.addEventListener('click', async () => {
+      del.disabled = true;
+      try {
+        const res = await fetch(stewardApiUrl('/api/steward-ai/memory/delete'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: m.id }),
+        });
+        const data = await res.json().catch(() => null);
+        if (data && data.ok) renderMemories(listEl, data.memories);
+        else del.disabled = false;
+      } catch (_) { del.disabled = false; }
+    });
+    row.appendChild(del);
+    listEl.appendChild(row);
+  }
+}
+
+async function refreshMemoryList() {
+  if (!_memoryListEl) return;
+  try {
+    const res = await fetch(stewardApiUrl('/api/steward-ai/memory'));
+    const data = await res.json().catch(() => null);
+    if (data && data.ok) renderMemories(_memoryListEl, data.memories);
+  } catch (_) { /* keep whatever is shown */ }
+}
+
 function buildChatUi(panel, state) {
   // Retitle the panel: it's a conversation now.
   const sub = panel.querySelector('.tc-section-sublabel');
-  if (sub) sub.textContent = 'A running conversation, grounded in your own numbers. Tell it what’s going on.';
+  if (sub) sub.textContent = 'A running conversation, grounded in your own numbers. Tell it what happened — “paid $500 on the Visa” — and it records the entry for you.';
 
   // ── Standing situation note ──
   const noteWrap = el('details', 'steward-chat-note');
@@ -116,6 +186,14 @@ function buildChatUi(panel, state) {
     noteSave.disabled = false;
     window.setTimeout(() => { noteMsg.textContent = ''; }, 2500);
   });
+
+  // ── What the Steward remembers ──
+  const memWrap = el('details', 'steward-chat-note steward-chat-memory');
+  memWrap.appendChild(el('summary', 'steward-chat-note-summary', '🧠 What the Steward remembers'));
+  const memList = el('div', 'steward-chat-memory-list');
+  memWrap.appendChild(memList);
+  _memoryListEl = memList;
+  renderMemories(memList, state.memories || []);
 
   // ── Thread + input ──
   const thread = el('div', 'steward-chat-thread');
@@ -158,6 +236,7 @@ function buildChatUi(panel, state) {
   // become quick-starts that feed the conversation.
   const chips = panel.querySelector('#ask-steward-chips');
   panel.insertBefore(noteWrap, chips);
+  panel.insertBefore(memWrap, chips);
   panel.appendChild(thread);
   panel.appendChild(inputRow);
   panel.appendChild(clearBtn);
@@ -177,7 +256,7 @@ function buildChatUi(panel, state) {
   }, true);
 }
 
-/** Called from boot. Probes the gated endpoint; 404 = not the beta account. */
+/** Called from boot. Probes the chat endpoint and builds the UI. */
 export async function initStewardChat() {
   const panel = document.getElementById('ask-steward-panel');
   if (!panel || panel.dataset.chatMode === '1') return;

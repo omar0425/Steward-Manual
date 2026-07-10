@@ -3428,6 +3428,38 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
 .steward-chat-msg--error { border-color: var(--rose); }
 .steward-chat-msg--error .steward-chat-text { color: var(--rose); }
 
+/* Ledger receipt: the Steward recorded an entry via its tools. */
+.steward-chat-msg--action {
+  align-self: flex-start;
+  background: var(--gold-soft);
+  border: 1px dashed rgba(200,168,76,0.45);
+  color: var(--text-2);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+.steward-chat-msg--action .steward-chat-who { font-size: 14px; }
+
+/* "What the Steward remembers" — visible, deletable memory list. */
+.steward-chat-memory-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px 2px; }
+.steward-chat-memory-empty { margin: 6px 2px 2px; font-size: 12.5px; color: var(--text-3); font-style: italic; }
+.steward-chat-memory-row {
+  display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
+  padding: 7px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12.5px; line-height: 1.5;
+}
+.steward-chat-memory-fact { min-width: 0; word-break: break-word; color: var(--text-2); }
+.steward-chat-memory-del {
+  flex-shrink: 0;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-3); font-size: 12px; line-height: 1;
+  padding: 3px 5px; border-radius: 6px;
+}
+.steward-chat-memory-del:hover { color: var(--rose); background: rgba(255,255,255,0.05); }
+.steward-chat-memory-del:focus-visible { outline: 2px solid var(--gold-2); outline-offset: 1px; }
+
 .steward-chat-input-row { display: flex; gap: 10px; margin-top: 12px; align-items: flex-end; }
 .steward-chat-input {
   flex: 1;
