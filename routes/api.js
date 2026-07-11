@@ -29,11 +29,20 @@ const {
   getDebtAccountVerifiedAt,
   savePushSubscription,
   deletePushSubscription,
+  getAppMeta,
+  setAppMeta,
+  upsertBugReport,
+  setBugReportTriage,
+  listBugReports,
+  countNewBugReports,
+  markAllBugReportsSeen,
+  bugReportsInLastDay,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
 const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 const {
+  CUTSCENE_USERNAME,
   isCutsceneUser,
   selectCutsceneVideo,
   cutsceneVideos,
@@ -75,7 +84,7 @@ const {
 const stewardAi = require('../services/stewardAi');
 const stewardAiContext = require('../services/stewardAiContext');
 const stewardAiLedger = require('../services/stewardAiLedger');
-const { findUserById, listAllUsers } = require('../db-auth');
+const { findUserById, findUserByUsername, listAllUsers } = require('../db-auth');
 
 router.use((req, res, next) => {
   withUser(req.user && req.user.userId, next);
@@ -654,6 +663,7 @@ const MAX_DEBT_ACCOUNTS = 200;
 
 router.post('/snapshot', (req, res) => {
   const out = saveSnapshotForUser(req.body, req.user && req.user.username);
+  if (out.status === 200) scheduleMetricsAudit(req.user && req.user.userId);
   return res.status(out.status).json(out.body);
 });
 
@@ -2319,6 +2329,206 @@ router.post('/restore', express.json({ limit: '8mb' }), (req, res) => {
   }
 });
 
+// ── Bug reports (capture from everyone, visible ONLY to the admin) ───────────
+// Every signed-in client quietly posts runtime errors here (public/js/bug-watch.js).
+// Reports land in the cross-user bug_reports table; the ONLY read surface is the
+// admin routes below, gated on one username. Regular users get no UI, no
+// notifications, no hint that capture exists — that's the point ("I don't want
+// to freak them out").
+//
+// Cost design: the AI is trigger-based, not always-on. Watching costs zero
+// tokens (plain JS). One AI triage per NEW error signature (repeats only bump a
+// counter), at most one metrics audit per user per day, and a global hard cap
+// of BUG_AI_DAILY_LIMIT AI calls/day across the whole app.
+
+const crypto = require('node:crypto');
+const { sendToUser } = require('../services/push');
+
+const ADMIN_USERNAME = process.env.STEWARD_ADMIN_USERNAME || CUTSCENE_USERNAME;
+const BUG_AI_DAILY_LIMIT = Math.max(0, parseInt(process.env.STEWARD_BUG_AI_DAILY_LIMIT ?? '20', 10) || 0);
+const BUG_AI_USAGE_KEY = 'bug_ai_usage'; // app_meta (global, cross-user by design)
+const BUG_STORM_DAILY_LIMIT = 500;       // stop recording entirely past this many occurrences/day
+const METRICS_AUDIT_STAMP_KEY = 'steward_ai_metrics_audit'; // per-user config, {date}
+
+function isAdminUser(req) {
+  const username = req.user && req.user.username;
+  return typeof username === 'string'
+    && username.trim().toLowerCase() === ADMIN_USERNAME.toLowerCase();
+}
+
+/** Global daily budget for ALL bug-related AI calls (triage + metrics audits). */
+function consumeBugAiBudget() {
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = parseJsonObject(getAppMeta(BUG_AI_USAGE_KEY));
+  const count = usage.date === today ? (Number(usage.count) || 0) : 0;
+  if (count >= BUG_AI_DAILY_LIMIT) return false;
+  setAppMeta(BUG_AI_USAGE_KEY, JSON.stringify({ date: today, count: count + 1 }));
+  return true;
+}
+
+/**
+ * Stable fingerprint for "the same bug". Digits are collapsed so messages that
+ * differ only in ids/amounts/line numbers ("balance 4200 invalid" vs "balance
+ * 87 invalid") dedupe to one report; only the top stack frame participates for
+ * the same reason.
+ */
+function bugSignature(source, message, stack) {
+  const normalize = (s) => String(s || '').replace(/\d+/g, '#').toLowerCase().trim();
+  const topFrame = String(stack || '').split('\n').find((l) => l.trim().startsWith('at ')) || '';
+  return crypto.createHash('sha256')
+    .update(`${source}|${normalize(message).slice(0, 300)}|${normalize(topFrame).slice(0, 200)}`)
+    .digest('hex')
+    .slice(0, 40);
+}
+
+/** Push the (already-triaged) report to the admin's devices. Best-effort. */
+async function notifyAdminOfBug({ title, severity }) {
+  try {
+    const admin = findUserByUsername(ADMIN_USERNAME);
+    if (!admin) return;
+    await sendToUser(admin.id, {
+      title: `Steward bug report (${severity})`,
+      body: title,
+      url: '/',
+      tag: 'bug-report',
+    });
+  } catch (err) {
+    console.error('[bug-report] admin push failed:', err && err.message);
+  }
+}
+
+/** AI triage for a brand-new error signature — runs off the request path. */
+async function triageNewBugReport(id, payload) {
+  try {
+    const res = await stewardAi.generateBugTriage({ payload });
+    if (!res || !res.ok) return;
+    setBugReportTriage(id, { severity: res.severity, title: res.title, report: res.report });
+    if (res.severity === 'high') await notifyAdminOfBug({ title: res.title, severity: res.severity });
+  } catch (err) {
+    console.error('[bug-report] triage failed:', err && err.message);
+  }
+}
+
+// Capture endpoint. ALWAYS answers 200 {ok:true}: it is called from the
+// client's own error handler, and an error response here (or anything the
+// caller could distinguish) risks recursion and probing. Bad payloads are
+// silently dropped.
+router.post('/bug-report', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    const b = req.body && typeof req.body === 'object' ? req.body : {};
+    const message = typeof b.message === 'string' ? b.message.trim().slice(0, 500) : '';
+    if (!message) return res.json({ ok: true });
+    if (bugReportsInLastDay() >= BUG_STORM_DAILY_LIMIT) return res.json({ ok: true });
+    const stack = typeof b.stack === 'string' ? b.stack.slice(0, 4000) : '';
+    const url = typeof b.url === 'string' ? b.url.slice(0, 300) : '';
+    const source = ['error', 'unhandledrejection', 'http'].includes(b.source) ? b.source : 'error';
+    const raw = JSON.stringify({
+      source,
+      message,
+      stack,
+      url,
+      userAgent: String(req.get('user-agent') || '').slice(0, 200),
+    });
+    const { id, isNew } = upsertBugReport({
+      signature: bugSignature(source, message, stack),
+      kind: 'error',
+      userId: req.user && req.user.userId,
+      raw,
+    });
+    if (isNew) {
+      // Readable in the panel even when the AI never runs (no key / cap spent).
+      setBugReportTriage(id, { severity: null, title: message.slice(0, 120), report: null });
+      if (stewardAi.isConfigured() && consumeBugAiBudget()) {
+        setImmediate(() => { void triageNewBugReport(id, { source, message, stack, url }); });
+      }
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[api] bug-report', err);
+    return res.json({ ok: true });
+  }
+});
+
+/**
+ * Daily metrics sanity-check, fired after a successful snapshot save. At most
+ * once per user per day (config stamp, set BEFORE the AI call so a failed run
+ * cannot retry-spam), and only within the global AI budget. Findings of
+ * medium/high severity become admin bug reports of kind 'metrics'.
+ */
+function scheduleMetricsAudit(userId) {
+  if (!userId || !stewardAi.isConfigured() || BUG_AI_DAILY_LIMIT === 0) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const stamp = parseJsonObject(getConfig(METRICS_AUDIT_STAMP_KEY));
+  if (stamp.date === today) return;
+  setConfig(METRICS_AUDIT_STAMP_KEY, JSON.stringify({ date: today }));
+  if (!consumeBugAiBudget()) return;
+  setImmediate(() => {
+    // setImmediate loses the request's AsyncLocalStorage scope — re-enter it.
+    withUser(userId, () => {
+      (async () => {
+        try {
+          const ctx = stewardAiContext.buildContext();
+          if (ctx.skip || !ctx.payload) return;
+          const res = await stewardAi.generateMetricsAudit({ payload: ctx.payload });
+          if (!res || !res.ok || !Array.isArray(res.findings)) return;
+          const findings = res.findings.filter((f) => f.severity === 'high' || f.severity === 'medium');
+          if (findings.length === 0) return;
+          const notes = findings.map((f) => `[${f.severity}] ${f.note}`).join('\n');
+          const severity = findings.some((f) => f.severity === 'high') ? 'high' : 'medium';
+          const { id, isNew } = upsertBugReport({
+            signature: bugSignature('metrics', notes, ''),
+            kind: 'metrics',
+            userId,
+            raw: JSON.stringify({ findings }),
+          });
+          if (isNew) {
+            setBugReportTriage(id, {
+              severity,
+              title: `Metrics audit: ${findings[0].note.slice(0, 100)}`,
+              report: notes.slice(0, 2000),
+            });
+            if (severity === 'high') await notifyAdminOfBug({ title: findings[0].note.slice(0, 100), severity });
+          }
+        } catch (err) {
+          console.error('[bug-report] metrics audit failed:', err && err.message);
+        }
+      })();
+    });
+  });
+}
+
+// Admin read surface. Deliberately 200 {admin:false} for everyone else — the
+// client probes this once on load, and a 404/403 would show up as noise in the
+// network tab and in bug-watch's own capture. Same probe pattern the chat beta
+// gate used.
+router.get('/admin/bug-reports', (req, res) => {
+  if (!isAdminUser(req)) return res.json({ ok: true, admin: false });
+  const reports = listBugReports(50).map((r) => {
+    let parsedRaw = null;
+    try { parsedRaw = JSON.parse(r.raw); } catch { /* legacy/trimmed raw */ }
+    return {
+      id: r.id,
+      kind: r.kind,
+      userId: r.user_id,
+      firstSeenAt: r.first_seen_at,
+      lastSeenAt: r.last_seen_at,
+      count: r.count,
+      severity: r.severity,
+      title: r.title,
+      report: r.report,
+      status: r.status,
+      url: parsedRaw && typeof parsedRaw.url === 'string' ? parsedRaw.url : null,
+    };
+  });
+  res.json({ ok: true, admin: true, newCount: countNewBugReports(), reports });
+});
+
+router.post('/admin/bug-reports/seen', express.json(), (req, res) => {
+  if (!isAdminUser(req)) return res.status(404).end();
+  const cleared = markAllBugReportsSeen();
+  res.json({ ok: true, cleared });
+});
+
 // ── GET /health ───────────────────────────────────────────────────────────────
 
 router.get('/health', (req, res) => {
@@ -2330,3 +2540,4 @@ module.exports = router;
 module.exports.executeStewardTool = executeStewardTool;
 module.exports.STEWARD_AI_TOOLS = STEWARD_AI_TOOLS;
 module.exports.saveSnapshotForUser = saveSnapshotForUser;
+module.exports.bugSignature = bugSignature;

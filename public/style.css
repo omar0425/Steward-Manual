@@ -3494,3 +3494,62 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
   .steward-chat-input-row { flex-direction: column; align-items: stretch; }
   .steward-chat-send { min-height: 44px; }
 }
+
+/* ── Admin bug panel (mounts only for the admin account) ─────────────────── */
+.admin-bug-panel .tc-section-label { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
+.admin-bug-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 999px;
+  background: var(--rose);
+  color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
+}
+.admin-bug-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.admin-bug-empty { margin: 8px 2px; font-size: 12.5px; color: var(--text-3); font-style: italic; }
+.admin-bug-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0;
+}
+.admin-bug-row--new { border-color: var(--gold-2); }
+.admin-bug-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12.5px;
+  list-style: none;
+}
+.admin-bug-head::-webkit-details-marker { display: none; }
+.admin-bug-chip {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  border: 1px solid var(--border-2);
+  color: var(--text-2);
+}
+.admin-bug-chip--high { background: rgba(224, 82, 110, 0.18); color: var(--rose); border-color: var(--rose); }
+.admin-bug-chip--medium { background: rgba(212, 168, 83, 0.15); color: var(--gold-2); border-color: var(--gold-2); }
+.admin-bug-chip--low { background: rgba(255, 255, 255, 0.04); }
+.admin-bug-title { min-width: 0; flex: 1; word-break: break-word; color: var(--text); font-weight: 600; }
+.admin-bug-meta { flex-shrink: 0; color: var(--text-3); font-size: 11px; }
+.admin-bug-report-text {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 12.5px; line-height: 1.55;
+  color: var(--text-2);
+  white-space: pre-wrap; word-break: break-word;
+}
+.admin-bug-seen-btn {
+  margin-top: 10px;
+  background: none;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 14px;
+}
+.admin-bug-seen-btn:hover { border-color: var(--gold-2); color: var(--gold-2); }
