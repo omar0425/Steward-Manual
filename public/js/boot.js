@@ -10,6 +10,7 @@ import { AppMode, transitionTo, isSessionResume } from './state.js';
 import { maybeShowStewardAiComment, initAskSteward } from './steward-ai.js';
 import { initPushToggle } from './push-client.js';
 import { initStewardChat } from './steward-chat.js';
+import { initAdminNotices } from './admin-notices.js';
 
 const STARTUP_UI_DEBUG = false;
 
@@ -402,6 +403,9 @@ export function initDashboardBoot() {
   // Steward Chat: upgrades the Ask panel into a real conversation (with the
   // Steward's ledger tools + memory). Fire-and-forget.
   void initStewardChat();
+  // Admin bug panel: renders ONLY for the admin account (everyone else's
+  // probe returns admin:false and nothing mounts). Fire-and-forget.
+  void initAdminNotices();
   // Chat writes to the ledger via AI tools; give it a way to refresh the
   // dashboard so recorded entries show up without a manual reload.
   window.stewardRefreshDashboard = () => load({ refresh: true });

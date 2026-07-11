@@ -16,6 +16,9 @@
   <!-- App root — JS builds all views here -->
   <div id="app-root"></div>
 
+  <!-- Classic (non-module) script on purpose: installs error handlers before
+       the deferred module below boots, so early boot failures get captured. -->
+  <script src="/js/bug-watch.js"></script>
   <script type="module" src="/js/main.js"></script>
 </body>
 </html>

@@ -647,6 +647,41 @@ async function generateMetricsAudit({ payload, maxTokens = 800 } = {}) {
   return { ok: true, findings };
 }
 
+// ── Bug triage (admin-only surface) ───────────────────────────────────────────
+/**
+ * Turn a captured runtime error into a plain-English report for the app
+ * OPERATOR (not the Pennybags voice — this is an engineering note). Returns
+ * { ok, severity, title, report } or { ok:false }.
+ */
+async function generateBugTriage({ payload }) {
+  const system =
+    'You are the on-call engineer for "Steward", a Node/Express + SQLite debt-paydown '
+    + 'web app with a vanilla-JS dashboard. You receive one captured runtime error from a '
+    + "user's session: the message, stack excerpt, page, and how it was caught. Write a "
+    + 'short triage note for the app owner (a solo developer): what likely happened, the '
+    + 'most probable cause, and what to check first. Plain English, no markdown. Never '
+    + 'include user financial figures in the note. '
+    + 'Reply ONLY strict JSON: {"severity":"high|medium|low","title":"<max 10 words>",'
+    + '"report":"<2-4 sentences>"}. '
+    + 'severity: high = data loss/corruption or a core flow (saving, auth) broken; '
+    + 'medium = a feature erroring but recoverable; low = cosmetic/noise (extensions, '
+    + 'network blips, aborted requests).';
+  const res = await callAnthropic({
+    system,
+    userContent: 'CAPTURED ERROR:\n' + JSON.stringify(payload).slice(0, 6000),
+    maxTokens: 400,
+  });
+  if (!res.ok) return res;
+  const parsed = tryParseJson(res.text);
+  if (!parsed || typeof parsed !== 'object') return { ok: false, error: 'malformed_json' };
+  return {
+    ok: true,
+    severity: ['high', 'medium', 'low'].includes(parsed.severity) ? parsed.severity : 'medium',
+    title: asString(parsed.title, 120) || 'Runtime error',
+    report: asString(parsed.report, 1200),
+  };
+}
+
 module.exports = {
   isConfigured,
   generateModeDialog,
@@ -657,6 +692,7 @@ module.exports = {
   generateChatReply,
   generateChatReplyWithTools,
   generateMetricsAudit,
+  generateBugTriage,
   hasDailyFraming,
   MODEL,
 };

@@ -132,6 +132,25 @@ db.exec(`
     created_at TEXT NOT NULL,
     PRIMARY KEY (user_id, endpoint)
   );
+
+  -- Bug reports captured from ANY user's session, readable only by the admin
+  -- account (deliberately NOT scoped through withUser — the whole point is a
+  -- cross-user view for the operator). Deduped by signature; count tracks
+  -- recurrences. user_id records whose session produced the report.
+  CREATE TABLE IF NOT EXISTS bug_reports (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    signature     TEXT    NOT NULL UNIQUE,
+    kind          TEXT    NOT NULL,              -- 'error' | 'metrics'
+    user_id       INTEGER NOT NULL,
+    first_seen_at TEXT    NOT NULL,
+    last_seen_at  TEXT    NOT NULL,
+    count         INTEGER NOT NULL DEFAULT 1,
+    severity      TEXT,                          -- 'high'|'medium'|'low'|NULL (triage pending)
+    title         TEXT,
+    report        TEXT,                          -- AI triage in plain English
+    raw           TEXT    NOT NULL DEFAULT '',   -- trimmed technical payload (JSON)
+    status        TEXT    NOT NULL DEFAULT 'new' -- 'new' | 'seen'
+  );
 `);
 
 function tableColumns(table) {
@@ -814,6 +833,69 @@ function deletePushSubscriptionAnyUser(endpoint) {
   return db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).run(String(endpoint)).changes;
 }
 
+// ── Bug reports (admin-only surface; cross-user by design) ───────────────────
+
+/**
+ * Record a bug occurrence. Same signature → bump count + last_seen (and
+ * re-open a previously seen report). Returns { id, isNew, count }.
+ */
+function upsertBugReport({ signature, kind, userId, raw }) {
+  const now = new Date().toISOString();
+  const existing = db
+    .prepare(`SELECT id, count FROM bug_reports WHERE signature = ?`)
+    .get(String(signature));
+  if (existing) {
+    db.prepare(
+      `UPDATE bug_reports SET count = count + 1, last_seen_at = ?, status = 'new' WHERE id = ?`,
+    ).run(now, existing.id);
+    return { id: existing.id, isNew: false, count: existing.count + 1 };
+  }
+  const res = db.prepare(`
+    INSERT INTO bug_reports (signature, kind, user_id, first_seen_at, last_seen_at, raw)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    String(signature),
+    String(kind),
+    Number(userId) || 0,
+    now,
+    now,
+    String(raw || '').slice(0, 8000),
+  );
+  return { id: Number(res.lastInsertRowid), isNew: true, count: 1 };
+}
+
+/** Attach the AI triage (or a fallback title) to a report. */
+function setBugReportTriage(id, { severity, title, report }) {
+  db.prepare(`UPDATE bug_reports SET severity = ?, title = ?, report = ? WHERE id = ?`).run(
+    severity == null ? null : String(severity),
+    title == null ? null : String(title).slice(0, 200),
+    report == null ? null : String(report).slice(0, 2000),
+    Number(id),
+  );
+}
+
+/** Newest-first list for the admin panel (cross-user). */
+function listBugReports(limit = 50) {
+  return db.prepare(`
+    SELECT id, kind, user_id, first_seen_at, last_seen_at, count, severity, title, report, raw, status
+    FROM bug_reports ORDER BY last_seen_at DESC LIMIT ?
+  `).all(Math.max(1, Math.min(200, Number(limit) || 50)));
+}
+
+function countNewBugReports() {
+  return db.prepare(`SELECT COUNT(*) AS n FROM bug_reports WHERE status = 'new'`).get().n;
+}
+
+function markAllBugReportsSeen() {
+  return db.prepare(`UPDATE bug_reports SET status = 'seen' WHERE status = 'new'`).run().changes;
+}
+
+/** Cheap spam guard: occurrences recorded in the last 24h (all users). */
+function bugReportsInLastDay() {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  return db.prepare(`SELECT COUNT(*) AS n FROM bug_reports WHERE last_seen_at >= ?`).get(since).n;
+}
+
 /**
  * Full game reset — clears all DB-backed gameplay history so the next
  * snapshot starts a clean game.
@@ -950,6 +1032,12 @@ module.exports = {
   hasPushSubscription,
   listPushSubscriptionsForUser,
   deletePushSubscriptionAnyUser,
+  upsertBugReport,
+  setBugReportTriage,
+  listBugReports,
+  countNewBugReports,
+  markAllBugReportsSeen,
+  bugReportsInLastDay,
   getConfig,
   setConfig,
   setConfigIfAbsent,

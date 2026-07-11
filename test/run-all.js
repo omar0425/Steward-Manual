@@ -41,6 +41,7 @@ require('./roadmap-features.test');
 require('./cutscene-accumulator.test');
 require('./steward-chat.test');
 require('./steward-ai-tools.test');
+require('./bug-reports.test');
 require('./nicknames.test');
 require('./pace-projection.test');
 require('./forecast.test');
