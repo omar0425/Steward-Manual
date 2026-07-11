@@ -508,7 +508,17 @@ const CHAT_TOOL_RULES =
   '- Do NOT store balances, APRs, or figures the ledger already tracks. Do ' +
   'not save more than two facts in one turn unless asked.\n' +
   '- Update or delete a memory when the player corrects it or it goes stale. ' +
-  'If asked "what do you remember", recite your memories in plain prose.';
+  'If asked "what do you remember", recite your memories in plain prose.' +
+  '\nBUG REPORTS — you are also the app\'s ears:\n' +
+  '- When the player says the APP itself is misbehaving — a dashboard number ' +
+  'that looks wrong to them, something that will not save, a stuck screen, a ' +
+  'feature acting oddly — file it with report_bug_to_developer, then keep ' +
+  'helping them in prose. One report per issue per conversation.\n' +
+  '- The note goes only to the developer. NEVER put dollar amounts, balances, ' +
+  'APRs, or account names in the summary or details — describe the behavior, ' +
+  'not the figures.\n' +
+  '- Do not use it for ledger corrections (that is what your balance and undo ' +
+  'tools are for), for questions, or to promise the player a fix or timeline.';
 
 async function generateChatReplyWithTools({ history, payload, tools, executeTool }) {
   const system =

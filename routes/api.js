@@ -11,6 +11,7 @@ const {
   importUserData,
   getConfig,
   withUser,
+  currentUserId,
   transaction,
   setConfig,
   deleteConfigByPrefix,
@@ -1018,6 +1019,14 @@ function saveSnapshotForUser(rawBody, username) {
       const labels = preservedFields.map((p) => p.field).join(', ');
       response.message = `Snapshot saved. Kept your last non-zero value for: ${labels}. To record an actual zero, resend with "allowZero": true.`;
     }
+    // Deterministic ledger sanity rules (zero AI cost) — any violation files an
+    // admin bug report. Runs for EVERY write path (manual form + AI tools flow
+    // through here). Must never affect the save's outcome.
+    try {
+      reportInvariantViolations(currentUserId());
+    } catch (err) {
+      console.error('[bug-report] invariant check failed:', err && err.message);
+    }
     return { status: 200, body: response };
   } catch (err) {
     console.error('[api] manual snapshot error:', err);
@@ -1820,6 +1829,29 @@ const STEWARD_AI_TOOLS = [
       required: ['action'],
     },
   },
+  {
+    name: 'report_bug_to_developer',
+    description:
+      'File a private note to the app developer when the player describes the APP itself ' +
+      'misbehaving: a number that looks wrong on the dashboard, something that will not save, ' +
+      'a stuck or broken screen, a feature not doing what it should. NOT for ledger corrections ' +
+      '(use the balance/undo tools) and NOT for financial questions. The player never sees the ' +
+      'note. Never include dollar amounts, balances, or account names in it.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        summary: {
+          type: 'string',
+          description: 'One sentence: what the player says is broken or wrong. No figures.',
+        },
+        details: {
+          type: 'string',
+          description: 'Optional: where in the app, what they expected vs saw. No figures.',
+        },
+      },
+      required: ['summary'],
+    },
+  },
 ];
 
 /**
@@ -1959,6 +1991,31 @@ function executeStewardTool(name, input, username) {
     return { ok: false, error: 'action must be save, update, or delete.' };
   }
 
+  if (name === 'report_bug_to_developer') {
+    const summary = String(arg.summary || '').trim().slice(0, 300);
+    if (summary.length < 5) {
+      return { ok: false, error: 'summary must be a sentence describing what looks broken.' };
+    }
+    const details = String(arg.details || '').trim().slice(0, 1000);
+    // Same dedupe as captured errors: five players hitting the same broken
+    // thing is one report seen five times, not five rows.
+    const { id, isNew } = upsertBugReport({
+      signature: bugSignature('user', summary, ''),
+      kind: 'user',
+      userId: currentUserId(),
+      raw: JSON.stringify({ summary, details, via: 'steward-chat' }),
+    });
+    if (isNew) {
+      // The chat model already wrote the plain-English note — no extra AI call.
+      setBugReportTriage(id, {
+        severity: 'medium',
+        title: summary.slice(0, 120),
+        report: details ? `Player-reported via chat. ${details}` : 'Player-reported via chat.',
+      });
+    }
+    return { ok: true, summary: 'Passed a note about this to the developer.' };
+  }
+
   return { ok: false, error: `Unknown tool: ${name}` };
 }
 
@@ -2057,7 +2114,8 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
         actions,
         // True when a ledger write happened this turn → the client refreshes
         // the dashboard so the numbers on screen match what was recorded.
-        dataChanged: actions.some((a) => a.tool !== 'manage_memory'),
+        // Memory and bug notes don't touch the ledger.
+        dataChanged: actions.some((a) => a.tool !== 'manage_memory' && a.tool !== 'report_bug_to_developer'),
       });
     } catch (err) {
       console.error('[api] steward-ai/chat', err);
@@ -2448,6 +2506,28 @@ router.post('/bug-report', express.json({ limit: '32kb' }), (req, res) => {
     return res.json({ ok: true });
   }
 });
+
+/**
+ * File the deterministic ledger-invariant violations (services/ledgerInvariants)
+ * as admin bug reports. Same signature → same row: a persistent violation bumps
+ * one counter on every save instead of flooding the panel. Severity/title/report
+ * are set directly — no AI call, ever.
+ */
+function reportInvariantViolations(userId) {
+  const { checkLedgerInvariants } = require('../services/ledgerInvariants');
+  for (const v of checkLedgerInvariants()) {
+    const { id, isNew } = upsertBugReport({
+      signature: bugSignature('invariant', v.rule, ''),
+      kind: 'invariant',
+      userId,
+      raw: JSON.stringify({ rule: v.rule }),
+    });
+    if (isNew) {
+      setBugReportTriage(id, { severity: v.severity, title: v.title, report: v.report });
+      if (v.severity === 'high') void notifyAdminOfBug({ title: v.title, severity: v.severity });
+    }
+  }
+}
 
 /**
  * Daily metrics sanity-check, fired after a successful snapshot save. At most
