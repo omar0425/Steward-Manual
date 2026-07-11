@@ -140,7 +140,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS bug_reports (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     signature     TEXT    NOT NULL UNIQUE,
-    kind          TEXT    NOT NULL,              -- 'error' | 'metrics'
+    kind          TEXT    NOT NULL,              -- 'error'|'metrics'|'invariant'|'user'
     user_id       INTEGER NOT NULL,
     first_seen_at TEXT    NOT NULL,
     last_seen_at  TEXT    NOT NULL,
@@ -338,6 +338,17 @@ function getAllDebtAccountBalances() {
     }
   }
   return m;
+}
+
+/**
+ * UNFILTERED stored balances for the current user — including negative or
+ * non-finite values that getAllDebtAccountBalances() silently drops. Only for
+ * the ledger-invariant checks, whose whole job is to notice such rows.
+ */
+function rawDebtBalances() {
+  return db
+    .prepare(`SELECT ynab_account_id AS accountId, last_balance AS balance FROM debt_account_balances WHERE user_id = ?`)
+    .all(currentUserId());
 }
 
 /**
@@ -1021,6 +1032,7 @@ module.exports = {
   storageDurabilityWarning,
   resetAllGameState,
   getAllDebtAccountBalances,
+  rawDebtBalances,
   replaceDebtAccountBalances,
   markDebtAccountVerified,
   getDebtAccountVerifiedAt,

@@ -11,7 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 const apiRouter = require('../routes/api');
-const { bugSignature } = require('../routes/api');
+const { bugSignature, executeStewardTool } = require('../routes/api');
 // Top-level (NOT lazy) requires: zzz-climb-metrics-apply.test clears the module
 // cache for db when it loads, so an in-test require would grab a fresh copy
 // bound to a different AsyncLocalStorage than the router's withUser().
@@ -21,7 +21,13 @@ const {
   listBugReports,
   countNewBugReports,
   markAllBugReportsSeen,
+  withUser,
+  setConfig,
+  resetAllGameState,
 } = require('../db');
+const { checkLedgerInvariants } = require('../services/ledgerInvariants');
+
+const run = (fn) => withUser(1, fn);
 
 // Matches the default in routes/api.js (CUTSCENE_USERNAME) — the admin when
 // STEWARD_ADMIN_USERNAME isn't set, which it never is in tests.
@@ -174,6 +180,78 @@ test('admin mark-all-seen clears the badge and is idempotent', async () => {
     const again = await fetch(`${baseUrl}/api/admin/bug-reports/seen`, { method: 'POST' });
     assert.equal((await again.json()).cleared, 0);
   });
+});
+
+test('ledger invariants: clean climb passes; each corruption fires its rule', async () => {
+  await withApp('InvariantUser', async (baseUrl) => {
+    run(resetAllGameState);
+    // Seed a climb through the real save + start path.
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      totalDebt: 9000,
+      debtAccounts: [
+        { id: 'card', name: 'Card', balance: 6000 },
+        { id: 'loan', name: 'Loan', balance: 3000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    res = await postJson(baseUrl, '/api/start-game', {});
+    assert.equal(res.status, 200);
+
+    // Healthy state → nothing to report.
+    assert.deepEqual(run(checkLedgerInvariants), []);
+
+    // Corrupt a cumulative counter → counter rule (raw value, pre-clamp).
+    run(() => setConfig('cumulative_paid_down', '-500'));
+    let v = run(checkLedgerInvariants);
+    assert.ok(v.some((x) => x.rule === 'counter_corrupt:cumulative_paid_down'), 'negative counter caught');
+    run(() => setConfig('cumulative_paid_down', '0'));
+
+    // Corrupt the stored aggregate → mismatch AND identity drift.
+    run(() => setConfig('last_aggregate_debt_for_climb', '4444'));
+    v = run(checkLedgerInvariants);
+    assert.ok(v.some((x) => x.rule === 'aggregate_mismatch'), 'aggregate/sum divergence caught');
+    assert.ok(v.some((x) => x.rule === 'ledger_drift'), 'identity drift caught');
+    // Reports must not leak balances — magnitudes only.
+    for (const x of v) assert.ok(!/6000|3000|9000/.test(x.report), 'no raw balances in the note');
+
+    // A save through the real path files them as admin bug reports.
+    res = await postJson(baseUrl, '/api/snapshot', {
+      totalDebt: 8900,
+      debtAccounts: [
+        { id: 'card', name: 'Card', balance: 5900 },
+        { id: 'loan', name: 'Loan', balance: 3000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    const filed = listBugReports(200).filter((r) => r.kind === 'invariant');
+    assert.ok(filed.length >= 1, 'invariant violations were filed');
+
+    run(resetAllGameState); // leave shared state clean for later suites
+  });
+});
+
+test('report_bug_to_developer: files a player report, dedupes, rejects junk', () => {
+  const summary = `The tier bar looks stuck ${process.pid}`;
+  const first = run(() => executeStewardTool('report_bug_to_developer', {
+    summary,
+    details: 'Player says it has not moved since yesterday despite an update.',
+  }, 'SomeRegularUser'));
+  assert.equal(first.ok, true);
+  assert.match(first.summary, /developer/i);
+
+  const row = listBugReports(200).find((r) => r.kind === 'user' && r.title === summary);
+  assert.ok(row, 'player report filed');
+  assert.equal(row.severity, 'medium');
+  assert.match(row.report, /Player-reported via chat/);
+
+  // Same complaint again (any user) → same row, count bump.
+  run(() => executeStewardTool('report_bug_to_developer', { summary }, 'OtherUser'));
+  const after = listBugReports(200).find((r) => r.id === row.id);
+  assert.equal(after.count, 2);
+
+  // Junk summary → honest tool error, nothing filed.
+  const bad = run(() => executeStewardTool('report_bug_to_developer', { summary: 'x' }, 'SomeRegularUser'));
+  assert.equal(bad.ok, false);
 });
 
 test('setBugReportTriage attaches severity/title/report with caps', () => {

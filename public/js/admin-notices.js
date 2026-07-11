@@ -42,7 +42,9 @@ function renderReports(listEl, reports) {
     head.appendChild(el('span', 'admin-bug-title', r.title || '(untitled report)'));
     const meta = [];
     if (r.count > 1) meta.push(`×${r.count}`);
-    if (r.kind === 'metrics') meta.push('metrics');
+    // 'error' is the default kind and needs no label; the others do:
+    // 'metrics' (AI audit), 'invariant' (ledger rule), 'user' (chat-reported).
+    if (r.kind && r.kind !== 'error') meta.push(r.kind === 'user' ? 'player-reported' : r.kind);
     if (r.url) meta.push(r.url);
     meta.push(fmtWhen(r.lastSeenAt));
     head.appendChild(el('span', 'admin-bug-meta', meta.filter(Boolean).join(' · ')));
