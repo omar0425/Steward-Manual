@@ -465,6 +465,66 @@ import { TIER_META, TIER_INDEX } from './tiers.js';
   document.head.appendChild(style);
 })();
 
+/* ── AI Steward skin ──────────────────────────────────────────────────
+   A holographic "AI" reskin of the exact same rig: blue palette, scanline
+   overlay, glowing eyes, an "AI" hat band, and a faint projector flicker.
+   Applied via data-skin="ai" (see buildSteward). Uses !important so it wins
+   over the per-tier colors applyStewardTheme sets inline; the per-tier
+   EXPRESSION (sad eyes / tremble at low tiers, coinfall + pup up high) still
+   comes through because those are shape/animation rules keyed on data-state. */
+(function injectAiSkinStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+.steward-wrap[data-skin="ai"]{
+  --coat:#1c66e0 !important; --coat-deep:#0b2f86 !important;
+  --vest:#6fe6ff !important; --shirt:#e9fbff !important;
+  --skin:#a9d8ff !important; --hat:#0d3aa0 !important; --hat-band:#37e0ff !important;
+  --ink:#06183f !important;
+  --car-body:#0d3aa0 !important; --car-body-deep:#071f5e !important; --car-accent:#37e0ff !important;
+  --glow:rgba(72,208,255,0.62) !important;
+}
+/* Vivid blue + soft cyan glow at EVERY tier — overrides the low-tier
+   desaturate/brightness filter so the hologram never goes grey. */
+.steward-wrap[data-skin="ai"] .steward-character{
+  filter:drop-shadow(0 0 5px rgba(72,208,255,0.7)) drop-shadow(0 0 2px rgba(170,240,255,0.5))
+         saturate(1.08) brightness(1.03) !important;
+}
+/* Recolor the hardcoded warm parts (legs, shoes, cane) into the palette. */
+.steward-wrap[data-skin="ai"] .sw-thigh{background:linear-gradient(90deg,#1c4fb0,#0e2f78) !important;}
+.steward-wrap[data-skin="ai"] .sw-calf{background:linear-gradient(90deg,#173f95,#0b2760) !important;}
+.steward-wrap[data-skin="ai"] .sw-shoe{background:linear-gradient(175deg,#2f7fd6 0%,#123a86 55%,#0a2258 100%) !important;}
+.steward-wrap[data-skin="ai"] .sw-cane-shaft{background:linear-gradient(90deg,#1e5fc0,#6fe6ff 45%,#0e2f78) !important;}
+.steward-wrap[data-skin="ai"] .sw-cane-knob{background:radial-gradient(circle at 32% 25%,#eafbff,#37e0ff 55%,#0e2f78) !important;border-color:#37e0ff !important;}
+/* LED-lit eyes. */
+.steward-wrap[data-skin="ai"] .sw-eye{
+  background:rgba(214,246,255,0.98) !important;
+  box-shadow:0 0 4px 1px rgba(90,220,255,0.9), inset 0 -2px 0 rgba(0,0,0,0.08) !important;
+}
+/* "AI" wordmark on the hat band. */
+.steward-wrap[data-skin="ai"] .sw-hat-band{overflow:visible;}
+.steward-wrap[data-skin="ai"] .sw-hat-band::after{
+  content:"AI"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font:800 6px/1 "IBM Plex Mono","Courier New",monospace; letter-spacing:0.6px;
+  color:#06183f; text-shadow:0 0 2px rgba(180,245,255,0.9); z-index:7; pointer-events:none;
+}
+/* Scanline + projector-glow overlay, with a faint flicker. */
+.steward-wrap[data-skin="ai"]::after{
+  content:""; position:absolute;
+  inset:var(--capsule-top) var(--capsule-side) var(--capsule-bottom);
+  border-radius:var(--capsule-radius); pointer-events:none; z-index:6; mix-blend-mode:screen;
+  background:
+    repeating-linear-gradient(180deg, rgba(150,240,255,0.12) 0 1px, transparent 1px 3px),
+    radial-gradient(circle at 50% 30%, rgba(72,208,255,0.15), transparent 60%);
+  animation:aiHoloFlicker 4.2s steps(1) infinite;
+}
+@keyframes aiHoloFlicker{0%,96%,100%{opacity:1;}97%{opacity:0.68;}98%{opacity:0.92;}99%{opacity:0.78;}}
+@media (prefers-reduced-motion: reduce){
+  .steward-wrap[data-skin="ai"]::after{animation:none;}
+}
+  `;
+  document.head.appendChild(style);
+})();
+
 /* ═══════════════════════════════════════════════════════════════════
    STATE → CSS VARIABLE MAPS (verbatim from steward.html)
 ═══════════════════════════════════════════════════════════════════ */
@@ -539,13 +599,17 @@ function observeStewardVisibility(wrap) {
 }
 
 /* ── Build a Steward element from template ────────────────────────── */
-export function buildSteward(stateId) {
+export function buildSteward(stateId, opts = {}) {
   const template = document.getElementById('steward-template');
   if (!template) return null;
   const node     = template.content.firstElementChild.cloneNode(true);
   node.dataset.state = stateId;
   applyStewardTheme(node, stateId);
   observeStewardVisibility(node);
+  // Opt-in cosmetic skins (e.g. the holographic "AI" reskin). The palette lives
+  // in a data-skin-gated stylesheet with !important, so it overrides the per-tier
+  // colors applyStewardTheme just set inline.
+  if (opts.skin) node.dataset.skin = opts.skin;
   return node;
 }
 
