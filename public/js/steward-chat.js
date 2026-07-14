@@ -15,8 +15,60 @@
    - the suggestion chips feed the chat instead of the one-shot endpoint */
 
 import { stewardApiUrl } from './api.js';
+import { buildSteward } from './character.js';
 
 let _busy = false;
+
+/* Small holographic "AI Steward" avatar for the chat header — the same character
+   rig, reskinned via data-skin="ai", scaled down. Mirrors the tier the dashboard
+   is currently showing (read off the hero card) so a Buried user gets the grim
+   hologram and a Debt-Free user the triumphant one. Purely cosmetic. */
+function currentStewardState() {
+  const card = document.getElementById('hero-state-card');
+  const heroState = card && card.dataset ? card.dataset.state : null;
+  return heroState || 'building';
+}
+
+function buildAiStewardHeader() {
+  const header = el('div', 'steward-ai-chat-header');
+  header.style.cssText = 'display:flex;align-items:center;gap:14px;padding:2px 2px 12px;';
+
+  const avatar = el('div', 'steward-ai-chat-avatar');
+  // Decorative — the "AI Steward" text label beside it carries the meaning, so
+  // hide the character from the a11y tree (its template carries an aria-label
+  // without a role, which axe flags as a prohibited attribute otherwise).
+  avatar.setAttribute('aria-hidden', 'true');
+  avatar.style.cssText = 'flex:0 0 auto;width:100px;height:120px;position:relative;overflow:hidden;'
+    + 'border-radius:16px;background:radial-gradient(circle at 50% 30%,#0b2f6e,#04122e);'
+    + 'box-shadow:0 0 0 1px rgba(76,201,240,0.35),0 0 18px rgba(76,201,240,0.22);';
+  const wrap = buildSteward(currentStewardState(), { skin: 'ai' });
+  if (wrap) {
+    const charEl = wrap.querySelector('.steward-character');
+    if (charEl) charEl.removeAttribute('aria-label');
+    // Push the character down within its own frame so the (tall) top hat + "AI"
+    // band land inside the bust crop instead of poking out the top.
+    wrap.style.setProperty('--scene-shift-y', '60px');
+    const inner = el('div', 'steward-ai-chat-avatar-inner');
+    inner.style.cssText = 'position:absolute;left:50%;top:6px;transform:translateX(-50%) scale(0.6);transform-origin:top center;';
+    inner.appendChild(wrap);
+    avatar.appendChild(inner);
+  }
+
+  const meta = el('div', 'steward-ai-chat-meta');
+  const name = el('div', 'steward-ai-chat-name', 'AI Steward');
+  name.style.cssText = 'font-family:"Cormorant Garamond",Georgia,serif;font-weight:800;font-size:1.15rem;color:#dff2ff;';
+  const status = el('div', 'steward-ai-chat-status');
+  status.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;color:#7fd8ff;margin-top:2px;';
+  const dot = el('span'); dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:#4cc9f0;box-shadow:0 0 6px #4cc9f0;';
+  status.appendChild(dot);
+  status.appendChild(el('span', null, 'Online · reading your numbers'));
+  meta.appendChild(name);
+  meta.appendChild(status);
+
+  header.appendChild(avatar);
+  header.appendChild(meta);
+  return header;
+}
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -235,6 +287,7 @@ function buildChatUi(panel, state) {
   // Insert: note above the chips, thread + input below them. Chips stay — they
   // become quick-starts that feed the conversation.
   const chips = panel.querySelector('#ask-steward-chips');
+  panel.insertBefore(buildAiStewardHeader(), chips);
   panel.insertBefore(noteWrap, chips);
   panel.insertBefore(memWrap, chips);
   panel.appendChild(thread);
