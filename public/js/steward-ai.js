@@ -13,8 +13,36 @@
  */
 
 import { stewardApiUrl } from './api.js';
+import { buildSteward } from './character.js';
 
 const SEEN_KEY = 'steward-ai-seen-at';
+
+/* Compact holographic AI Steward badge for the dialog card — same rig as the
+   chat header, reskinned via data-skin="ai", mirroring the current tier. Purely
+   decorative (aria-hidden); the title + body carry the meaning. */
+function currentStewardState() {
+  const card = document.getElementById('hero-state-card');
+  return (card && card.dataset && card.dataset.state) || 'building';
+}
+
+function buildAiStewardBadge() {
+  const badge = document.createElement('div');
+  badge.className = 'steward-ai-badge';
+  badge.setAttribute('aria-hidden', 'true');
+  badge.style.cssText = 'display:block;margin:0 auto 12px;width:76px;height:92px;position:relative;overflow:hidden;'
+    + 'border-radius:14px;background:radial-gradient(circle at 50% 30%,#0b2f6e,#04122e);'
+    + 'box-shadow:0 0 0 1px rgba(76,201,240,0.35),0 0 14px rgba(76,201,240,0.2);';
+  const wrap = buildSteward(currentStewardState(), { skin: 'ai' });
+  if (!wrap) return null;
+  const charEl = wrap.querySelector('.steward-character');
+  if (charEl) charEl.removeAttribute('aria-label');
+  wrap.style.setProperty('--scene-shift-y', '60px');
+  const inner = document.createElement('div');
+  inner.style.cssText = 'position:absolute;left:50%;top:5px;transform:translateX(-50%) scale(0.46);transform-origin:top center;';
+  inner.appendChild(wrap);
+  badge.appendChild(inner);
+  return badge;
+}
 
 // Per-mode framing copy. Order: eyebrow, default title, dismiss button.
 // The server can override `title` (e.g. for the quarterly letter / closing
@@ -122,6 +150,10 @@ function showDialog({ mode, title, text }) {
   overlay.querySelector('.steward-ai-title').textContent = title || framing.title;
   overlay.querySelector('.steward-ai-body').textContent = text;
   overlay.querySelector('.steward-ai-dismiss').textContent = framing.dismiss;
+  // The AI Steward himself, presiding over his own communique.
+  const cardEl = overlay.querySelector('.steward-ai-card');
+  const badge = buildAiStewardBadge();
+  if (cardEl && badge) cardEl.insertBefore(badge, cardEl.firstChild);
   document.body.appendChild(overlay);
 
   let autoTimer = null;
