@@ -227,6 +227,55 @@ if (!tableColumns('debt_account_balances').some((c) => c.name === 'last_verified
   db.exec(`ALTER TABLE debt_account_balances ADD COLUMN last_verified_at TEXT`);
 }
 
+// Data repair: the write-once per-account origin pin (debt_account_first_balance)
+// was originally backfilled for accounts that PREDATE the pin feature from the
+// then-current pull's balances instead of each account's earliest recorded
+// history — so every dollar paid down before that deploy vanished from the
+// per-account "% paid" badge (accounts read 0% despite real paydown). Repair
+// shape: the pin disagrees with the account's earliest surviving history row
+// AND matches a LATER row (i.e. it was seeded mid-history) → re-pin to the
+// earliest surviving balance. Pins matching no later row are left alone: they
+// may be true origins whose history rows were pruned, which is exactly what
+// the pin exists to preserve. One-shot (app_meta flag) because once the 30-row
+// prune advances history past a legitimate origin, re-running could misread a
+// correct pin as mid-history.
+(function repinFirstBalancesFromHistory() {
+  const FLAG = 'repin_first_balance_v1';
+  const has = db.prepare(`SELECT value FROM app_meta WHERE key = ?`).get(FLAG);
+  if (has) return;
+  const same = (a, b) => Math.abs(Number(a) - Number(b)) < 0.005;
+  const pinRows = db
+    .prepare(`SELECT user_id AS userId, value FROM config WHERE key = 'debt_account_first_balance'`)
+    .all();
+  const histStmt = db.prepare(`
+    SELECT balance FROM debt_account_history
+    WHERE user_id = ? AND ynab_account_id = ? ORDER BY recorded_at ASC
+  `);
+  const updStmt = db
+    .prepare(`UPDATE config SET value = ? WHERE user_id = ? AND key = 'debt_account_first_balance'`);
+  for (const row of pinRows) {
+    let map;
+    try { map = JSON.parse(row.value); } catch { continue; }
+    if (!map || typeof map !== 'object' || Array.isArray(map)) continue;
+    let changed = false;
+    for (const [id, pinned] of Object.entries(map)) {
+      const pin = Number(pinned);
+      if (!Number.isFinite(pin)) continue;
+      const hist = histStmt.all(row.userId, String(id));
+      if (!hist.length) continue;
+      const earliest = Number(hist[0].balance);
+      if (!Number.isFinite(earliest) || same(earliest, pin)) continue;
+      const seededMidHistory = hist.some((h, i) => i > 0 && same(h.balance, pin));
+      if (!seededMidHistory) continue;
+      map[id] = earliest;
+      changed = true;
+    }
+    if (changed) updStmt.run(JSON.stringify(map), row.userId);
+  }
+  db.prepare(`INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`)
+    .run(FLAG, new Date().toISOString());
+})();
+
 _schemaInitDone = true;
 
 // ── Transactions ──────────────────────────────────────────────────────────────
