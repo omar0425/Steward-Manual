@@ -845,10 +845,22 @@ function saveSnapshotForUser(rawBody, username) {
       // Pinning the true origin here keeps it stable forever.
       const firstBalMap = parseJsonObject(getConfig('debt_account_first_balance'));
       let firstBalChanged = false;
+      // Seed a missing pin from the account's EARLIEST recorded history, not
+      // this pull's balance — an account tracked before pinning existed has
+      // already been paid down, and pinning today's balance would erase that
+      // progress from the "% paid" badge (it read 0% for accounts that had
+      // only pre-pin paydown). Genuinely new accounts have no history yet at
+      // this point (appendDebtAccountHistory runs later in this handler), so
+      // they still seed from the incoming balance.
+      const earliestKnown = getDebtAccountFirstBalances();
       for (const [id, bal] of debtBalanceMap.entries()) {
-        if (firstBalMap[id] == null && Number.isFinite(Number(bal))) {
-          firstBalMap[id] = Number(bal);
-          firstBalChanged = true;
+        if (firstBalMap[id] == null) {
+          const hist = Number(earliestKnown.get(String(id)));
+          const seed = Number.isFinite(hist) ? hist : Number(bal);
+          if (Number.isFinite(seed)) {
+            firstBalMap[id] = seed;
+            firstBalChanged = true;
+          }
         }
         if (originMap[id]) continue; // first sighting only
         let origin;
