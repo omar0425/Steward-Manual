@@ -417,6 +417,47 @@ function buildPaydownCalculator() {
   return section;
 }
 
+/* Strategy Lab — plays avalanche / snowball / promo-aware / LP-optimal forward
+   at a monthly budget and compares the outcomes. The optimal plan is a linear
+   program solved locally (javascript-lp-solver); the model can be exported in
+   IBM CPLEX LP format. Wiring lives in strategy-lab.js. */
+function buildStrategyLab() {
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'strategy-lab-section' });
+  section.innerHTML = `
+    <summary class="section-summary" title="Compare payoff strategies — including promo-rate cliffs plain avalanche can't see.">
+      <h2 class="tc-section-label" style="margin:0;">Strategy Lab</h2>
+      <span class="section-summary-meta lab-summary-hint">which plan wins?</span>
+    </summary>
+    <p class="tc-section-sublabel" style="margin-top:0;">Plays each strategy forward month by month against your real balances, APRs, and promo deadlines — all on this device.</p>
+    <div class="lab-controls">
+      <label class="calc-field lab-budget-field">
+        <span class="calc-label">Monthly budget</span>
+        <span class="calc-input-wrap"><span class="calc-affix">$</span>
+          <input id="lab-budget" class="calc-input" type="number" inputmode="decimal" min="1" step="any" placeholder="500" aria-label="Total dollars available for debt payments per month" />
+        </span>
+      </label>
+      <button type="button" class="lab-run-btn" id="lab-run-btn">Compare strategies</button>
+    </div>
+    <p class="lab-note" id="lab-note" role="status" hidden></p>
+    <div id="lab-results" hidden>
+      <div class="lab-table-wrap">
+        <table class="lab-table" aria-label="Strategy comparison">
+          <thead><tr><th>Strategy</th><th>Debt-free</th><th>Interest</th><th>vs avalanche</th></tr></thead>
+          <tbody id="lab-table-body"></tbody>
+        </table>
+      </div>
+      <div class="lab-first-month" id="lab-first-month" hidden>
+        <h3 class="lab-subhead">This month's winning allocation</h3>
+        <div id="lab-first-month-list"></div>
+      </div>
+      <p class="lab-cliffs" id="lab-cliffs" hidden></p>
+      <p class="lab-footer">Optimal plan = linear program solved locally · nothing leaves this device ·
+        <a id="lab-lp-export" href="#" download title="The live optimization model in IBM CPLEX LP format — feed it to a real CPLEX installation, or any LP-format solver.">export model (.lp, CPLEX format)</a></p>
+    </div>
+  `;
+  return section;
+}
+
 function buildCumulativePaydownTrophy() {
   const section = el('section', { class: 'section-panel dashboard-only-section', id: 'cumulative-trophy-section' });
   section.innerHTML = `
@@ -588,6 +629,7 @@ export function mountPlayShell(root) {
   colA.appendChild(buildManualEntryForm());
   colA.appendChild(buildSessionPanel());
   colA.appendChild(buildPaydownCalculator());
+  colA.appendChild(buildStrategyLab());
   colA.appendChild(buildAskStewardPanel());
 
   const colB = el('div', { class: 'dash-col', id: 'dash-col-b' });

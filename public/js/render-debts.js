@@ -281,6 +281,54 @@ function buildAprForm(panel) {
     row.appendChild(label);
     row.appendChild(fields);
     form.appendChild(row);
+
+    // Promo terms sub-row — feeds the Strategy Lab's cliff-aware planning.
+    // Kept on its own quiet line so the everyday three fields stay uncluttered.
+    const promo = document.createElement('div');
+    promo.className = 'apr-form-promo-row';
+    const acctName = acct.name || 'Account';
+
+    const endWrap = document.createElement('label');
+    endWrap.className = 'apr-promo-field';
+    endWrap.append('Promo ends');
+    const endInput = document.createElement('input');
+    endInput.type = 'date';
+    endInput.className = 'apr-form-input apr-term-promo-end';
+    endInput.dataset.accountId = acct.id;
+    endInput.setAttribute('aria-label', `${acctName} promotional rate end date`);
+    if (typeof terms.promoEndsOn === 'string') endInput.value = terms.promoEndsOn;
+    endWrap.appendChild(endInput);
+
+    const postWrap = document.createElement('label');
+    postWrap.className = 'apr-promo-field';
+    postWrap.append('then');
+    const postInput = document.createElement('input');
+    postInput.type = 'number';
+    postInput.min = '0';
+    postInput.max = '100';
+    postInput.step = '0.01';
+    postInput.className = 'apr-form-input apr-term-post-apr';
+    postInput.dataset.accountId = acct.id;
+    postInput.placeholder = '%';
+    postInput.setAttribute('aria-label', `${acctName} APR after the promo ends`);
+    if (Number.isFinite(Number(terms.postPromoApr))) postInput.value = Number(terms.postPromoApr);
+    postWrap.appendChild(postInput);
+    postWrap.append('%');
+
+    const defWrap = document.createElement('label');
+    defWrap.className = 'apr-promo-field apr-promo-deferred';
+    defWrap.title = '"No interest if paid in full by the date" financing — miss the date and every waived cent is billed retroactively.';
+    const defInput = document.createElement('input');
+    defInput.type = 'checkbox';
+    defInput.className = 'apr-term-deferred';
+    defInput.dataset.accountId = acct.id;
+    defInput.setAttribute('aria-label', `${acctName} deferred-interest promo`);
+    if (terms.deferredInterest === true) defInput.checked = true;
+    defWrap.appendChild(defInput);
+    defWrap.append('deferred interest');
+
+    promo.append(endWrap, postWrap, defWrap);
+    form.appendChild(promo);
   }
 
   const actions = document.createElement('div');
@@ -331,6 +379,30 @@ function buildAprForm(panel) {
       const val = Math.round(parseFloat(inp.value.trim()));
       if (Number.isInteger(val) && val >= 1 && val <= 31) t.dueDay = val;
       else delete t.dueDay;
+      if (Object.keys(t).length > 0) _debtTerms[id] = t; else delete _debtTerms[id];
+    }
+    // Promo terms: end date, follow-on APR, deferred-interest flag.
+    for (const inp of form.querySelectorAll('.apr-term-promo-end')) {
+      const id = inp.dataset.accountId;
+      const t = _debtTerms[id] || {};
+      const val = inp.value.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) t.promoEndsOn = val;
+      else delete t.promoEndsOn;
+      if (Object.keys(t).length > 0) _debtTerms[id] = t; else delete _debtTerms[id];
+    }
+    for (const inp of form.querySelectorAll('.apr-term-post-apr')) {
+      const id = inp.dataset.accountId;
+      const t = _debtTerms[id] || {};
+      const val = parseFloat(inp.value.trim().replace(',', '.'));
+      if (Number.isFinite(val) && val >= 0 && val <= 100) t.postPromoApr = Math.round(val * 100) / 100;
+      else delete t.postPromoApr;
+      if (Object.keys(t).length > 0) _debtTerms[id] = t; else delete _debtTerms[id];
+    }
+    for (const inp of form.querySelectorAll('.apr-term-deferred')) {
+      const id = inp.dataset.accountId;
+      const t = _debtTerms[id] || {};
+      if (inp.checked) t.deferredInterest = true;
+      else delete t.deferredInterest;
       if (Object.keys(t).length > 0) _debtTerms[id] = t; else delete _debtTerms[id];
     }
     save.disabled = true;

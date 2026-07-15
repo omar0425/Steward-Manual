@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "express": "^4.22.2",
+    "javascript-lp-solver": "^0.4.24",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

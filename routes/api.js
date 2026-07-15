@@ -43,6 +43,9 @@ const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthly
 const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
 const {
+  comparePayoffStrategies, simulateStrategy, normalizeAccounts, buildCplexLp,
+} = require('../services/payoffOptimizer');
+const {
   CUTSCENE_USERNAME,
   isCutsceneUser,
   selectCutsceneVideo,
@@ -1158,10 +1161,54 @@ router.post('/config/debt-terms', express.json(), (req, res) => {
     if (Number.isFinite(min) && min > 0 && min <= 1e7) out.minPayment = Math.round(min * 100) / 100;
     const day = Number(t.dueDay);
     if (Number.isInteger(day) && day >= 1 && day <= 31) out.dueDay = day;
+    // Promo terms — powers the Strategy Lab's promo-cliff planning. promoEndsOn
+    // is the date the teaser rate dies; postPromoApr is the rate that takes
+    // over; deferredInterest marks "no interest IF paid in full by the date"
+    // financing, where missing the date retroactively bills the waived pool.
+    if (typeof t.promoEndsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.promoEndsOn)) {
+      const d = new Date(`${t.promoEndsOn}T00:00:00Z`);
+      if (Number.isFinite(d.getTime())) out.promoEndsOn = t.promoEndsOn;
+    }
+    const postApr = Number(t.postPromoApr);
+    if (Number.isFinite(postApr) && postApr >= 0 && postApr <= 100) {
+      out.postPromoApr = Math.round(postApr * 100) / 100;
+    }
+    if (t.deferredInterest === true) out.deferredInterest = true;
     if (Object.keys(out).length > 0) clean[String(id).slice(0, 100)] = out;
   }
   setConfig(DEBT_TERMS_KEY, JSON.stringify(clean));
   res.json({ ok: true, terms: clean });
+});
+
+// ── GET /api/payoff-plan/compare ──────────────────────────────────────────────
+// Strategy Lab: play avalanche / snowball / promo-aware / LP-optimal forward at
+// a monthly budget and compare months-to-free + total interest. All computed
+// locally — no balance ever leaves the server. `format=lp` returns the live
+// optimization model in IBM CPLEX LP file format instead (the exact model the
+// in-app solver runs, portable to a real CPLEX installation).
+router.get('/payoff-plan/compare', (req, res) => {
+  const budget = Number(req.query.budget);
+  if (!Number.isFinite(budget) || budget <= 0 || budget > 1e7) {
+    return res.status(400).json({ ok: false, error: 'budget (positive number) required' });
+  }
+  const rates = parseJsonObject(getConfig('interest_rates'));
+  const names = parseJsonObject(getConfig('debt_account_name_map'));
+  const terms = parseJsonObject(getConfig(DEBT_TERMS_KEY));
+  const accounts = [...getAllDebtAccountBalances().entries()].map(([id, balance]) => ({
+    id, name: names[id] || 'Account', balance, apr: rates[id],
+  }));
+  if (String(req.query.format || '').toLowerCase() === 'lp') {
+    const normalized = normalizeAccounts(accounts, terms, new Date());
+    if (!normalized.length) return res.status(400).json({ ok: false, error: 'No open balances to model.' });
+    const probe = simulateStrategy('promo-aware', normalized, budget);
+    const horizon = Math.min(120, (probe.debtFree ? probe.months : 36) + 2);
+    res.setHeader('content-type', 'text/plain; charset=utf-8');
+    res.setHeader('content-disposition', 'attachment; filename="steward-payoff-model.lp"');
+    return res.send(buildCplexLp(normalized, budget, horizon));
+  }
+  const comparison = comparePayoffStrategies(accounts, terms, budget, new Date());
+  if (!comparison) return res.status(400).json({ ok: false, error: 'No open balances to plan.' });
+  res.json({ ok: true, ...comparison });
 });
 
 // ── GET /api/debt-history ─────────────────────────────────────────────────────

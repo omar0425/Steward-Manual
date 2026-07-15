@@ -1022,6 +1022,113 @@ board-liquidity-pill
   line-height: 1.4;
 }
 
+/* ── Strategy Lab ──────────────────────────────────────────────────────────
+   Budget input + strategy comparison table + the winning first-month
+   allocation. Table scrolls inside its own wrapper on narrow screens. */
+.lab-summary-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+}
+.lab-controls { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.lab-budget-field { flex: 0 1 180px; }
+.lab-run-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  background: var(--gold);
+  color: #1a1206;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.lab-run-btn:disabled { opacity: 0.6; cursor: default; }
+.lab-note {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  margin: 10px 0 0;
+}
+.lab-table-wrap { overflow-x: auto; margin-top: 14px; }
+.lab-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+}
+.lab-table th {
+  text-align: left;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 0 10px 6px 0;
+  border-bottom: 1px solid var(--border-2);
+}
+.lab-table td {
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.lab-table tr:last-child td { border-bottom: none; }
+.lab-row-best td { color: var(--text); }
+.lab-best-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--gold-2, var(--gold));
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+.lab-saves { color: var(--emerald, #10b981); }
+.lab-costs { color: var(--rose, #d94f6e); }
+.lab-subhead {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 16px 0 6px;
+}
+.lab-alloc-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+.lab-alloc-row:last-child { border-bottom: none; }
+.lab-alloc-name { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-alloc-amount { color: var(--emerald, #10b981); font-variant-numeric: tabular-nums; }
+.lab-cliffs {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--gold-2, var(--gold));
+  margin: 12px 0 0;
+}
+.lab-footer {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px;
+  color: var(--text-3);
+  margin: 14px 0 0;
+  line-height: 1.6;
+}
+.lab-footer a { color: var(--text-3); text-decoration: underline; }
+.lab-footer a:hover { color: var(--gold); }
+
 /* Debt Accounts panel header — title/sublabel beside the APR-edit + sort
    controls on wide screens; the phone rule in the 600px block drops the
    controls onto their own row so the sublabel isn't squeezed into a sliver. */
@@ -1085,6 +1192,35 @@ board-liquidity-pill
   font-size: 11px;
   color: var(--text-3);
 }
+/* Promo-terms sub-row (Strategy Lab data): a quiet indented line under each
+   account's main three fields. The main row keeps its border-bottom; this row
+   visually attaches to the account above it. */
+.apr-form-promo-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 0 0 7px;
+  border-bottom: 1px solid var(--border);
+  margin-top: -4px;
+}
+.apr-form-promo-row:last-of-type { border-bottom: none; }
+.apr-promo-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.apr-promo-field .apr-form-input { width: auto; }
+.apr-term-promo-end { color-scheme: dark; }
+[data-theme="light"] .apr-term-promo-end { color-scheme: light; }
+.apr-promo-deferred { cursor: pointer; }
+.apr-term-deferred { accent-color: var(--gold); width: 13px; height: 13px; }
+
 .apr-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .apr-form-cancel {
   font-family: 'IBM Plex Mono', monospace;

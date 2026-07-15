@@ -18,6 +18,7 @@ import {
 } from './render-debts.js';
 import { maybePlayCutscene } from './cutscene.js';
 import { renderCalculator } from './render-calculator.js';
+import { renderStrategyLab } from './strategy-lab.js';
 import { setWhatIfBasis } from './views/networth-chart.js';
 import { maybeCelebrateCleared } from './celebration.js';
 
@@ -76,6 +77,7 @@ export function render(status, snapshots) {
   renderPayThisNext(stats);
   fillThisTurnPanel(stats);
   renderCalculator(stats);
+  renderStrategyLab(stats);
   // Exact-amortization basis for the chart panel's what-if slider — lets it
   // work from the user's average payment even when no chart projection is up.
   setWhatIfBasis(stats);
