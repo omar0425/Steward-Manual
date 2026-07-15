@@ -2125,6 +2125,7 @@ router.get('/steward-ai/chat', (req, res) => {
     messages: readChatHistory(),
     situationNote: String(getConfig(SITUATION_NOTE_KEY) || ''),
     memories: stewardAiMemory.readMemories(),
+    archives: archiveSummaries(readChatArchives()),
   });
 });
 
@@ -2186,6 +2187,102 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
 router.post('/steward-ai/chat/clear', express.json(), (req, res) => {
   setConfig(CHAT_HISTORY_KEY, '[]');
   res.json({ ok: true });
+});
+
+// ── Saved conversations ───────────────────────────────────────────────────────
+// The live thread is one bounded list (last 40 messages); without these, a
+// long-running chat is a slow-motion data loss. "Save" snapshots the current
+// thread into an archive and starts fresh; archives can be reopened (resume)
+// or deleted. Bounded: newest CHAT_MAX_ARCHIVES kept, oldest dropped.
+
+const CHAT_ARCHIVE_KEY = 'steward_chat_archives';
+const CHAT_MAX_ARCHIVES = 20;
+
+function readChatArchives() {
+  return parseJsonArray(getConfig(CHAT_ARCHIVE_KEY))
+    .filter((a) => a && typeof a.id === 'string' && Array.isArray(a.messages));
+}
+
+function writeChatArchives(archives) {
+  setConfig(CHAT_ARCHIVE_KEY, JSON.stringify(archives.slice(-CHAT_MAX_ARCHIVES)));
+}
+
+/** List-view projection — titles and counts, not full transcripts. */
+function archiveSummaries(archives) {
+  return archives
+    .map((a) => ({
+      id: a.id,
+      title: String(a.title || 'Conversation'),
+      savedAt: typeof a.savedAt === 'string' ? a.savedAt : null,
+      messageCount: a.messages.length,
+    }))
+    .reverse(); // newest first for the UI
+}
+
+function chatTitleFrom(messages) {
+  const first = messages.find((m) => m.role === 'user');
+  const text = first ? first.text.replace(/\s+/g, ' ').trim() : '';
+  if (!text) return 'Conversation';
+  return text.length > 48 ? `${text.slice(0, 47)}…` : text;
+}
+
+router.get('/steward-ai/chat/archives', (req, res) => {
+  res.json({ ok: true, archives: archiveSummaries(readChatArchives()) });
+});
+
+// Save the live thread as an archive and start a fresh one.
+router.post('/steward-ai/chat/archive', express.json(), (req, res) => {
+  const history = readChatHistory();
+  if (!history.length) {
+    return res.status(200).json({ ok: false, error: 'Nothing to save yet — the conversation is empty.' });
+  }
+  const archives = readChatArchives();
+  archives.push({
+    id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    title: chatTitleFrom(history),
+    savedAt: new Date().toISOString(),
+    messages: history,
+  });
+  transaction(() => {
+    writeChatArchives(archives);
+    setConfig(CHAT_HISTORY_KEY, '[]');
+  });
+  res.json({ ok: true, archives: archiveSummaries(readChatArchives()) });
+});
+
+// Reopen a saved conversation as the live thread. The current thread (if any)
+// is auto-saved first, so resuming can never destroy messages.
+router.post('/steward-ai/chat/archives/resume', express.json(), (req, res) => {
+  const id = String((req.body || {}).id || '');
+  const archives = readChatArchives();
+  const idx = archives.findIndex((a) => a.id === id);
+  if (idx === -1) return res.status(404).json({ ok: false, error: 'That saved conversation no longer exists.' });
+  const [target] = archives.splice(idx, 1);
+  const current = readChatHistory();
+  if (current.length) {
+    archives.push({
+      id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      title: chatTitleFrom(current),
+      savedAt: new Date().toISOString(),
+      messages: current,
+    });
+  }
+  transaction(() => {
+    writeChatArchives(archives);
+    writeChatHistory(target.messages);
+  });
+  res.json({ ok: true, messages: readChatHistory(), archives: archiveSummaries(readChatArchives()) });
+});
+
+router.post('/steward-ai/chat/archives/delete', express.json(), (req, res) => {
+  const id = String((req.body || {}).id || '');
+  const archives = readChatArchives();
+  const next = archives.filter((a) => a.id !== id);
+  if (next.length === archives.length) {
+    return res.status(404).json({ ok: false, error: 'That saved conversation no longer exists.' });
+  }
+  writeChatArchives(next);
+  res.json({ ok: true, archives: archiveSummaries(next) });
 });
 
 // The standing "my situation" note — injected into EVERY AI surface (chat,

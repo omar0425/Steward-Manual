@@ -997,6 +997,7 @@ function resetAllGameState() {
     'cutscene_next_index',
     'cutscene_last_index',
     'steward_chat_history',
+    'steward_chat_archives',
     'steward_situation_note',
     'steward_ai_ledger',
     'steward_ai_nicknames',

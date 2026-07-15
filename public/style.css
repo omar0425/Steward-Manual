@@ -3644,21 +3644,86 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
   margin: 0 !important;
   flex-shrink: 0;
 }
-.steward-chat-clear {
-  margin-top: 10px;
-  background: none; border: none;
-  color: var(--text-3);
-  font-size: 11px;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 4px 0;
+/* Per-message meta: muted timestamp + (on Steward replies) a copy button. */
+.steward-chat-msg-meta {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  align-self: flex-end;
 }
-.steward-chat-clear:hover { color: var(--rose); }
+.steward-chat-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px; letter-spacing: 0.04em;
+  color: var(--text-3);
+  white-space: nowrap;
+  opacity: 0.8;
+}
+.steward-chat-copy {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-3); font-size: 12px; line-height: 1;
+  padding: 2px 4px; border-radius: 5px;
+}
+.steward-chat-copy:hover { color: var(--gold); background: rgba(255,255,255,0.05); }
+
+/* Character headroom — only visible near the limit. */
+.steward-chat-counter {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--accent);
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* Conversation tools: save / export / clear. */
+.steward-chat-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.steward-chat-tool-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; letter-spacing: 0.06em;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.steward-chat-tool-btn:hover { border-color: var(--gold); color: var(--text); }
+.steward-chat-tool-btn:disabled { opacity: 0.5; cursor: default; }
+.steward-chat-tool-btn--danger:hover { border-color: var(--rose); color: var(--rose); }
+
+/* Saved conversations list. */
+.steward-chat-archive-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px 2px; }
+.steward-chat-archive-row {
+  display: flex; gap: 8px; align-items: center; justify-content: space-between;
+  padding: 4px 6px 4px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.steward-chat-archive-open {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  background: none; border: none; cursor: pointer;
+  padding: 6px 10px;
+  text-align: left;
+  border-radius: 10px;
+}
+.steward-chat-archive-open:hover .steward-chat-archive-title { color: var(--gold); }
+.steward-chat-archive-open:disabled { opacity: 0.5; cursor: default; }
+.steward-chat-archive-title {
+  font-size: 12.5px; color: var(--text);
+  max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.steward-chat-archive-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px; color: var(--text-3);
+}
+
 @media (max-width: 600px) {
   .steward-chat-thread { max-height: 300px; }
   .steward-chat-msg { max-width: 100%; }
   .steward-chat-input-row { flex-direction: column; align-items: stretch; }
   .steward-chat-send { min-height: 44px; }
+  .steward-chat-tool-btn { min-height: 40px; flex: 1 1 auto; text-align: center; }
 }
 
 /* ── Admin bug panel (mounts only for the admin account) ─────────────────── */
