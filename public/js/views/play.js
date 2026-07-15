@@ -293,12 +293,12 @@ function buildSessionPanel() {
 function buildDebtAccountsPanel() {
   const section = el('section', { class: 'section-panel dashboard-only-section', id: 'debt-accounts-section' });
   section.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;">
-      <div style="min-width:0;">
+    <div class="debt-accounts-head">
+      <div class="debt-accounts-head-text">
         <h2 class="tc-section-label" style="margin:0;">Debt Accounts</h2>
         <p class="tc-section-sublabel">Read-only overview · update balances in the Your Debts panel</p>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      <div class="debt-accounts-controls">
         <button class="apr-edit-btn" id="apr-edit-btn" type="button">APRs & terms</button>
         <div class="sort-toggle">
           <button class="sort-toggle-btn active" data-sort="balance">Balance</button>
@@ -578,18 +578,24 @@ export function mountPlayShell(root) {
      are distributed to even out the rest. Wrappers collapse via display:contents
      below 1200px so every panel flows in one column; hero/strip/danger/footer are
      full-width siblings. */
+  // Column packing keeps the two desktop stacks close in height: the tall
+  // chat panel anchors column A, so the trophy lives at the end of column B —
+  // otherwise A outruns B by most of a screen and the page ends in a one-
+  // sided void. (On phones the columns unwrap into one flow, where this also
+  // reads better: the trophy closes the numbers story after "Pay this next"
+  // instead of interrupting between the chat and the chart.)
   const colA = el('div', { class: 'dash-col', id: 'dash-col-a' });
   colA.appendChild(buildManualEntryForm());
   colA.appendChild(buildSessionPanel());
   colA.appendChild(buildPaydownCalculator());
   colA.appendChild(buildAskStewardPanel());
-  colA.appendChild(buildCumulativePaydownTrophy());
 
   const colB = el('div', { class: 'dash-col', id: 'dash-col-b' });
   colB.appendChild(buildDebtReductionChart());
   colB.appendChild(buildDebtAccountsPanel());
   colB.appendChild(buildStageProgressDetail());
   colB.appendChild(buildPayThisNextCard());
+  colB.appendChild(buildCumulativePaydownTrophy());
 
   dashboard.appendChild(colA);
   dashboard.appendChild(colB);

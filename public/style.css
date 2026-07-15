@@ -892,6 +892,10 @@ board-liquidity-pill
   .debt-row { grid-template-columns: minmax(110px, 1fr) 78px 86px 40px; gap: 6px; }
   .debt-row > :nth-child(5) { display: none; }
   .debt-row .dr-delta { min-width: 40px; }
+  /* Let the name cell wrap: single-line nowrap turned "Klarna [PAY FIRST]"
+     into "Klarna …" — the badge fell off the ellipsis. Wrapped, the badge
+     sits on its own line under the name and stays readable. */
+  .debt-row .dr-name { white-space: normal; line-height: 1.35; }
   .dr-apr { font-size: 12px; }
   /* The 78px mobile APR column can't fit the rate AND the per-row "~$/mo"
      interest at a legible size, so the rate (now 12px) gets the space and the
@@ -1017,6 +1021,13 @@ board-liquidity-pill
   color: var(--text-2);
   line-height: 1.4;
 }
+
+/* Debt Accounts panel header — title/sublabel beside the APR-edit + sort
+   controls on wide screens; the phone rule in the 600px block drops the
+   controls onto their own row so the sublabel isn't squeezed into a sliver. */
+.debt-accounts-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; }
+.debt-accounts-head-text { min-width: 0; }
+.debt-accounts-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* APR chip — display only, not interactive. Right-aligned + tabular so the rate
    column lines up its decimals down the table (Bug #8). */
@@ -1579,7 +1590,21 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 
   /* Data strip: tighten gap and let items breathe */
   .data-strip { gap: 14px; padding: 14px 16px; }
-  .data-strip-actions { margin-left: 0; }
+  .data-strip-actions { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  /* Action buttons share each row evenly instead of wrapping into a ragged
+     right edge (Refresh/CSV/JSON over Restore/Reminders). */
+  .data-strip-actions .refresh-btn { flex: 1 1 auto; text-align: center; justify-content: center; }
+
+  /* Debt Accounts header: the title + sublabel keep the full width and the
+     APR/sort controls drop to their own row — side by side, the sublabel
+     was squeezed into a three-word-wide column. */
+  .debt-accounts-head { flex-wrap: wrap; }
+  .debt-accounts-head-text { flex: 1 1 100%; }
+
+  /* Collapsible chart summary: let the $value + trend drop below the label
+     instead of crushing "Debt Remaining" into a two-line wrap. */
+  .chart-header { flex-wrap: wrap; row-gap: 2px; }
+  .chart-header .tc-section-label { white-space: nowrap; }
 }
 
 /* ── [hidden] normalization ─────────────────────────────────────────────── */
