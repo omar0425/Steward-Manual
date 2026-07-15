@@ -331,8 +331,11 @@ function buildChatUi(panel, state) {
   input.maxLength = 1500;
   // Short enough to fit the two-line box on a phone — the third line of the
   // old placeholder clipped mid-word. Shift+Enter stays discoverable via title.
+  // The aria-label is the real accessible name: a title alone trips axe's
+  // label-title-only rule (and placeholders vanish the moment you type).
   input.placeholder = 'Tell the Steward what’s going on, or ask anything…';
   input.title = 'Enter to send · Shift+Enter for a new line';
+  input.setAttribute('aria-label', 'Message the Steward');
   const send = el('button', 'commitment-btn steward-chat-send', 'Send');
   send.type = 'button';
   send.id = 'steward-chat-send';
