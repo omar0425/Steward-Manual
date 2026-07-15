@@ -52,6 +52,7 @@ require('./first-balance-origin.test');
 require('./payoff-optimizer.test');
 require('./payoff-plan-compare.test');
 require('./chat-archives.test');
+require('./db-guards.test');
 require('./contrast.test');
 require('./payoff-plan.test');
 require('./audit-metrics.test');

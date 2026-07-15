@@ -27,6 +27,7 @@ const {
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
   markDebtAccountVerified,
+  safetySnapshot,
   getDebtAccountVerifiedAt,
   savePushSubscription,
   deletePushSubscription,
@@ -1090,6 +1091,9 @@ router.post('/reset-game', (req, res) => {
     if (!(req.body && req.body.confirm === true)) {
       return res.status(400).json({ ok: false, error: 'confirm: true required to reset game' });
     }
+    // Pre-destruction snapshot: a wrong-account or panic reset stays
+    // recoverable from <db-dir>/backups/ (see RECOVERY.md). Never blocks.
+    safetySnapshot('reset');
     const summary = resetAllGameState();
     clearLastDebtSyncDebug();
     return res.json({ ok: true, ...summary });
@@ -2524,6 +2528,9 @@ router.post('/restore', express.json({ limit: '8mb' }), (req, res) => {
   if (!check.ok) return res.status(400).json({ ok: false, error: check.error });
   const force = req.body.force === true || req.query.force === '1' || req.query.force === 'true';
   try {
+    // Pre-destruction snapshot: restoring the wrong file over live data stays
+    // recoverable from <db-dir>/backups/ (see RECOVERY.md). Never blocks.
+    safetySnapshot('restore');
     const restored = importUserData(req.body, { force });
     const skipped = restored.skipped || {};
     const skippedTotal = Object.values(skipped).reduce((a, b) => a + (Number(b) || 0), 0);

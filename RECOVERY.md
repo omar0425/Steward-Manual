@@ -6,7 +6,7 @@ The whole database is a single SQLite file at `STEWARD_DB_PATH` (e.g. `/data/ste
 
 ---
 
-## What backs you up (two layers)
+## What backs you up (three layers)
 
 1. **Daily on-volume rotation** (production only, automatic).
    - `server.js` writes a dated snapshot to `<db-dir>/backups/steward-YYYY-MM-DD.db` once a day via `VACUUM INTO` (a consistent copy even mid-write), keeping the last **7**.
@@ -14,7 +14,11 @@ The whole database is a single SQLite file at `STEWARD_DB_PATH` (e.g. `/data/ste
    - Protects against: corruption, a bad deploy, accidental data loss.
    - Does **NOT** protect against losing the volume itself — same disk as the live DB.
 
-2. **Off-box pull** (you run this — the real disaster protection).
+2. **Pre-destruction snapshots** (every environment, automatic).
+   - Right before the two destructive operations — **game reset** and **restore-over-data** — a consistent whole-DB copy lands in `<db-dir>/backups/steward-pre-<reset|restore>-<stamp>.db` (newest **5** kept).
+   - A wrong-file restore or a panic reset is recoverable the same way as any backup (Option A below). Snapshot failure never blocks the operation itself — it logs and proceeds.
+
+3. **Off-box pull** (you run this — the real disaster protection).
    - `GET /admin/backup`, guarded by `STEWARD_BACKUP_TOKEN`, streams a fresh consistent copy.
    - `scripts/pull-backup.ps1` downloads it to `%USERPROFILE%\StewardBackups` (keeps 30 days). Schedule it daily:
      ```
@@ -23,6 +27,8 @@ The whole database is a single SQLite file at `STEWARD_DB_PATH` (e.g. `/data/ste
      ```
      with `STEWARD_BASE_URL` and `STEWARD_BACKUP_TOKEN` set.
    - Protects against: total loss of the host/volume.
+
+> **Boot-time watchdogs:** every boot runs `PRAGMA quick_check` on the **live** DB and re-checks that the file sits on a persistent volume. Failures print loudly to the server log **and** land in the admin bug panel (signatures `live-db-integrity-failure` / `storage-durability-warning`) — a corrupt live DB running past the 7-day rotation would otherwise poison every remaining backup.
 
 > **The one rule:** a backup you've never restored is a hope, not a backup. Run the drill (below) on a schedule.
 

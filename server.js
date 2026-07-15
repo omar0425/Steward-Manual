@@ -427,10 +427,32 @@ if (typeof pruneHandle.unref === 'function') pruneHandle.unref();
 // Loud, early warning if the SQLite file isn't on a Railway persistent volume —
 // a redeploy would wipe every user's data. Logged once at boot.
 try {
-  const { storageDurabilityWarning } = require('./db');
+  const { storageDurabilityWarning, checkLiveDbIntegrity, upsertBugReport } = require('./db');
   const warning = storageDurabilityWarning && storageDurabilityWarning();
   if (warning) {
     console.warn(`\n  ⚠️  [storage] ${warning}\n`);
+    // Also land it in the admin bug funnel — a log line on a host nobody
+    // tails is not a guard. Signature-deduped, so repeat boots bump a
+    // counter instead of flooding.
+    try {
+      upsertBugReport({ signature: 'storage-durability-warning', kind: 'invariant', userId: 0, raw: warning });
+    } catch (_) { /* the funnel must never block boot */ }
+  }
+  // Corruption probe on the LIVE database. The daily backups self-verify, but
+  // a corrupt live DB running past the 7-day rotation would poison every
+  // remaining backup — this catches it on the first boot after it happens.
+  const integ = checkLiveDbIntegrity && checkLiveDbIntegrity();
+  if (integ && !integ.ok) {
+    console.error(`\n  🛑 [storage] LIVE DATABASE FAILED PRAGMA quick_check: ${integ.verdict}`);
+    console.error('     Do not trust new backups. See RECOVERY.md — restore the newest VERIFIED snapshot.\n');
+    try {
+      upsertBugReport({
+        signature: 'live-db-integrity-failure',
+        kind: 'invariant',
+        userId: 0,
+        raw: `PRAGMA quick_check: ${integ.verdict}`,
+      });
+    } catch (_) { /* never block boot */ }
   }
 } catch (_) { /* never block startup on the check itself */ }
 
