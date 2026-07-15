@@ -929,6 +929,10 @@ board-liquidity-pill
   vertical-align: 1px;
 }
 .dr-interest { color: var(--text-3); font-size: 12px; }
+/* Tiny "APR" tag on every rate — two bare percentages side by side (APR and the
+   green "% paid") read as the same number; the tag disambiguates on every row
+   even after the column header scrolls away. */
+.dr-apr-tag { font-size: 9px; letter-spacing: 0.06em; opacity: 0.75; }
 .debt-interest-line {
   margin: 8px 0 0;
   font-family: 'IBM Plex Mono', monospace;
@@ -2972,6 +2976,7 @@ body[data-setup-mode="first"] .setup-welcome {
   color: var(--text-3);
 }
 .dr-col-head--trend { text-align: right; }
+.dr-col-head--right { text-align: right; }
 
 /* #19 — Make "Show all N accounts" read as a clear, clickable button. */
 .turn-show-all-btn {

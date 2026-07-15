@@ -528,15 +528,17 @@ export function fillDebtAccountsList(stats) {
     return Number.isFinite(b) && b > max ? b : max;
   }, 0);
 
-  // Column header row — labels the sparkline column ("Trend") that otherwise has
-  // no header. Uses the same grid as .debt-row so the label sits over the spark.
+  // Column header row — labels the rate and balance columns (two unlabeled
+  // percentages side by side — APR and "% paid" — read as the same thing) and
+  // the sparkline column ("Trend") that otherwise has no header. Uses the same
+  // grid as .debt-row so each label sits over its column.
   const header = document.createElement('div');
   header.className = 'debt-row debt-row--header';
   header.setAttribute('aria-hidden', 'true');
   header.innerHTML =
     '<span class="dr-col-head"></span>' +
-    '<span class="dr-col-head"></span>' +
-    '<span class="dr-col-head"></span>' +
+    '<span class="dr-col-head dr-col-head--right">APR</span>' +
+    '<span class="dr-col-head dr-col-head--right">Balance</span>' +
     '<span class="dr-col-head"></span>' +
     '<span class="dr-col-head dr-col-head--trend">Trend</span>';
   listEl.appendChild(header);
@@ -629,7 +631,14 @@ export function fillDebtAccountsList(stats) {
     aprEl.className = 'dr-apr';
     const rateVal = _aprRates[acct.id];
     if (rateVal != null && Number.isFinite(rateVal)) {
+      // Always tag the rate with a small "APR" so it can't be mistaken for the
+      // green "% paid" progress figure rendered right next to it.
       aprEl.textContent = `${rateVal}%`;
+      const tag = document.createElement('span');
+      tag.className = 'dr-apr-tag';
+      tag.textContent = ' APR';
+      aprEl.appendChild(tag);
+      aprEl.title = `${rateVal}% APR — this account's interest rate, not your payoff progress.`;
       const monthly = (balance * rateVal) / 100 / 12;
       if (rateVal > 0 && monthly >= 0.5) {
         const cost = document.createElement('span');
@@ -640,6 +649,7 @@ export function fillDebtAccountsList(stats) {
       }
     } else {
       aprEl.textContent = '—';
+      aprEl.title = 'No APR recorded — add it via “Aprs & terms” to include this account in interest estimates.';
     }
 
     // Balance cell stacks the dollar figure over a small "% paid" line. The
