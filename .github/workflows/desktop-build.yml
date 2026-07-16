@@ -8,6 +8,10 @@ name: Desktop installer
 on:
   workflow_dispatch:
 
+# The release step publishes the installer as a public download.
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -30,3 +34,18 @@ jobs:
             desktop/dist/*.exe
           retention-days: 14
           if-no-files-found: error
+      # Also publish to a rolling "desktop-latest" release: unlike artifacts,
+      # release assets are a permanent DIRECT download — no GitHub login, no
+      # zip wrapper, no 14-day expiry. Re-running the workflow replaces the
+      # asset in place, so the download URL never changes.
+      - name: Publish to the desktop-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: Steward Desktop (latest)
+          body: |
+            The Steward desktop app for Windows — installs a desktop shortcut,
+            Start-menu entry, and a system-tray icon. Built automatically from
+            main by the "Desktop installer" workflow.
+          files: desktop/dist/*.exe
+          make_latest: true
