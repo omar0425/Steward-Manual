@@ -1,0 +1,32 @@
+name: Desktop installer
+
+# On-demand build of the Steward desktop app on GitHub's own runners —
+# official Electron binaries, no local Node/npm needed. Run it from the
+# Actions tab ("Run workflow") or ask Claude to trigger it; the finished
+# installer lands as a downloadable artifact on the run page.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install desktop dependencies
+        run: npm ci
+        working-directory: desktop
+      - name: Build Windows installer
+        run: npx electron-builder --win
+        working-directory: desktop
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Steward-Windows-Setup
+          path: |
+            desktop/dist/*.exe
+          retention-days: 14
+          if-no-files-found: error
