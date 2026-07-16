@@ -29,7 +29,8 @@
     "publish": {
       "provider": "github",
       "owner": "omar0425",
-      "repo": "Steward-Manual"
+      "repo": "Steward-Manual",
+      "releaseType": "release"
     },
     "win": {
       "target": [
