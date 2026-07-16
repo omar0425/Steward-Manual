@@ -25,6 +25,12 @@
     "directories": {
       "output": "dist"
     },
+    "artifactName": "Steward.Setup.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "omar0425",
+      "repo": "Steward-Manual"
+    },
     "win": {
       "target": [
         "nsis"
@@ -51,5 +57,8 @@
       "icon": "icons/icon-512.png",
       "category": "Office"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

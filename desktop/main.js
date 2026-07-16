@@ -23,6 +23,14 @@ const { app, BrowserWindow, Tray, Menu, shell, nativeImage } = require('electron
 const path = require('node:path');
 const fs = require('node:fs');
 
+// Auto-update from the repo's public GitHub Releases: checked at launch and
+// every 6 hours, downloaded in the background, installed on quit. Only in the
+// packaged app — `npm start` dev runs skip it entirely.
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+} catch (_) { /* dependency missing in a bare dev checkout — updates just off */ }
+
 const DEFAULT_URL = 'https://steward-manual-production.up.railway.app';
 
 function stewardUrl() {
@@ -113,6 +121,11 @@ function createTray() {
           rebuildMenu();
         },
       },
+      {
+        label: 'Check for updates',
+        enabled: !!(autoUpdater && app.isPackaged),
+        click: () => { checkForUpdates(); },
+      },
       { type: 'separator' },
       {
         label: 'Quit Steward',
@@ -132,6 +145,16 @@ function createTray() {
   });
 }
 
+// Update check — silent when current; an OS notification appears once a new
+// version has downloaded, and it installs on the next quit. Failures are
+// logged and ignored: an update hiccup must never disturb the app itself.
+function checkForUpdates() {
+  if (!autoUpdater || !app.isPackaged) return;
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    console.error('[updater]', err && err.message);
+  });
+}
+
 // Second launch (double-clicking the shortcut again) focuses the running app.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -142,6 +165,8 @@ if (!gotLock) {
   app.whenReady().then(() => {
     createWindow();
     createTray();
+    checkForUpdates();
+    setInterval(checkForUpdates, 6 * 60 * 60 * 1000);
   });
 
   // macOS: dock icon click reopens the window.
