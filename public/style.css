@@ -892,6 +892,10 @@ board-liquidity-pill
   .debt-row { grid-template-columns: minmax(110px, 1fr) 78px 86px 40px; gap: 6px; }
   .debt-row > :nth-child(5) { display: none; }
   .debt-row .dr-delta { min-width: 40px; }
+  /* Let the name cell wrap: single-line nowrap turned "Klarna [PAY FIRST]"
+     into "Klarna …" — the badge fell off the ellipsis. Wrapped, the badge
+     sits on its own line under the name and stays readable. */
+  .debt-row .dr-name { white-space: normal; line-height: 1.35; }
   .dr-apr { font-size: 12px; }
   /* The 78px mobile APR column can't fit the rate AND the per-row "~$/mo"
      interest at a legible size, so the rate (now 12px) gets the space and the
@@ -929,6 +933,10 @@ board-liquidity-pill
   vertical-align: 1px;
 }
 .dr-interest { color: var(--text-3); font-size: 12px; }
+/* Tiny "APR" tag on every rate — two bare percentages side by side (APR and the
+   green "% paid") read as the same number; the tag disambiguates on every row
+   even after the column header scrolls away. */
+.dr-apr-tag { font-size: 9px; letter-spacing: 0.06em; opacity: 0.75; }
 .debt-interest-line {
   margin: 8px 0 0;
   font-family: 'IBM Plex Mono', monospace;
@@ -1014,6 +1022,120 @@ board-liquidity-pill
   line-height: 1.4;
 }
 
+/* ── Strategy Lab ──────────────────────────────────────────────────────────
+   Budget input + strategy comparison table + the winning first-month
+   allocation. Table scrolls inside its own wrapper on narrow screens. */
+.lab-summary-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+}
+.lab-controls { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.lab-budget-field { flex: 0 1 180px; }
+.lab-run-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  background: var(--gold);
+  color: #1a1206;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.lab-run-btn:disabled { opacity: 0.6; cursor: default; }
+.lab-note {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  margin: 10px 0 0;
+}
+.lab-table-wrap { overflow-x: auto; margin-top: 14px; }
+.lab-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+}
+.lab-table th {
+  text-align: left;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 0 10px 6px 0;
+  border-bottom: 1px solid var(--border-2);
+}
+.lab-table td {
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.lab-table tr:last-child td { border-bottom: none; }
+.lab-row-best td { color: var(--text); }
+.lab-best-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--gold-2, var(--gold));
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+.lab-saves { color: var(--emerald, #10b981); }
+.lab-costs { color: var(--rose, #d94f6e); }
+.lab-subhead {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 16px 0 6px;
+}
+.lab-alloc-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+.lab-alloc-row:last-child { border-bottom: none; }
+.lab-alloc-name { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-alloc-amount { color: var(--emerald, #10b981); font-variant-numeric: tabular-nums; }
+.lab-cliffs {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--gold-2, var(--gold));
+  margin: 12px 0 0;
+}
+.lab-footer {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px;
+  color: var(--text-3);
+  margin: 14px 0 0;
+  line-height: 1.6;
+}
+.lab-footer a { color: var(--text-3); text-decoration: underline; }
+.lab-footer a:hover { color: var(--gold); }
+
+/* Debt Accounts panel header — title/sublabel beside the APR-edit + sort
+   controls on wide screens; the phone rule in the 600px block drops the
+   controls onto their own row so the sublabel isn't squeezed into a sliver. */
+.debt-accounts-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; }
+.debt-accounts-head-text { min-width: 0; }
+.debt-accounts-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
 /* APR chip — display only, not interactive. Right-aligned + tabular so the rate
    column lines up its decimals down the table (Bug #8). */
 .dr-apr {
@@ -1070,6 +1192,35 @@ board-liquidity-pill
   font-size: 11px;
   color: var(--text-3);
 }
+/* Promo-terms sub-row (Strategy Lab data): a quiet indented line under each
+   account's main three fields. The main row keeps its border-bottom; this row
+   visually attaches to the account above it. */
+.apr-form-promo-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 0 0 7px;
+  border-bottom: 1px solid var(--border);
+  margin-top: -4px;
+}
+.apr-form-promo-row:last-of-type { border-bottom: none; }
+.apr-promo-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.apr-promo-field .apr-form-input { width: auto; }
+.apr-term-promo-end { color-scheme: dark; }
+[data-theme="light"] .apr-term-promo-end { color-scheme: light; }
+.apr-promo-deferred { cursor: pointer; }
+.apr-term-deferred { accent-color: var(--gold); width: 13px; height: 13px; }
+
 .apr-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .apr-form-cancel {
   font-family: 'IBM Plex Mono', monospace;
@@ -1575,7 +1726,21 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 
   /* Data strip: tighten gap and let items breathe */
   .data-strip { gap: 14px; padding: 14px 16px; }
-  .data-strip-actions { margin-left: 0; }
+  .data-strip-actions { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  /* Action buttons share each row evenly instead of wrapping into a ragged
+     right edge (Refresh/CSV/JSON over Restore/Reminders). */
+  .data-strip-actions .refresh-btn { flex: 1 1 auto; text-align: center; justify-content: center; }
+
+  /* Debt Accounts header: the title + sublabel keep the full width and the
+     APR/sort controls drop to their own row — side by side, the sublabel
+     was squeezed into a three-word-wide column. */
+  .debt-accounts-head { flex-wrap: wrap; }
+  .debt-accounts-head-text { flex: 1 1 100%; }
+
+  /* Collapsible chart summary: let the $value + trend drop below the label
+     instead of crushing "Debt Remaining" into a two-line wrap. */
+  .chart-header { flex-wrap: wrap; row-gap: 2px; }
+  .chart-header .tc-section-label { white-space: nowrap; }
 }
 
 /* ── [hidden] normalization ─────────────────────────────────────────────── */
@@ -2972,6 +3137,7 @@ body[data-setup-mode="first"] .setup-welcome {
   color: var(--text-3);
 }
 .dr-col-head--trend { text-align: right; }
+.dr-col-head--right { text-align: right; }
 
 /* #19 — Make "Show all N accounts" read as a clear, clickable button. */
 .turn-show-all-btn {
@@ -3478,21 +3644,86 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
   margin: 0 !important;
   flex-shrink: 0;
 }
-.steward-chat-clear {
-  margin-top: 10px;
-  background: none; border: none;
-  color: var(--text-3);
-  font-size: 11px;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 4px 0;
+/* Per-message meta: muted timestamp + (on Steward replies) a copy button. */
+.steward-chat-msg-meta {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  align-self: flex-end;
 }
-.steward-chat-clear:hover { color: var(--rose); }
+.steward-chat-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8.5px; letter-spacing: 0.04em;
+  color: var(--text-3);
+  white-space: nowrap;
+  opacity: 0.8;
+}
+.steward-chat-copy {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-3); font-size: 12px; line-height: 1;
+  padding: 2px 4px; border-radius: 5px;
+}
+.steward-chat-copy:hover { color: var(--gold); background: rgba(255,255,255,0.05); }
+
+/* Character headroom — only visible near the limit. */
+.steward-chat-counter {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--accent);
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* Conversation tools: save / export / clear. */
+.steward-chat-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.steward-chat-tool-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; letter-spacing: 0.06em;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.steward-chat-tool-btn:hover { border-color: var(--gold); color: var(--text); }
+.steward-chat-tool-btn:disabled { opacity: 0.5; cursor: default; }
+.steward-chat-tool-btn--danger:hover { border-color: var(--rose); color: var(--rose); }
+
+/* Saved conversations list. */
+.steward-chat-archive-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px 2px; }
+.steward-chat-archive-row {
+  display: flex; gap: 8px; align-items: center; justify-content: space-between;
+  padding: 4px 6px 4px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.steward-chat-archive-open {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  background: none; border: none; cursor: pointer;
+  padding: 6px 10px;
+  text-align: left;
+  border-radius: 10px;
+}
+.steward-chat-archive-open:hover .steward-chat-archive-title { color: var(--gold); }
+.steward-chat-archive-open:disabled { opacity: 0.5; cursor: default; }
+.steward-chat-archive-title {
+  font-size: 12.5px; color: var(--text);
+  max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.steward-chat-archive-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px; color: var(--text-3);
+}
+
 @media (max-width: 600px) {
   .steward-chat-thread { max-height: 300px; }
   .steward-chat-msg { max-width: 100%; }
   .steward-chat-input-row { flex-direction: column; align-items: stretch; }
   .steward-chat-send { min-height: 44px; }
+  .steward-chat-tool-btn { min-height: 40px; flex: 1 1 auto; text-align: center; }
 }
 
 /* ── Admin bug panel (mounts only for the admin account) ─────────────────── */

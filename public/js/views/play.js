@@ -293,12 +293,12 @@ function buildSessionPanel() {
 function buildDebtAccountsPanel() {
   const section = el('section', { class: 'section-panel dashboard-only-section', id: 'debt-accounts-section' });
   section.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;">
-      <div style="min-width:0;">
+    <div class="debt-accounts-head">
+      <div class="debt-accounts-head-text">
         <h2 class="tc-section-label" style="margin:0;">Debt Accounts</h2>
         <p class="tc-section-sublabel">Read-only overview · update balances in the Your Debts panel</p>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      <div class="debt-accounts-controls">
         <button class="apr-edit-btn" id="apr-edit-btn" type="button">APRs & terms</button>
         <div class="sort-toggle">
           <button class="sort-toggle-btn active" data-sort="balance">Balance</button>
@@ -413,6 +413,47 @@ function buildPaydownCalculator() {
       </label>
     </div>
     <p class="calc-avg-apr-row">Average APR on interest-bearing debt: <span id="calc-avg-apr" class="calc-avg-apr">—</span><button type="button" class="info-dot" aria-label="How is this calculated?" aria-expanded="false" data-explain="Balance-weighted average APR across the accounts that charge interest. Promotional 0% balances are left out, so this reflects the rate on debt that is actually costing you — not a blend across your whole balance.">ⓘ</button></p>
+  `;
+  return section;
+}
+
+/* Strategy Lab — plays avalanche / snowball / promo-aware / LP-optimal forward
+   at a monthly budget and compares the outcomes. The optimal plan is a linear
+   program solved locally (javascript-lp-solver); the model can be exported in
+   IBM CPLEX LP format. Wiring lives in strategy-lab.js. */
+function buildStrategyLab() {
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'strategy-lab-section' });
+  section.innerHTML = `
+    <summary class="section-summary" title="Compare payoff strategies — including promo-rate cliffs plain avalanche can't see.">
+      <h2 class="tc-section-label" style="margin:0;">Strategy Lab</h2>
+      <span class="section-summary-meta lab-summary-hint">which plan wins?</span>
+    </summary>
+    <p class="tc-section-sublabel" style="margin-top:0;">Plays each strategy forward month by month against your real balances, APRs, and promo deadlines — all on this device.</p>
+    <div class="lab-controls">
+      <label class="calc-field lab-budget-field">
+        <span class="calc-label">Monthly budget</span>
+        <span class="calc-input-wrap"><span class="calc-affix">$</span>
+          <input id="lab-budget" class="calc-input" type="number" inputmode="decimal" min="1" step="any" placeholder="500" aria-label="Total dollars available for debt payments per month" />
+        </span>
+      </label>
+      <button type="button" class="lab-run-btn" id="lab-run-btn">Compare strategies</button>
+    </div>
+    <p class="lab-note" id="lab-note" role="status" hidden></p>
+    <div id="lab-results" hidden>
+      <div class="lab-table-wrap">
+        <table class="lab-table" aria-label="Strategy comparison">
+          <thead><tr><th>Strategy</th><th>Debt-free</th><th>Interest</th><th>vs avalanche</th></tr></thead>
+          <tbody id="lab-table-body"></tbody>
+        </table>
+      </div>
+      <div class="lab-first-month" id="lab-first-month" hidden>
+        <h3 class="lab-subhead">This month's winning allocation</h3>
+        <div id="lab-first-month-list"></div>
+      </div>
+      <p class="lab-cliffs" id="lab-cliffs" hidden></p>
+      <p class="lab-footer">Optimal plan = linear program solved locally · nothing leaves this device ·
+        <a id="lab-lp-export" href="#" download title="The live optimization model in IBM CPLEX LP format — feed it to a real CPLEX installation, or any LP-format solver.">export model (.lp, CPLEX format)</a></p>
+    </div>
   `;
   return section;
 }
@@ -578,18 +619,25 @@ export function mountPlayShell(root) {
      are distributed to even out the rest. Wrappers collapse via display:contents
      below 1200px so every panel flows in one column; hero/strip/danger/footer are
      full-width siblings. */
+  // Column packing keeps the two desktop stacks close in height: the tall
+  // chat panel anchors column A, so the trophy lives at the end of column B —
+  // otherwise A outruns B by most of a screen and the page ends in a one-
+  // sided void. (On phones the columns unwrap into one flow, where this also
+  // reads better: the trophy closes the numbers story after "Pay this next"
+  // instead of interrupting between the chat and the chart.)
   const colA = el('div', { class: 'dash-col', id: 'dash-col-a' });
   colA.appendChild(buildManualEntryForm());
   colA.appendChild(buildSessionPanel());
   colA.appendChild(buildPaydownCalculator());
+  colA.appendChild(buildStrategyLab());
   colA.appendChild(buildAskStewardPanel());
-  colA.appendChild(buildCumulativePaydownTrophy());
 
   const colB = el('div', { class: 'dash-col', id: 'dash-col-b' });
   colB.appendChild(buildDebtReductionChart());
   colB.appendChild(buildDebtAccountsPanel());
   colB.appendChild(buildStageProgressDetail());
   colB.appendChild(buildPayThisNextCard());
+  colB.appendChild(buildCumulativePaydownTrophy());
 
   dashboard.appendChild(colA);
   dashboard.appendChild(colB);

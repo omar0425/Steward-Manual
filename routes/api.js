@@ -27,6 +27,7 @@ const {
   getAllDebtAccountBalances,
   getDebtAccountFirstBalances,
   markDebtAccountVerified,
+  safetySnapshot,
   getDebtAccountVerifiedAt,
   savePushSubscription,
   deletePushSubscription,
@@ -42,6 +43,9 @@ const {
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
 const { monthlyPaydownSamples, monteCarloPayoff, effectiveAnnualAprPct } = require('../services/forecast');
 const { buildPayoffPlan, interestSavedSinceStart } = require('../services/payoffPlan');
+const {
+  comparePayoffStrategies, simulateStrategy, normalizeAccounts, buildCplexLp,
+} = require('../services/payoffOptimizer');
 const {
   CUTSCENE_USERNAME,
   isCutsceneUser,
@@ -1087,6 +1091,9 @@ router.post('/reset-game', (req, res) => {
     if (!(req.body && req.body.confirm === true)) {
       return res.status(400).json({ ok: false, error: 'confirm: true required to reset game' });
     }
+    // Pre-destruction snapshot: a wrong-account or panic reset stays
+    // recoverable from <db-dir>/backups/ (see RECOVERY.md). Never blocks.
+    safetySnapshot('reset');
     const summary = resetAllGameState();
     clearLastDebtSyncDebug();
     return res.json({ ok: true, ...summary });
@@ -1158,10 +1165,54 @@ router.post('/config/debt-terms', express.json(), (req, res) => {
     if (Number.isFinite(min) && min > 0 && min <= 1e7) out.minPayment = Math.round(min * 100) / 100;
     const day = Number(t.dueDay);
     if (Number.isInteger(day) && day >= 1 && day <= 31) out.dueDay = day;
+    // Promo terms — powers the Strategy Lab's promo-cliff planning. promoEndsOn
+    // is the date the teaser rate dies; postPromoApr is the rate that takes
+    // over; deferredInterest marks "no interest IF paid in full by the date"
+    // financing, where missing the date retroactively bills the waived pool.
+    if (typeof t.promoEndsOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.promoEndsOn)) {
+      const d = new Date(`${t.promoEndsOn}T00:00:00Z`);
+      if (Number.isFinite(d.getTime())) out.promoEndsOn = t.promoEndsOn;
+    }
+    const postApr = Number(t.postPromoApr);
+    if (Number.isFinite(postApr) && postApr >= 0 && postApr <= 100) {
+      out.postPromoApr = Math.round(postApr * 100) / 100;
+    }
+    if (t.deferredInterest === true) out.deferredInterest = true;
     if (Object.keys(out).length > 0) clean[String(id).slice(0, 100)] = out;
   }
   setConfig(DEBT_TERMS_KEY, JSON.stringify(clean));
   res.json({ ok: true, terms: clean });
+});
+
+// ── GET /api/payoff-plan/compare ──────────────────────────────────────────────
+// Strategy Lab: play avalanche / snowball / promo-aware / LP-optimal forward at
+// a monthly budget and compare months-to-free + total interest. All computed
+// locally — no balance ever leaves the server. `format=lp` returns the live
+// optimization model in IBM CPLEX LP file format instead (the exact model the
+// in-app solver runs, portable to a real CPLEX installation).
+router.get('/payoff-plan/compare', (req, res) => {
+  const budget = Number(req.query.budget);
+  if (!Number.isFinite(budget) || budget <= 0 || budget > 1e7) {
+    return res.status(400).json({ ok: false, error: 'budget (positive number) required' });
+  }
+  const rates = parseJsonObject(getConfig('interest_rates'));
+  const names = parseJsonObject(getConfig('debt_account_name_map'));
+  const terms = parseJsonObject(getConfig(DEBT_TERMS_KEY));
+  const accounts = [...getAllDebtAccountBalances().entries()].map(([id, balance]) => ({
+    id, name: names[id] || 'Account', balance, apr: rates[id],
+  }));
+  if (String(req.query.format || '').toLowerCase() === 'lp') {
+    const normalized = normalizeAccounts(accounts, terms, new Date());
+    if (!normalized.length) return res.status(400).json({ ok: false, error: 'No open balances to model.' });
+    const probe = simulateStrategy('promo-aware', normalized, budget);
+    const horizon = Math.min(120, (probe.debtFree ? probe.months : 36) + 2);
+    res.setHeader('content-type', 'text/plain; charset=utf-8');
+    res.setHeader('content-disposition', 'attachment; filename="steward-payoff-model.lp"');
+    return res.send(buildCplexLp(normalized, budget, horizon));
+  }
+  const comparison = comparePayoffStrategies(accounts, terms, budget, new Date());
+  if (!comparison) return res.status(400).json({ ok: false, error: 'No open balances to plan.' });
+  res.json({ ok: true, ...comparison });
 });
 
 // ── GET /api/debt-history ─────────────────────────────────────────────────────
@@ -2078,6 +2129,7 @@ router.get('/steward-ai/chat', (req, res) => {
     messages: readChatHistory(),
     situationNote: String(getConfig(SITUATION_NOTE_KEY) || ''),
     memories: stewardAiMemory.readMemories(),
+    archives: archiveSummaries(readChatArchives()),
   });
 });
 
@@ -2139,6 +2191,102 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
 router.post('/steward-ai/chat/clear', express.json(), (req, res) => {
   setConfig(CHAT_HISTORY_KEY, '[]');
   res.json({ ok: true });
+});
+
+// ── Saved conversations ───────────────────────────────────────────────────────
+// The live thread is one bounded list (last 40 messages); without these, a
+// long-running chat is a slow-motion data loss. "Save" snapshots the current
+// thread into an archive and starts fresh; archives can be reopened (resume)
+// or deleted. Bounded: newest CHAT_MAX_ARCHIVES kept, oldest dropped.
+
+const CHAT_ARCHIVE_KEY = 'steward_chat_archives';
+const CHAT_MAX_ARCHIVES = 20;
+
+function readChatArchives() {
+  return parseJsonArray(getConfig(CHAT_ARCHIVE_KEY))
+    .filter((a) => a && typeof a.id === 'string' && Array.isArray(a.messages));
+}
+
+function writeChatArchives(archives) {
+  setConfig(CHAT_ARCHIVE_KEY, JSON.stringify(archives.slice(-CHAT_MAX_ARCHIVES)));
+}
+
+/** List-view projection — titles and counts, not full transcripts. */
+function archiveSummaries(archives) {
+  return archives
+    .map((a) => ({
+      id: a.id,
+      title: String(a.title || 'Conversation'),
+      savedAt: typeof a.savedAt === 'string' ? a.savedAt : null,
+      messageCount: a.messages.length,
+    }))
+    .reverse(); // newest first for the UI
+}
+
+function chatTitleFrom(messages) {
+  const first = messages.find((m) => m.role === 'user');
+  const text = first ? first.text.replace(/\s+/g, ' ').trim() : '';
+  if (!text) return 'Conversation';
+  return text.length > 48 ? `${text.slice(0, 47)}…` : text;
+}
+
+router.get('/steward-ai/chat/archives', (req, res) => {
+  res.json({ ok: true, archives: archiveSummaries(readChatArchives()) });
+});
+
+// Save the live thread as an archive and start a fresh one.
+router.post('/steward-ai/chat/archive', express.json(), (req, res) => {
+  const history = readChatHistory();
+  if (!history.length) {
+    return res.status(200).json({ ok: false, error: 'Nothing to save yet — the conversation is empty.' });
+  }
+  const archives = readChatArchives();
+  archives.push({
+    id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    title: chatTitleFrom(history),
+    savedAt: new Date().toISOString(),
+    messages: history,
+  });
+  transaction(() => {
+    writeChatArchives(archives);
+    setConfig(CHAT_HISTORY_KEY, '[]');
+  });
+  res.json({ ok: true, archives: archiveSummaries(readChatArchives()) });
+});
+
+// Reopen a saved conversation as the live thread. The current thread (if any)
+// is auto-saved first, so resuming can never destroy messages.
+router.post('/steward-ai/chat/archives/resume', express.json(), (req, res) => {
+  const id = String((req.body || {}).id || '');
+  const archives = readChatArchives();
+  const idx = archives.findIndex((a) => a.id === id);
+  if (idx === -1) return res.status(404).json({ ok: false, error: 'That saved conversation no longer exists.' });
+  const [target] = archives.splice(idx, 1);
+  const current = readChatHistory();
+  if (current.length) {
+    archives.push({
+      id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      title: chatTitleFrom(current),
+      savedAt: new Date().toISOString(),
+      messages: current,
+    });
+  }
+  transaction(() => {
+    writeChatArchives(archives);
+    writeChatHistory(target.messages);
+  });
+  res.json({ ok: true, messages: readChatHistory(), archives: archiveSummaries(readChatArchives()) });
+});
+
+router.post('/steward-ai/chat/archives/delete', express.json(), (req, res) => {
+  const id = String((req.body || {}).id || '');
+  const archives = readChatArchives();
+  const next = archives.filter((a) => a.id !== id);
+  if (next.length === archives.length) {
+    return res.status(404).json({ ok: false, error: 'That saved conversation no longer exists.' });
+  }
+  writeChatArchives(next);
+  res.json({ ok: true, archives: archiveSummaries(next) });
 });
 
 // The standing "my situation" note — injected into EVERY AI surface (chat,
@@ -2380,6 +2528,9 @@ router.post('/restore', express.json({ limit: '8mb' }), (req, res) => {
   if (!check.ok) return res.status(400).json({ ok: false, error: check.error });
   const force = req.body.force === true || req.query.force === '1' || req.query.force === 'true';
   try {
+    // Pre-destruction snapshot: restoring the wrong file over live data stays
+    // recoverable from <db-dir>/backups/ (see RECOVERY.md). Never blocks.
+    safetySnapshot('restore');
     const restored = importUserData(req.body, { force });
     const skipped = restored.skipped || {};
     const skippedTotal = Object.values(skipped).reduce((a, b) => a + (Number(b) || 0), 0);

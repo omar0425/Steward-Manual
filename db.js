@@ -752,6 +752,54 @@ function isValidImportPayload(data) {
  * redeploy would wipe ALL users. Heuristic: on Railway, the DB path must live
  * under the attached volume (RAILWAY_VOLUME_MOUNT_PATH). Returns a message or null.
  */
+/**
+ * Fast corruption probe on the LIVE database. The daily backups verify
+ * themselves, but a silently-corrupt live DB could run for longer than the
+ * 7-day rotation — after which every remaining backup is a copy of the
+ * corruption. quick_check skips index-content verification so it's cheap
+ * enough for every boot.
+ */
+function checkLiveDbIntegrity() {
+  try {
+    const row = db.prepare('PRAGMA quick_check').get();
+    const verdict = row ? String(row.quick_check != null ? row.quick_check : Object.values(row)[0]) : 'no result';
+    return { ok: verdict === 'ok', verdict };
+  } catch (err) {
+    return { ok: false, verdict: (err && err.message) || 'quick_check threw' };
+  }
+}
+
+/**
+ * Pre-destruction safety net: a consistent whole-DB snapshot written right
+ * before a destructive operation (game reset, restore-over-data). Lands next
+ * to the daily rotation in <db-dir>/backups/ as steward-pre-<tag>-<stamp>.db,
+ * keeping the newest SAFETY_SNAPSHOT_KEEP. Failure is logged but NEVER blocks
+ * the operation — the guard must not turn into a denial of service on the
+ * action the user actually asked for. Returns the path or null.
+ */
+const SAFETY_SNAPSHOT_KEEP = 5;
+function safetySnapshot(tag) {
+  try {
+    const dir = path.join(path.dirname(DB_PATH), 'backups');
+    fs.mkdirSync(dir, { recursive: true });
+    const safeTag = String(tag).toLowerCase().replace(/[^a-z0-9-]/g, '') || 'op';
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const dest = path.join(dir, `steward-pre-${safeTag}-${stamp}.db`);
+    // VACUUM INTO writes a compact, consistent copy even mid-WAL; it refuses
+    // to overwrite, and the millisecond stamp keeps paths unique.
+    db.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
+    const old = fs.readdirSync(dir)
+      .filter((f) => /^steward-pre-[a-z0-9-]*-\d{4}-.*\.db$/.test(f))
+      .sort()
+      .slice(0, -SAFETY_SNAPSHOT_KEEP);
+    for (const f of old) fs.unlinkSync(path.join(dir, f));
+    return dest;
+  } catch (err) {
+    console.error('[backup] safety snapshot failed:', err && err.message);
+    return null;
+  }
+}
+
 function storageDurabilityWarning() {
   const onRailway = !!(
     process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_SERVICE_ID
@@ -997,6 +1045,7 @@ function resetAllGameState() {
     'cutscene_next_index',
     'cutscene_last_index',
     'steward_chat_history',
+    'steward_chat_archives',
     'steward_situation_note',
     'steward_ai_ledger',
     'steward_ai_nicknames',
@@ -1079,6 +1128,8 @@ module.exports = {
   importUserData,
   isValidImportPayload,
   storageDurabilityWarning,
+  checkLiveDbIntegrity,
+  safetySnapshot,
   resetAllGameState,
   getAllDebtAccountBalances,
   rawDebtBalances,
