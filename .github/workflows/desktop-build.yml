@@ -23,10 +23,22 @@ jobs:
       - name: Install desktop dependencies
         run: npm ci
         working-directory: desktop
-      - name: Build Windows installer
-        run: npx electron-builder --win
+      # Monotonic version per build: the installed app auto-updates only when a
+      # release's version exceeds its own, so every build must count upward.
+      - name: Stamp build version
+        run: npm version "1.0.${{ github.run_number }}" --no-git-tag-version
         working-directory: desktop
-      - name: Upload installer artifact
+      # --publish always: electron-builder creates release v1.0.<run> with the
+      # installer AND latest.yml — the manifest installed apps poll to discover
+      # updates (downloaded in the background, applied on quit). The permanent
+      # no-login download link is /releases/latest/download/Steward.Setup.exe
+      # (artifactName is version-free so the URL never changes).
+      - name: Build and publish Windows installer
+        run: npx electron-builder --win --publish always
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload installer artifact (fallback copy)
         uses: actions/upload-artifact@v4
         with:
           name: Steward-Windows-Setup
@@ -34,18 +46,3 @@ jobs:
             desktop/dist/*.exe
           retention-days: 14
           if-no-files-found: error
-      # Also publish to a rolling "desktop-latest" release: unlike artifacts,
-      # release assets are a permanent DIRECT download — no GitHub login, no
-      # zip wrapper, no 14-day expiry. Re-running the workflow replaces the
-      # asset in place, so the download URL never changes.
-      - name: Publish to the desktop-latest release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: desktop-latest
-          name: Steward Desktop (latest)
-          body: |
-            The Steward desktop app for Windows — installs a desktop shortcut,
-            Start-menu entry, and a system-tray icon. Built automatically from
-            main by the "Desktop installer" workflow.
-          files: desktop/dist/*.exe
-          make_latest: true

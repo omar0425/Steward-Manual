@@ -31,6 +31,23 @@ macOS: `npm run dist:mac` → a `.dmg` in `desktop/dist/`. Linux:
 
 To try it without installing anything permanent: `npm start`.
 
+## Updates
+
+Two layers, two behaviors:
+
+- **The app's content** (dashboard, Strategy Lab, chat — everything in the
+  window) is the hosted site, so it is always current with production. No
+  action ever needed.
+- **The shell itself** (icon, tray, window behavior) auto-updates from this
+  repo's GitHub Releases: checked at launch and every 6 hours, downloaded in
+  the background, installed on the next quit. "Check for updates" in the tray
+  menu forces a check. Each "Desktop installer" workflow run publishes release
+  `v1.0.<run>` with the installer and the `latest.yml` manifest the updater
+  polls.
+
+Permanent download link for fresh installs (always the newest build):
+`https://github.com/omar0425/Steward-Manual/releases/latest/download/Steward.Setup.exe`
+
 ## Pointing it somewhere else
 
 By default the shell loads the production app. To use a different URL (e.g. a
