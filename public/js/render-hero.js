@@ -26,7 +26,10 @@ export function renderHeroBlock({
   paidDisplay, runwayText, gapHeadline, inBandBarDisplayPct, stats,
 }) {
   renderTierRail(tier.id, nextTier?.id);
-  mountHeroCharacter(tier.id, { streakCurrent: status.streak?.current });
+  mountHeroCharacter(tier.id, {
+    streakCurrent: status.streak?.current,
+    bandPct: inBandBarDisplayPct,
+  });
 
   const heroBadge = document.getElementById('hero-badge');
   const heroPhase = document.getElementById('hero-phase-pill');
