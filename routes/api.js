@@ -54,6 +54,7 @@ const {
   accumulateCutsceneProgress,
   nextCutsceneIndex,
 } = require('../services/cutscene');
+const { cachedPathIfReady, ensureCached } = require('../services/cutsceneCache');
 const {
   getClimbTier,
   nextClimbTierInfo,
@@ -1450,11 +1451,14 @@ router.post('/config/account-cleared-seen', express.json(), (req, res) => {
 
 // ── GET /api/cutscene/video ───────────────────────────────────────────────────
 // Private: only the cutscene user reaches a real video. The /api mount blocks
-// logged-out requests; any other authenticated account gets a 404. For the
-// cutscene user we PROXY a random remote clip (forwarding Range so seeking
-// works). Proxying — rather than a 302 redirect — keeps the <video> same-origin;
-// a cross-origin media redirect failed to load in the browser. Bytes stream
-// through, never buffered whole.
+// logged-out requests; any other authenticated account gets a 404. Serving is
+// CACHE-FIRST: the clip is downloaded to local disk once, then res.sendFile
+// streams it with native byte-range support — one fast hop, reliable seeking.
+// Until the cache is warm we PROXY the remote clip (forwarding Range), same as
+// before, and kick the download in the background. Proxying — rather than a
+// 302 redirect — keeps the <video> same-origin; a cross-origin media redirect
+// failed to load in the browser. Proxied bytes stream through, never buffered
+// whole.
 router.get('/cutscene/video', async (req, res) => {
   if (!req.user || !isCutsceneUser(req.user.username)) return res.status(404).end();
   // Prefer the rotation index pinned when the cutscene was ARMED — it's stable
@@ -1466,6 +1470,25 @@ router.get('/cutscene/video', async (req, res) => {
     ? pool[pinned]
     : selectCutsceneVideo(req.query && req.query.v);
   if (!url) return res.status(404).end();
+
+  const cached = cachedPathIfReady(url);
+  if (cached) {
+    return res.sendFile(cached, {
+      cacheControl: false,
+      headers: { 'Cache-Control': 'private, no-store' },
+    }, (err) => {
+      // Aborted downloads/seeks surface here as benign stream errors; only log
+      // real failures (headers not sent = nothing reached the client yet).
+      if (err && !res.headersSent) {
+        console.error('[cutscene] sendFile failed:', err.message);
+        res.status(500).end();
+      }
+    });
+  }
+  // Cache is cold (first play since deploy) — warm it for the NEXT request
+  // (later range requests of this same playback already benefit) and proxy
+  // this one meanwhile.
+  void ensureCached(url);
 
   const headers = {};
   if (req.headers.range) headers.Range = req.headers.range;

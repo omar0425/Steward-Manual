@@ -218,12 +218,40 @@ function showCutscene() {
   try { skip.focus(); } catch { /* ignore */ }
   requestAnimationFrame(() => overlay.classList.add('cutscene-show'));
 
-  function onKey(e) { if (e.key === 'Escape') dismiss(overlay, onKey); }
+  // ── Stall watchdog ──
+  // On phones the media pipeline can wedge hard mid-stream (buffer starved on
+  // a slow hop): playback freezes and no amount of scrubbing recovers, because
+  // the decoder itself is stuck. The only cure is a full load() reset. Watch
+  // for "should be playing but the clock isn't moving" for 8s, then reset and
+  // resume from the same spot. Capped so a truly dead network can't loop.
+  let lastTime = -1;
+  let stallSince = 0;
+  let recoveries = 0;
+  const watchdog = window.setInterval(() => {
+    if (video.paused || video.ended || video.seeking || video.readyState === 0) { stallSince = 0; return; }
+    if (video.currentTime !== lastTime) { lastTime = video.currentTime; stallSince = 0; return; }
+    if (!stallSince) { stallSince = Date.now(); return; }
+    if (Date.now() - stallSince < 8000 || recoveries >= 3) return;
+    recoveries += 1;
+    stallSince = 0;
+    const resumeAt = video.currentTime;
+    const wasMuted = video.muted;
+    video.load();
+    video.addEventListener('loadeddata', () => {
+      video.muted = wasMuted;
+      try { video.currentTime = resumeAt; } catch (_) { /* ignore */ }
+      const pr = video.play();
+      if (pr && typeof pr.catch === 'function') pr.catch(() => {});
+    }, { once: true });
+  }, 2000);
+  const close = () => { window.clearInterval(watchdog); dismiss(overlay, onKey); };
+
+  function onKey(e) { if (e.key === 'Escape') close(); }
   document.addEventListener('keydown', onKey);
 
-  skip.addEventListener('click', () => dismiss(overlay, onKey));
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(overlay, onKey); });
-  video.addEventListener('ended', () => dismiss(overlay, onKey));
+  skip.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  video.addEventListener('ended', close);
   video.addEventListener('error', () => {
     // A seek/abort cancelling an in-flight request fires error code 1
     // (MEDIA_ERR_ABORTED) — that's benign, not a load failure, so don't tear the
