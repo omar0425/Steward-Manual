@@ -60,12 +60,19 @@ async function passGates(page) {
     for (const sel of ['#commitment-confirm-btn', '#start-game-btn']) {
       const loc = page.locator(sel);
       if (await loc.isVisible().catch(() => false)) {
-        await loc.click().catch(() => {});
+        // Short click timeout: after the Start click the button sits visible
+        // but disabled through the ~1.4s start animation — a default-timeout
+        // click would block on it for 30s and blow the deadline above.
+        await loc.click({ timeout: 2000 }).catch(() => {});
         await page.waitForTimeout(250);
       }
     }
     await page.waitForTimeout(200);
   }
+  // One last look — the app may have flipped to ready while a click above
+  // was still waiting out its timeout.
+  const mode = await page.evaluate(() => document.body && document.body.dataset.appMode || '');
+  if (mode === 'ready') return;
   throw new Error('App never reached appMode="ready" (stuck on a gate or loading)');
 }
 

@@ -392,10 +392,14 @@ function buildPayThisNextCard() {
 }
 
 function buildPaydownCalculator() {
-  const section = el('section', { class: 'section-panel dashboard-only-section', id: 'paydown-calc-section' });
+  /* Collapsible tool — closed by default so the everyday view stays lean. */
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'paydown-calc-section' });
   section.innerHTML = `
-    <h2 class="tc-section-label" style="margin:0;">Paydown calculator</h2>
-    <p class="tc-section-sublabel" id="calc-basis">Percentages are of your current debt.</p>
+    <summary class="section-summary" title="Convert a dollar paydown to a percent of your debt — and back.">
+      <h2 class="tc-section-label" style="margin:0;">Paydown calculator</h2>
+      <span class="section-summary-meta lab-summary-hint">$ ↔ %</span>
+    </summary>
+    <p class="tc-section-sublabel" id="calc-basis" style="margin-top:0;">Percentages are of your current debt.</p>
     <div class="calc-row">
       <label class="calc-field">
         <span class="calc-label">Pay down</span>
@@ -529,8 +533,12 @@ function buildManualEntryForm() {
 }
 
 function buildDataStrip() {
-  const section = el('section', { class: 'data-strip dashboard-only-section', id: 'data-sync-strip', 'aria-label': 'Data sync' });
+  /* Housekeeping drawer — snapshot freshness, version, backups. Diagnostic
+     info most sessions never need, so it folds closed by default. */
+  const section = el('details', { class: 'data-strip-details dashboard-only-section', id: 'data-sync-strip' });
   section.innerHTML = `
+    <summary class="data-strip-summary">Data, backups &amp; app info</summary>
+    <div class="data-strip" aria-label="Data sync">
     <div class="data-chip" title="The most recent time you saved a snapshot of your balances.">
       <span class="data-chip-k">Last snapshot</span>
       <span class="data-chip-v" id="data-last-snapshot">\u2014</span>
@@ -559,6 +567,7 @@ function buildDataStrip() {
       <button type="button" class="refresh-btn" id="push-reminders-btn" hidden>\ud83d\udd15 Enable reminders</button>
       <input type="file" id="import-data-file" accept="application/json,.json" hidden />
     </div>
+    </div>
   `;
   return section;
 }
@@ -575,10 +584,16 @@ const ASK_STEWARD_QUESTIONS = [
 ];
 
 function buildAskStewardPanel() {
-  const section = el('section', { class: 'section-panel dashboard-only-section ask-steward-panel', id: 'ask-steward-panel', hidden: true });
+  /* Collapsible — the chat/chip UI is tall, so it stays folded until asked for.
+     steward-chat.js appends its UI inside this element (after the summary),
+     so everything it builds participates in the same open/close fold. */
+  const section = el('details', { class: 'section-panel dashboard-only-section ask-steward-panel section-collapsible', id: 'ask-steward-panel', hidden: true });
   section.innerHTML = `
-    <h2 class="tc-section-label" style="margin:0 0 4px;">Ask the Steward</h2>
-    <p class="tc-section-sublabel">Answers drawn from your own numbers.</p>
+    <summary class="section-summary">
+      <h2 class="tc-section-label" style="margin:0;">Ask the Steward</h2>
+      <span class="section-summary-meta lab-summary-hint">your numbers, answered</span>
+    </summary>
+    <p class="tc-section-sublabel" style="margin-top:0;">Answers drawn from your own numbers.</p>
     <div class="ask-steward-chips" id="ask-steward-chips">
       ${ASK_STEWARD_QUESTIONS.map(q => `<button type="button" class="ask-steward-chip">${q}</button>`).join('')}
     </div>
@@ -611,33 +626,32 @@ export function mountPlayShell(root) {
   const dashboard = el('main', { class: 'dashboard app-shell', id: 'dashboard' });
   dashboard.appendChild(buildHeroSection());
 
-  /* Two columns on wide screens. The key to staying balanced across states: the
-     two tall, variable-height panels — the entry form and the debt-accounts
-     table — go in SEPARATE columns. They both grow as the user adds accounts, so
-     splitting them keeps the columns close in height whether there are 3 debts or
-     30 (putting both on one side is what left the big void). The remaining panels
-     are distributed to even out the rest. Wrappers collapse via display:contents
-     below 1200px so every panel flows in one column; hero/strip/danger/footer are
-     full-width siblings. */
-  // Column packing keeps the two desktop stacks close in height: the tall
-  // chat panel anchors column A, so the trophy lives at the end of column B —
-  // otherwise A outruns B by most of a screen and the page ends in a one-
-  // sided void. (On phones the columns unwrap into one flow, where this also
-  // reads better: the trophy closes the numbers story after "Pay this next"
-  // instead of interrupting between the chat and the chart.)
+  /* Two columns on wide screens; below 1200px the wrappers collapse via
+     display:contents so every panel flows in ONE column in DOM order. That
+     makes DOM order the phone reading order, so panels are laid out as a
+     single story — act, then review, then tools:
+       column A (the story so far): your debts → pay this next → this turn →
+       debt-remaining chart;
+       column B (the record + tools): debt accounts → stage progress → trophy →
+       calculator → strategy lab → ask the Steward.
+     Balance: the two variable-height growers — the entry form (col A) and the
+     debt-accounts table (col B) — sit in SEPARATE columns, so both stacks grow
+     together whether there are 3 debts or 30. The tool panels at the end of
+     col B are collapsed <details>, so they add little height until opened.
+     Hero/strip/danger/footer stay full-width siblings. */
   const colA = el('div', { class: 'dash-col', id: 'dash-col-a' });
   colA.appendChild(buildManualEntryForm());
+  colA.appendChild(buildPayThisNextCard());
   colA.appendChild(buildSessionPanel());
-  colA.appendChild(buildPaydownCalculator());
-  colA.appendChild(buildStrategyLab());
-  colA.appendChild(buildAskStewardPanel());
+  colA.appendChild(buildDebtReductionChart());
 
   const colB = el('div', { class: 'dash-col', id: 'dash-col-b' });
-  colB.appendChild(buildDebtReductionChart());
   colB.appendChild(buildDebtAccountsPanel());
   colB.appendChild(buildStageProgressDetail());
-  colB.appendChild(buildPayThisNextCard());
   colB.appendChild(buildCumulativePaydownTrophy());
+  colB.appendChild(buildPaydownCalculator());
+  colB.appendChild(buildStrategyLab());
+  colB.appendChild(buildAskStewardPanel());
 
   dashboard.appendChild(colA);
   dashboard.appendChild(colB);

@@ -1571,6 +1571,27 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 /* ══════════════════════════════════════════════════════════════════════
    DATA SYNC STRIP
    ══════════════════════════════════════════════════════════════════════ */
+/* Collapsed housekeeping drawer around the strip — freshness/version/backup
+   chips read as diagnostics, so they fold away until asked for. */
+.data-strip-details { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-lg); transition: background 300ms ease; }
+.data-strip-details > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 22px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3);
+}
+.data-strip-details > summary::-webkit-details-marker { display: none; }
+.data-strip-details > summary::after {
+  content: '▾'; font-size: 11px; color: var(--text-3); margin-left: auto; flex-shrink: 0;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+.data-strip-details[open] > summary::after { transform: rotate(180deg); color: var(--text-2); }
+.data-strip-details > summary:hover { color: var(--text-2); }
+.data-strip-details > summary:hover::after { color: var(--gold); }
+.data-strip-details > summary:focus-visible { outline: 1px dashed var(--gold); outline-offset: -4px; border-radius: var(--radius-lg); }
+/* Inside the drawer the strip loses its own card chrome — the drawer is the card. */
+.data-strip-details > .data-strip { background: transparent; border: none; border-radius: 0; padding-top: 2px; }
 .data-strip { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 22px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; transition: background 300ms ease; }
 .data-chip  { display: flex; flex-direction: column; gap: 3px; }
 .data-chip-k { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
@@ -2313,6 +2334,8 @@ but readable enough to scan. */
 [data-theme="light"] .session-card--good { border-color: rgba(10,122,78,0.28); box-shadow: 0 0 0 1px rgba(10,122,78,0.10), 0 6px 32px rgba(10,122,78,0.08); }
 [data-theme="light"] .session-card--bad  { border-color: rgba(181,46,78,0.28); box-shadow: 0 0 0 1px rgba(181,46,78,0.10), 0 6px 32px rgba(181,46,78,0.08); }
 [data-theme="light"] .data-strip { background: var(--surface-2); border-color: rgba(40,25,5,0.10); }
+[data-theme="light"] .data-strip-details { background: var(--surface-2); border-color: rgba(40,25,5,0.10); }
+[data-theme="light"] .data-strip-details > .data-strip { background: transparent; border: none; }
 
 /* ── Manual Entry Form ──────────────────────────────────────────────────────── */
 .manual-entry-panel { border: 1px solid var(--gold-dim, rgba(212,175,55,0.18)); }

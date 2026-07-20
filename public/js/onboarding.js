@@ -93,7 +93,13 @@ function onboardingResolveDashboardTarget(sel) {
   const dash = getDashboardRoot();
   if (!dash) return null;
   try {
-    return dash.querySelector(sel);
+    const target = dash.querySelector(sel);
+    // Some panels fold into closed <details> (calculator, data drawer). Open
+    // every closed ancestor so the spotlight has a visible box to point at.
+    for (let d = target && target.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) {
+      if (!d.open) d.open = true;
+    }
+    return target;
   } catch (err) {
     console.error('[onboarding] invalid selector', sel, err);
     return null;
