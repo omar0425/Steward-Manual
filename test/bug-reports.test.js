@@ -238,14 +238,22 @@ test('report_bug_to_developer: files a player report, dedupes, rejects junk', ()
   }, 'SomeRegularUser'));
   assert.equal(first.ok, true);
   assert.match(first.summary, /developer/i);
+  // The receipt quotes what was filed, and the tool result carries it back to
+  // the model — a player who asks "what did you tell them?" gets the wording,
+  // not a claim that the note is private.
+  assert.ok(first.summary.includes(summary), 'receipt quotes the filed note');
+  assert.equal(first.filed.summary, summary);
+  assert.equal(first.filed.alreadyOnFile, false);
 
   const row = listBugReports(200).find((r) => r.kind === 'user' && r.title === summary);
   assert.ok(row, 'player report filed');
   assert.equal(row.severity, 'medium');
   assert.match(row.report, /Player-reported via chat/);
 
-  // Same complaint again (any user) → same row, count bump.
-  run(() => executeStewardTool('report_bug_to_developer', { summary }, 'OtherUser'));
+  // Same complaint again (any user) → same row, count bump, honest receipt.
+  const second = run(() => executeStewardTool('report_bug_to_developer', { summary }, 'OtherUser'));
+  assert.equal(second.filed.alreadyOnFile, true);
+  assert.match(second.summary, /already with the developer/i);
   const after = listBugReports(200).find((r) => r.id === row.id);
   assert.equal(after.count, 2);
 

@@ -1921,8 +1921,9 @@ const STEWARD_AI_TOOLS = [
       'File a private note to the app developer when the player describes the APP itself ' +
       'misbehaving: a number that looks wrong on the dashboard, something that will not save, ' +
       'a stuck or broken screen, a feature not doing what it should. NOT for ledger corrections ' +
-      '(use the balance/undo tools) and NOT for financial questions. The player never sees the ' +
-      'note. Never include dollar amounts, balances, or account names in it.',
+      '(use the balance/undo tools) and NOT for financial questions. The note is not confidential: ' +
+      'it is the player\'s own complaint in your words, so read it back to them whenever they ask ' +
+      'what you filed. Never include dollar amounts, balances, or account names in it.',
     input_schema: {
       type: 'object',
       properties: {
@@ -2099,7 +2100,15 @@ function executeStewardTool(name, input, username) {
         report: details ? `Player-reported via chat. ${details}` : 'Player-reported via chat.',
       });
     }
-    return { ok: true, summary: 'Passed a note about this to the developer.' };
+    // Echo the filed wording back in the receipt: the player sees exactly what
+    // went out, and the model has it in hand to repeat if they ask later.
+    return {
+      ok: true,
+      filed: { summary, details: details || null, alreadyOnFile: !isNew },
+      summary: isNew
+        ? `Filed a note for the developer: "${summary}"`
+        : `Added to a note already with the developer: "${summary}"`,
+    };
   }
 
   return { ok: false, error: `Unknown tool: ${name}` };
