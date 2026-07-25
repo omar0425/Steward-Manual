@@ -1985,7 +1985,18 @@ function executeStewardTool(name, input, username) {
       }
       const prev = acct.balance;
       acct.balance = Math.round(newBal);
-      if (acct.balance > prev && ch.reason && CLASSIFICATION_REASONS.includes(ch.reason)) {
+      if (acct.balance > prev) {
+        // An unclassified rise silently becomes "new debt added" and reads as
+        // backsliding. The manual form disables save until every increase is
+        // classified; hold the model to the same bar rather than guessing.
+        if (!CLASSIFICATION_REASONS.includes(ch.reason)) {
+          return {
+            ok: false,
+            error: `${acct.name} went UP by ${fmtUsd(acct.balance - prev)}. Ask the player what caused it, then `
+              + 'set reason on that change: interest (interest or fees charged), purchase (new spending), '
+              + 'new_loan, or preexisting (debt they always had, only now reported). Nothing was recorded.',
+          };
+        }
         classifications[acct.id] = ch.reason;
       }
       const delta = Math.round(prev - acct.balance);

@@ -131,6 +131,32 @@ test('update_debt_balances: increase classifications route to the climb buckets'
   });
 });
 
+test('update_debt_balances: an unexplained increase is refused, not filed as new debt', async () => {
+  await withApp(async (baseUrl) => {
+    await seedClimb(baseUrl);
+    const before = run(() => getClimbStatsFromConfig());
+
+    const out = run(() => executeStewardTool('update_debt_balances', {
+      changes: [{ account: 'Visa', newBalance: 6090 }], // up $90, no reason given
+    }, 'ToolTester'));
+    assert.equal(out.ok, false);
+    assert.match(out.error, /went UP by \$90/);
+    assert.match(out.error, /interest/, 'the error names the classifications to choose from');
+
+    // Nothing recorded: an unclassified rise must not land in new debt.
+    const after = run(() => getClimbStatsFromConfig());
+    assert.equal(after.cumulativeNewDebtAdded, before.cumulativeNewDebtAdded);
+    assert.equal(after.cumulativeInterestAccrued, before.cumulativeInterestAccrued);
+    assert.equal(run(() => getAllDebtAccountBalances()).get('visa'), 6000, 'balance untouched');
+
+    // A decrease in the same shape still needs no reason.
+    const paid = run(() => executeStewardTool('update_debt_balances', {
+      changes: [{ account: 'Visa', newBalance: 5800 }],
+    }, 'ToolTester'));
+    assert.equal(paid.ok, true, JSON.stringify(paid));
+  });
+});
+
 test('add_debt_account: adds with APR + terms in one call; duplicate names bounce', async () => {
   await withApp(async (baseUrl) => {
     await seedClimb(baseUrl);

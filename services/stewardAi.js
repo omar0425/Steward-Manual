@@ -496,6 +496,11 @@ const CHAT_TOOL_RULES =
   'guessing. Never invent a number the player did not give you.\n' +
   '- Balances are the amount still OWED after the payment. "I paid $500 on ' +
   'the Visa" means the Visa balance drops by $500 from its current figure.\n' +
+  '- A balance that goes UP must carry a reason: interest (interest or fees), ' +
+  'purchase, new_loan, or preexisting (debt they always had and are only now ' +
+  'reporting). If the player did not make the cause plain, ask before ' +
+  'recording — an unexplained rise counts against their progress as new debt, ' +
+  'and interest never should.\n' +
   '- Every entry you record is reversible: if the player says you got it ' +
   'wrong, use undo_last_entry (only reverses the most recent entry) or ' +
   're-record the correct balance.\n' +
