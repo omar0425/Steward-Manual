@@ -535,6 +535,49 @@ test('GET /api/export: full user data with dated attachment filename', async () 
   });
 });
 
+test('export: debt-free date falls back to the pace date, like the dashboard does', async () => {
+  // The dashboard leads with the Monte Carlo median and falls back to the linear
+  // pace date when the band is not ready. The export used to emit null in that
+  // window, so a user looking at "Jul 2027" on screen found no date in their
+  // own data. Seed a span long enough to project linearly (>21 days) but with
+  // too few windows for the simulation (<3), and the two must still agree.
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10000 }],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 9000 }],
+    });
+    assert.equal(res.status, 200);
+
+    // Backdate the seeded history through restore: readings 25 days apart give
+    // one qualifying window — enough span for the pace, not enough for a band.
+    const seed = await (await fetch(`${baseUrl}/api/export`)).json();
+    const DAY = 86400000;
+    const spread = (rows, key) => {
+      const n = rows.length;
+      return rows.map((r, i) => ({ ...r, [key]: new Date(Date.now() - (n - 1 - i) * 25 * DAY).toISOString() }));
+    };
+    seed.snapshots = spread(seed.snapshots, 'pulled_at');
+    seed.debtAccountHistory = spread(seed.debtAccountHistory, 'recordedAt');
+    seed.settings = {
+      ...seed.settings,
+      game_start_at: new Date(Date.now() - 60 * DAY).toISOString(),
+    };
+    res = await postJson(baseUrl, '/api/restore', seed);
+    assert.equal(res.status, 200);
+
+    const exp = await (await fetch(`${baseUrl}/api/export`)).json();
+    assert.equal(exp.climb.projectedDebtFreeRange, null, 'band genuinely not ready yet');
+    assert.ok(exp.climb.projectedDebtFree, 'a date is still exported, as the UI shows one');
+    assert.equal(exp.climb.projectedDebtFreeBasis, 'linear_pace', 'and it says which model produced it');
+    assert.match(exp.climb.projectedDebtFree, /^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
 test('GET /api/export?format=csv: Excel-ready snapshot series and account history', async () => {
   await withApp(async (baseUrl) => {
     let res = await postJson(baseUrl, '/api/snapshot', {

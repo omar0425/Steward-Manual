@@ -25,24 +25,33 @@ const DAYS_PER_MONTH = 30.44;
 // same discipline services/pace.js enforces (MIN_SPAN_DAYS = 21), so a burst of
 // same-week entries can't feed the Monte Carlo a wildly optimistic debt-free
 // date that contradicts the linear projection.
+//
+// The history is PARTITIONED into consecutive non-overlapping windows of at
+// least minDays, rather than read pair-by-adjacent-pair. Adjacent-pairs-only
+// silently discarded every interval for anyone who checks in more often than
+// minDays: weekly entries for a year produced ZERO samples, so the band never
+// became ready and the user stayed on the volatile single-pace date — logging
+// more made the forecast strictly worse. Re-anchoring after each window keeps
+// the samples independent (no reading counted twice) while letting a cluster of
+// same-day entries collapse into the one window that contains them.
 function monthlyPaydownSamples(snapshots, { minDays = 10, minSpanDays = 21 } = {}) {
   if (!Array.isArray(snapshots) || snapshots.length < 2) return [];
-  const times = snapshots.map((s) => Date.parse(s.pulled_at)).filter(Number.isFinite);
-  if (times.length < 2) return [];
-  const spanDays = (Math.max(...times) - Math.min(...times)) / 86400000;
+  // Callers hand us newest-first; walk oldest→newest so the windows advance
+  // with the calendar and a sample reads as (older debt − newer debt).
+  const points = snapshots
+    .map((s) => ({ t: Date.parse(s && s.pulled_at), debt: Number(s && s.debt_remaining) }))
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.debt))
+    .sort((a, b) => a.t - b.t);
+  if (points.length < 2) return [];
+  const spanDays = (points[points.length - 1].t - points[0].t) / 86400000;
   if (spanDays < minSpanDays) return [];
   const out = [];
-  for (let i = 0; i < snapshots.length - 1; i++) {
-    const newer = snapshots[i];
-    const older = snapshots[i + 1];
-    const t1 = Date.parse(newer.pulled_at);
-    const t0 = Date.parse(older.pulled_at);
-    if (!Number.isFinite(t1) || !Number.isFinite(t0)) continue;
-    const days = (t1 - t0) / 86400000;
+  let anchor = points[0];
+  for (const p of points) {
+    const days = (p.t - anchor.t) / 86400000;
     if (!(days >= minDays)) continue;
-    const paydown = Number(older.debt_remaining) - Number(newer.debt_remaining);
-    if (!Number.isFinite(paydown)) continue;
-    out.push(paydown / (days / DAYS_PER_MONTH));
+    out.push((anchor.debt - p.debt) / (days / DAYS_PER_MONTH));
+    anchor = p;
   }
   return out;
 }

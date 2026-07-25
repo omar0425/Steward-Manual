@@ -2559,7 +2559,17 @@ router.get('/export', (req, res) => {
       pctPaid: climb.pctPaid,
       netImprovement: climb.netImprovement,
       avgMonthlyPaydown: (lifetimeAvgPaydown != null ? lifetimeAvgPaydown : (pace || null)),
-      projectedDebtFree: exportForecast && exportForecast.ready ? exportForecast.medianDate : null,
+      // Mirror the dashboard exactly: it leads with the Monte Carlo median and
+      // falls back to the linear pace date when the band is not ready yet
+      // (public/js/render-progress.js). Exporting only the band left this null
+      // while the UI was plainly showing a date — the same disagreement this
+      // block was added to prevent.
+      projectedDebtFree: exportForecast && exportForecast.ready
+        ? exportForecast.medianDate
+        : (proj && proj.onTrack ? proj.debtFreeDate : null),
+      projectedDebtFreeBasis: exportForecast && exportForecast.ready
+        ? 'monte_carlo'
+        : (proj && proj.onTrack ? 'linear_pace' : null),
       projectedDebtFreeRange: exportForecast && exportForecast.ready
         ? { low: exportForecast.optimisticDate || null, high: exportForecast.conservativeDate || null }
         : null,

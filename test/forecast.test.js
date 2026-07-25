@@ -17,6 +17,41 @@ test('monthlyPaydownSamples: derives $/month rate from consecutive snapshots', (
   assert.ok(Math.abs(s[0] - 500) < 0.5); // ~$500/month
 });
 
+test('monthlyPaydownSamples: frequent check-ins still produce samples', () => {
+  // A weekly logger over a year. Every ADJACENT gap is 7 days — under minDays —
+  // so pair-by-pair sampling found nothing and the forecast never became ready,
+  // no matter how much history piled up. Windows must partition the history.
+  const snaps = [];
+  for (let week = 0; week <= 52; week++) {
+    snaps.push({
+      pulled_at: new Date(NOW - week * 7 * 86400000).toISOString(),
+      debt_remaining: 50000 - (52 - week) * 250, // $250/week ≈ $1,087/mo
+    });
+  }
+  const s = monthlyPaydownSamples(snaps); // newest-first, as callers pass it
+  assert.ok(s.length >= 3, `weekly logging yields usable samples, got ${s.length}`);
+  for (const rate of s) {
+    assert.ok(Math.abs(rate - 250 * (DAYS_PER_MONTH / 7)) < 1, `steady rate, got ${rate}`);
+  }
+  // Windows are non-overlapping, so they cannot exceed the history they cover.
+  const spanDays = 52 * 7;
+  assert.ok(s.length <= Math.floor(spanDays / 10), 'windows partition rather than overlap');
+  assert.equal(monteCarloPayoff(50000, s, { now: NOW, runs: 200, rng: () => 0 }).ready, true);
+});
+
+test('monthlyPaydownSamples: a cluster of same-day entries collapses into one window', () => {
+  // Six readings inside one minute, then a real month later. The burst must not
+  // fabricate samples, and must not suppress the one honest window either.
+  const monthAgo = NOW - DAYS_PER_MONTH * 86400000;
+  const snaps = [{ pulled_at: new Date(NOW).toISOString(), debt_remaining: 9000 }];
+  for (let i = 0; i < 6; i++) {
+    snaps.push({ pulled_at: new Date(monthAgo + i * 1000).toISOString(), debt_remaining: 10000 });
+  }
+  const s = monthlyPaydownSamples(snaps);
+  assert.equal(s.length, 1, 'one real window, not six');
+  assert.ok(Math.abs(s[0] - 1000) < 1);
+});
+
 test('monteCarloPayoff: already debt-free', () => {
   const r = monteCarloPayoff(0, [500, 400, 600], { now: NOW });
   assert.equal(r.ready, true);
