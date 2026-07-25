@@ -262,6 +262,31 @@ test('report_bug_to_developer: files a player report, dedupes, rejects junk', ()
   assert.equal(bad.ok, false);
 });
 
+test('report_bug_to_developer: long summary clips the title on a word, keeps it whole in the body', () => {
+  const long = `Player wants a custom expected monthly paydown figure for the debt-free forecast ${process.pid} `
+    + 'rather than the running average, because one unusually heavy month pulls that average upward and '
+    + 'makes the projected finish line look sooner than a normal month would support.';
+  assert.ok(long.length > 200, 'fixture must exceed the title cap');
+
+  const out = run(() => executeStewardTool('report_bug_to_developer', { summary: long }, 'SomeRegularUser'));
+  assert.equal(out.ok, true);
+
+  const row = listBugReports(200).find((r) => r.kind === 'user' && r.title.startsWith('Player wants a custom'));
+  assert.ok(row, 'long report filed');
+  assert.ok(row.title.length <= 200, 'title within the column cap');
+  assert.match(row.title, /…$/, 'clipped title is marked as clipped');
+  assert.ok(!/\s…$/.test(row.title), 'no dangling space before the ellipsis');
+  // The break lands between words: everything before the ellipsis is a prefix
+  // of the original ending at a word boundary.
+  const kept = row.title.slice(0, -1);
+  assert.ok(long.startsWith(kept), 'title is a clean prefix of the summary');
+  assert.equal(long[kept.length], ' ', 'clipped at a word boundary, not mid-word');
+  // Nothing is lost: the full sentence survives in the report body.
+  assert.ok(row.report.includes(long), 'full summary preserved in the body');
+
+  run(resetAllGameState);
+});
+
 test('setBugReportTriage attaches severity/title/report with caps', () => {
   const { id } = upsertBugReport({ signature: 'test-triage-' + process.pid, kind: 'error', userId: 1, raw: '{}' });
   setBugReportTriage(id, { severity: 'high', title: 't'.repeat(500), report: 'r'.repeat(5000) });

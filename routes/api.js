@@ -1942,6 +1942,20 @@ const STEWARD_AI_TOOLS = [
 ];
 
 /**
+ * Clip to `max` characters on a word boundary with an ellipsis, so a long
+ * report title reads as a trimmed sentence rather than breaking mid-word.
+ */
+function truncateOnWord(text, max) {
+  const s = String(text || '').trim();
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  // Fall back to the hard cut when there is no space to break on (one long
+  // token), and strip any trailing punctuation the break left dangling.
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.–—-]+$/, '') + '…';
+}
+
+/**
  * Execute one tool call from the chat model. Synchronous (SQLite), runs inside
  * the request's withUser scope. Returns a JSON-able object; { ok:false } is
  * fed back to the model as an error result it can react to. `summary` on
@@ -2096,8 +2110,14 @@ function executeStewardTool(name, input, username) {
       // The chat model already wrote the plain-English note — no extra AI call.
       setBugReportTriage(id, {
         severity: 'medium',
-        title: summary.slice(0, 120),
-        report: details ? `Player-reported via chat. ${details}` : 'Player-reported via chat.',
+        title: truncateOnWord(summary, 200),
+        // A summary long enough to have been clipped in the title is repeated
+        // in full here, so the panel never shows only a half-sentence.
+        report: [
+          'Player-reported via chat.',
+          summary.length > 200 ? summary : '',
+          details,
+        ].filter(Boolean).join(' '),
       });
     }
     // Echo the filed wording back in the receipt: the player sees exactly what
