@@ -2427,9 +2427,12 @@ router.get('/export', (req, res) => {
   const nameById = parseJsonObject(data.settings.debt_account_name_map);
   const aprById = parseJsonObject(data.settings.interest_rates);
   const nameOf = (id) => nameById[id] || 'Account';
+  // 0% is a rate the user SET (promo financing, a collections balance that
+  // accrues nothing) — only a rate never entered is blank. Emitting '' for a
+  // real 0 makes the export claim the account is unrated.
   const aprOf = (id) => {
     const n = Number(aprById[id]);
-    return Number.isFinite(n) && n > 0 ? n : '';
+    return Number.isFinite(n) && n >= 0 ? n : '';
   };
   const baseline = Number(data.settings.climb_baseline_debt) || Number(data.settings.game_start_debt) || 0;
 
@@ -2511,7 +2514,12 @@ router.get('/export', (req, res) => {
       id: b.accountId,
       name: nameOf(b.accountId),
       balance: b.balance,
-      apr: Number.isFinite(apr) && apr > 0 ? apr : null,
+      // Preserve a set 0% as 0. Collapsing it to null told anyone reading the
+      // export — a person, a spreadsheet, the Steward — that the account had no
+      // rate on file, when the user had explicitly entered one. The dashboard
+      // has always drawn this line correctly (aprSet uses apr >= 0); the export
+      // did not, and the two disagreed about the same account.
+      apr: Number.isFinite(apr) && apr >= 0 ? apr : null,
       startingBalance: Number.isFinite(first) ? first : null,
       pctPaid,
     };

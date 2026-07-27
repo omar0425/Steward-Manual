@@ -535,6 +535,40 @@ test('GET /api/export: full user data with dated attachment filename', async () 
   });
 });
 
+test('export: a set 0% APR stays 0, distinct from an account with no rate', async () => {
+  // 0% is a real, deliberate rate — promo financing, a collections balance that
+  // accrues nothing. The export collapsed it to null, so a reader of the file
+  // could not tell "the user entered 0" from "the user entered nothing" and
+  // would wrongly conclude the account was unrated. The dashboard never had
+  // this confusion (aprSet uses apr >= 0).
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'promo', name: 'Promo Card', balance: 5000 },
+        { id: 'klarna', name: 'Klarna', balance: 2000 },
+        { id: 'unrated', name: 'Unrated', balance: 1000 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    res = await postJson(baseUrl, '/api/config/interest-rates', {
+      rates: { promo: 0, klarna: 32.99 }, // 'unrated' deliberately left unset
+    });
+    assert.equal(res.status, 200);
+
+    const exp = await (await fetch(`${baseUrl}/api/export`)).json();
+    const byId = Object.fromEntries(exp.accounts.map((a) => [a.id, a]));
+    assert.equal(byId.promo.apr, 0, 'a set 0% survives the export as 0');
+    assert.equal(byId.klarna.apr, 32.99);
+    assert.equal(byId.unrated.apr, null, 'never-entered stays null');
+
+    // CSV carries the same distinction: "0" for set, empty cell for unset.
+    const csv = await (await fetch(`${baseUrl}/api/export?format=csv&table=accounts`)).text();
+    const row = (id) => csv.split('\n').find((l) => l.startsWith(id));
+    assert.match(row('promo'), /^promo,[^,]*,0,/, '0% renders as 0, not blank');
+    assert.match(row('unrated'), /^unrated,[^,]*,,/, 'unset renders as an empty cell');
+  });
+});
+
 test('export: debt-free date falls back to the pace date, like the dashboard does', async () => {
   // The dashboard leads with the Monte Carlo median and falls back to the linear
   // pace date when the band is not ready. The export used to emit null in that
