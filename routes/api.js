@@ -91,28 +91,46 @@ const stewardAi = require('../services/stewardAi');
 const stewardAiContext = require('../services/stewardAiContext');
 const stewardAiLedger = require('../services/stewardAiLedger');
 const { findUserById, findUserByUsername, listAllUsers } = require('../db-auth');
+const {
+  parseJsonArray,
+  parseJsonObject,
+} = require('../services/serialization');
 
 router.use((req, res, next) => {
   withUser(req.user && req.user.userId, next);
 });
 
+const STEWARD_AI_CONSENT_KEY = 'steward_ai_consent';
+
+function hasStewardAiConsent() {
+  return getConfig(STEWARD_AI_CONSENT_KEY) === '1';
+}
+
+function stewardAiEnabledForUser() {
+  return stewardAi.isConfigured() && hasStewardAiConsent();
+}
+
+router.get('/steward-ai/consent', (req, res) => {
+  res.json({
+    ok: true,
+    configured: stewardAi.isConfigured(),
+    enabled: stewardAiEnabledForUser(),
+  });
+});
+
+router.post('/steward-ai/consent', express.json(), (req, res) => {
+  const enabled = req.body && req.body.enabled;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ ok: false, error: 'enabled must be true or false.' });
+  }
+  if (enabled && !stewardAi.isConfigured()) {
+    return res.status(409).json({ ok: false, error: 'AI is not configured on this server.' });
+  }
+  setConfig(STEWARD_AI_CONSENT_KEY, enabled ? '1' : '0');
+  return res.json({ ok: true, configured: stewardAi.isConfigured(), enabled });
+});
+
 // Config values are stored as JSON strings; tolerate missing/malformed data.
-function parseJsonArray(raw) {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch { return []; }
-}
-
-function parseJsonObject(raw) {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch { return {}; }
-}
-
 // ── Monte Carlo forecast cache (per snapshot) ─────────────────────────────────
 const FORECAST_CACHE_PREFIX = 'payoff_forecast_at:';
 
@@ -194,7 +212,8 @@ router.get('/status', (req, res) => {
       noData: false,
       message,
       lastError: null,
-      aiEnabled: stewardAi.isConfigured(),
+      aiAvailable: stewardAi.isConfigured(),
+      aiEnabled: stewardAiEnabledForUser(),
       stats: {
         debtRemaining: snap.debt_remaining,
         totalDebt: snap.total_debt,
@@ -384,14 +403,6 @@ router.get('/status', (req, res) => {
   }
 
   // Net worth history for chart
-  const sortedSnaps = snapshots.slice().sort((a, b) => (a.pulled_at < b.pulled_at ? -1 : 1));
-  const netWorthHistory = sortedSnaps.map((s) => ({
-    date: s.pulled_at,
-    netWorth: parseFloat((s.total_assets - s.total_debt).toFixed(2)),
-    totalAssets: s.total_assets,
-    totalDebt: s.total_debt,
-  }));
-
   // Recent milestones: things that happened on the latest pull worth telling
   // the user about. Tier transitions previously slid by silently; paid-off
   // accounts emit no celebration. Each milestone has a stable `id`; the
@@ -540,7 +551,8 @@ router.get('/status', (req, res) => {
     stability,
     streak,
     recentMilestones,
-    aiEnabled: stewardAi.isConfigured(),
+    aiAvailable: stewardAi.isConfigured(),
+    aiEnabled: stewardAiEnabledForUser(),
     // Personal easter egg: armed by the snapshot route on a $500+ debt drop for
     // the cutscene user. The dashboard plays it once, then POSTs cutscene-seen.
     cutsceneReady: getConfig('pending_cutscene') === '1',
@@ -610,7 +622,6 @@ router.get('/status', (req, res) => {
       freshness,
       nextScheduled:       null,
     },
-    netWorthHistory,
     // Correction-aware debt line: forgotten debts carried back so they don't
     // read as spikes; genuinely-new loans still rise. The chart prefers this.
     correctedDebtSeries: buildCorrectedDebtSeries(debtAccountHistoryRows(), {
@@ -707,6 +718,10 @@ function saveSnapshotForUser(rawBody, username) {
       // { accountId: 'purchase' | 'new_loan' | 'interest' | 'preexisting' }.
       classifications = {},
     } = body;
+    const accountsProvided = Object.prototype.hasOwnProperty.call(body, 'debtAccounts');
+    if (accountsProvided && !Array.isArray(debtAccounts)) {
+      return bad('debtAccounts must be an array');
+    }
 
     const moneyFields = {
       totalAssets,
@@ -765,7 +780,7 @@ function saveSnapshotForUser(rawBody, username) {
     const debtBalanceMap = new Map();
     const debtDisplayRows = [];
 
-    if (Array.isArray(debtAccounts) && debtAccounts.length > 0) {
+    if (accountsProvided) {
       if (debtAccounts.length > MAX_DEBT_ACCOUNTS) {
         return bad(`Too many debt accounts (max ${MAX_DEBT_ACCOUNTS}).`);
       }
@@ -901,7 +916,7 @@ function saveSnapshotForUser(rawBody, username) {
 
     // Insert snapshot — when individual accounts are provided their sum is authoritative
     // for both total_debt and debt_remaining so the two columns stay consistent.
-    const effectiveTotalDebt = debtBalanceMap.size > 0 ? debtRemaining : debt;
+    const effectiveTotalDebt = accountsProvided ? debtRemaining : debt;
     const netWorth = roundMoney(assets + invest - effectiveTotalDebt);
     // All writes for this pull are atomic: a crash mid-pull can't leave half-written
     // climb state (snapshot without balances, balances without metrics, etc.).
@@ -927,7 +942,7 @@ function saveSnapshotForUser(rawBody, username) {
 
     // Update per-account debt tracking. During setup this is inventory only;
     // climb metrics begin after POST /api/start-game locks the baseline.
-    if (debtBalanceMap.size > 0) {
+    if (accountsProvided) {
       const prevBalances = getAllDebtAccountBalances();
       prevTotalDebtForCutscene = 0;
       for (const v of prevBalances.values()) prevTotalDebtForCutscene += Number(v) || 0;
@@ -965,6 +980,15 @@ function saveSnapshotForUser(rawBody, username) {
         if (clearedNow.length > 0) {
           setConfig('pending_account_cleared', JSON.stringify(clearedNow));
         }
+
+        // Removing an account means "stop tracking it", not "I paid it off".
+        // Reward only real balance reductions on accounts still in this pull.
+        let creditedDrop = 0;
+        for (const [id, bal] of debtBalanceMap) {
+          const prevBal = Number(prevBalances.get(id));
+          if (Number.isFinite(prevBal) && prevBal > bal) creditedDrop += prevBal - bal;
+        }
+        prevTotalDebtForCutscene = debtRemaining + roundMoney(creditedDrop);
       }
 
       // Build display rows for the debt sync debug
@@ -1568,7 +1592,7 @@ function writeCachedDialog(pulledAt, payload) {
 router.post('/steward-ai/comment', (req, res) => {
   (async () => {
     try {
-      if (!stewardAi.isConfigured()) return res.status(204).end();
+      if (!stewardAiEnabledForUser()) return res.status(204).end();
 
       const ctx = stewardAiContext.buildContext();
       if (ctx.skip) return res.status(204).end();
@@ -1640,6 +1664,9 @@ router.post('/steward-ai/ask', express.json(), (req, res) => {
   (async () => {
     try {
       if (!stewardAi.isConfigured()) return res.status(204).end();
+      if (!hasStewardAiConsent()) {
+        return res.status(403).json({ ok: false, error: 'Enable AI Steward before sending financial context.' });
+      }
       const { question } = req.body || {};
       if (!question || typeof question !== 'string' || !question.trim()) {
         return res.status(400).json({ ok: false, error: 'A question is required.' });
@@ -1675,7 +1702,7 @@ const STEWARD_AI_QUOTE_CACHE_PREFIX = 'steward_ai_quote_at:';
 router.post('/steward-ai/tier-quote', (req, res) => {
   (async () => {
     try {
-      if (!stewardAi.isConfigured()) return res.status(204).end();
+      if (!stewardAiEnabledForUser()) return res.status(204).end();
 
       const ctx = stewardAiContext.buildContext();
       if (ctx.skip || !ctx.payload || !ctx.payload.tier) return res.status(204).end();
@@ -2188,7 +2215,8 @@ router.get('/steward-ai/chat', (req, res) => {
   res.json({
     ok: true,
     beta: true,
-    enabled: stewardAi.isConfigured(),
+    configured: stewardAi.isConfigured(),
+    enabled: stewardAiEnabledForUser(),
     messages: readChatHistory(),
     situationNote: String(getConfig(SITUATION_NOTE_KEY) || ''),
     memories: stewardAiMemory.readMemories(),
@@ -2208,6 +2236,9 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
       }
       if (!stewardAi.isConfigured()) {
         return res.status(503).json({ ok: false, error: 'The Steward is asleep — no AI key is configured on the server.' });
+      }
+      if (!hasStewardAiConsent()) {
+        return res.status(403).json({ ok: false, error: 'Enable AI Steward before sending financial context.' });
       }
       if (!consumeChatBudget()) {
         return res.status(429).json({ ok: false, error: 'The Steward has talked enough for one day — try again tomorrow.' });
@@ -2740,7 +2771,7 @@ router.post('/bug-report', express.json({ limit: '32kb' }), (req, res) => {
     if (isNew) {
       // Readable in the panel even when the AI never runs (no key / cap spent).
       setBugReportTriage(id, { severity: null, title: message.slice(0, 120), report: null });
-      if (stewardAi.isConfigured() && consumeBugAiBudget()) {
+      if (stewardAiEnabledForUser() && consumeBugAiBudget()) {
         setImmediate(() => { void triageNewBugReport(id, { source, message, stack, url }); });
       }
     }
@@ -2780,7 +2811,7 @@ function reportInvariantViolations(userId) {
  * medium/high severity become admin bug reports of kind 'metrics'.
  */
 function scheduleMetricsAudit(userId) {
-  if (!userId || !stewardAi.isConfigured() || BUG_AI_DAILY_LIMIT === 0) return;
+  if (!userId || !stewardAiEnabledForUser() || BUG_AI_DAILY_LIMIT === 0) return;
   const today = new Date().toISOString().slice(0, 10);
   const stamp = parseJsonObject(getConfig(METRICS_AUDIT_STAMP_KEY));
   if (stamp.date === today) return;

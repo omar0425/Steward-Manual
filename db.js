@@ -44,7 +44,11 @@ function currentUserId() {
   // Scope is active but the user is anonymous (id <= 0) — keep the original
   // user_id=0 fallback so the route middleware can run for unauthenticated
   // requests without throwing.
-  console.warn('[db] currentUserId: active scope has non-positive id (' + store + ') — using 0');
+  // Test helpers intentionally use the legacy system scope; repeating this
+  // warning hundreds of times hides useful failures in CI output.
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn('[db] currentUserId: active scope has non-positive id (' + store + ') — using 0');
+  }
   return 0;
 }
 
@@ -800,6 +804,16 @@ function safetySnapshot(tag) {
   }
 }
 
+function isPathInsideDirectory(filePath, directoryPath) {
+  const relativePath = path.relative(path.resolve(directoryPath), path.resolve(filePath));
+  return (
+    relativePath !== ''
+    && !path.isAbsolute(relativePath)
+    && relativePath !== '..'
+    && !relativePath.startsWith(`..${path.sep}`)
+  );
+}
+
 function storageDurabilityWarning() {
   const onRailway = !!(
     process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_SERVICE_ID
@@ -809,7 +823,7 @@ function storageDurabilityWarning() {
   if (!mount) {
     return 'No Railway volume detected (RAILWAY_VOLUME_MOUNT_PATH unset). The SQLite database is on ephemeral storage and WILL BE LOST on the next redeploy. Attach a volume and point STEWARD_DB_PATH inside it.';
   }
-  if (!DB_PATH.startsWith(path.resolve(mount))) {
+  if (!isPathInsideDirectory(DB_PATH, mount)) {
     return `The database (${DB_PATH}) is NOT under the Railway volume (${mount}); it will be LOST on redeploy. Set STEWARD_DB_PATH to a path inside the volume.`;
   }
   return null;
@@ -1128,6 +1142,7 @@ module.exports = {
   importUserData,
   isValidImportPayload,
   storageDurabilityWarning,
+  isPathInsideDirectory,
   checkLiveDbIntegrity,
   safetySnapshot,
   resetAllGameState,

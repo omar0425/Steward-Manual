@@ -14,6 +14,8 @@
 
 import { stewardApiUrl } from './api.js';
 import { buildSteward } from './character.js';
+import { readUserStorage, writeUserStorage } from './user-storage.js';
+import { createModalController } from './dialog.js';
 
 const SEEN_KEY = 'steward-ai-seen-at';
 
@@ -106,10 +108,10 @@ const MODE_FRAMING = {
 const CEREMONIAL = new Set(['closing_certificate', 'quarterly_letter']);
 
 function readSeen() {
-  try { return localStorage.getItem(SEEN_KEY) || ''; } catch { return ''; }
+  return readUserStorage(SEEN_KEY) || '';
 }
 function writeSeen(pulledAt) {
-  try { localStorage.setItem(SEEN_KEY, pulledAt); } catch { /* ignore */ }
+  writeUserStorage(SEEN_KEY, pulledAt);
 }
 
 function showDialog({ mode, title, text }) {
@@ -157,6 +159,7 @@ function showDialog({ mode, title, text }) {
   document.body.appendChild(overlay);
 
   let autoTimer = null;
+  let modalController = null;
   // Hoisted so EVERY close path (dismiss, backdrop, auto-timeout, Escape) removes
   // the document-level keydown listener. Previously only the Escape branch removed
   // it, so toasts that closed any other way leaked a listener (and a closure
@@ -164,19 +167,15 @@ function showDialog({ mode, title, text }) {
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   const close = () => {
     if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
-    document.removeEventListener('keydown', onKey);
+    if (isToast) document.removeEventListener('keydown', onKey);
+    if (modalController) modalController.release();
     overlay.remove();
-    // Only the modal stole focus, so only the modal restores it. Returning
-    // focus after a toast would yank the user away from what they were doing.
-    if (!isToast && previouslyFocused && typeof previouslyFocused.focus === 'function') {
-      try { previouslyFocused.focus(); } catch { /* ignore */ }
-    }
   };
 
   overlay.querySelector('.steward-ai-dismiss').addEventListener('click', close);
-  document.addEventListener('keydown', onKey);
 
   if (isToast) {
+    document.addEventListener('keydown', onKey);
     // Linger long enough to read, then fade on its own; hovering pauses it.
     const startTimer = () => { autoTimer = setTimeout(close, 14000); };
     overlay.addEventListener('mouseenter', () => { if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; } });
@@ -186,7 +185,12 @@ function showDialog({ mode, title, text }) {
     // Modal: backdrop click closes it, and focus moves to the dismiss button.
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     const btn = overlay.querySelector('.steward-ai-dismiss');
-    if (btn) { try { btn.focus(); } catch { /* ignore */ } }
+    modalController = createModalController(overlay, {
+      initialFocus: btn,
+      onDismiss: close,
+      restoreFocusTo: previouslyFocused,
+    });
+    modalController.focusInitial();
   }
 }
 
@@ -205,23 +209,82 @@ export function initAskSteward() {
   const panel = document.getElementById('ask-steward-panel');
   const chipsWrap = document.getElementById('ask-steward-chips');
   const answerEl = document.getElementById('ask-steward-answer');
+  const consentBtn = document.getElementById('ask-steward-consent-toggle');
+  const consentMsg = document.getElementById('ask-steward-consent-msg');
   if (!panel || !chipsWrap || !answerEl || panel.dataset.bound === '1') return;
   panel.dataset.bound = '1';
+
+  let configured = false;
+  let consentEnabled = false;
+  const syncConsentUi = (announce = false) => {
+    panel.dataset.aiEnabled = consentEnabled ? '1' : '0';
+    chipsWrap.hidden = !consentEnabled;
+    if (!consentEnabled) answerEl.hidden = true;
+    if (consentBtn) {
+      consentBtn.disabled = !configured;
+      consentBtn.setAttribute('aria-pressed', consentEnabled ? 'true' : 'false');
+      consentBtn.textContent = configured
+        ? (consentEnabled ? 'Turn off AI' : 'Enable AI Steward')
+        : 'AI unavailable';
+    }
+    if (consentMsg) {
+      consentMsg.textContent = configured
+        ? (consentEnabled ? 'AI is enabled for this account.' : 'AI is off for this account.')
+        : 'No AI key is configured on this server.';
+    }
+    if (announce) {
+      window.dispatchEvent(new CustomEvent('steward:ai-consent-changed', {
+        detail: { enabled: consentEnabled, configured },
+      }));
+    }
+  };
 
   // Reveal only when the server reports an API key is configured. Setup-mode
   // visibility is handled by the dashboard-only-section CSS, so we don't gate
   // on climb state here — the panel appears automatically once the climb starts.
-  fetch(stewardApiUrl('/api/status'))
+  fetch(stewardApiUrl('/api/steward-ai/consent'))
     .then((r) => r.json())
-    .then((status) => { if (status && status.aiEnabled) panel.hidden = false; })
+    .then((state) => {
+      configured = !!(state && state.configured);
+      consentEnabled = !!(state && state.enabled);
+      if (configured) panel.hidden = false;
+      syncConsentUi(true);
+    })
     .catch(() => { /* leave hidden */ });
+
+  if (consentBtn) {
+    consentBtn.addEventListener('click', async () => {
+      if (!configured || consentBtn.disabled) return;
+      consentBtn.disabled = true;
+      if (consentMsg) consentMsg.textContent = consentEnabled ? 'Turning AI off...' : 'Enabling AI...';
+      try {
+        const res = await fetch(stewardApiUrl('/api/steward-ai/consent'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !consentEnabled }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.ok) {
+          throw new Error((data && data.error) || 'Could not update AI setting.');
+        }
+        configured = !!data.configured;
+        consentEnabled = !!data.enabled;
+        syncConsentUi(true);
+      } catch (err) {
+        if (consentMsg) {
+          consentMsg.textContent = err && err.message ? err.message : 'Could not update AI setting.';
+        }
+        consentBtn.disabled = false;
+      }
+    });
+  }
 
   let busy = false;
   const setChipsDisabled = (v) => chipsWrap.querySelectorAll('.ask-steward-chip').forEach((c) => { c.disabled = v; });
 
   chipsWrap.addEventListener('click', async (e) => {
     const btn = e.target.closest('.ask-steward-chip');
-    if (!btn || busy) return;
+    if (!btn || busy || !consentEnabled) return;
     const question = btn.textContent.trim();
     busy = true;
     setChipsDisabled(true);
@@ -253,7 +316,7 @@ export function initAskSteward() {
 }
 
 export async function maybeShowStewardAiComment(status) {
-  if (!status || !status.ready || !status.meta) return;
+  if (!status || !status.ready || !status.meta || !status.aiEnabled) return;
   const pulledAt = status.meta.lastSnapshotAt;
   const freshness = status.meta.freshness;
   if (!pulledAt || freshness !== 'Live') return;

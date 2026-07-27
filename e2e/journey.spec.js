@@ -59,7 +59,7 @@ async function probe(page) {
       nwLineD: attr('nw-line', 'd'),
       emptyVisible: vis('nw-empty-state'),
       unsavedBadge: !!document.getElementById('saved-debts-unsaved-badge'),
-      startClimbVisible: vis('start-climb-btn') || vis('start-climb-empty-btn'),
+      startClimbVisible: vis('start-climb-btn'),
       saveMsg: txt('snapshot-save-msg'),
       savedRows: Array.from(document.querySelectorAll('#saved-debts-rows .saved-debt-row')).map((r) => ({
         name: r.dataset.name, prevBalance: r.dataset.prevBalance,

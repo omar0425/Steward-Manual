@@ -26,6 +26,7 @@ async function startedClimb(page) {
 test.describe('Climb lifecycle', () => {
   test('freshly started climb shows the empty chart state, not a fake trend', async ({ page }) => {
     await startedClimb(page);
+    await page.locator('#debt-chart-section').evaluate((d) => { d.open = true; });
     // Only the baseline snapshot exists → chart hidden, header still populated.
     await expect(page.locator('#stat-net-worth-chart')).toContainText('$78,885');
     await expect(page.locator('#chart-trend-delta')).toContainText(/tracking from today/i);
@@ -51,6 +52,7 @@ test.describe('Climb lifecycle', () => {
     });
     expect(res.ok).toBeTruthy();
     await reloadToDashboard(page);
+    await page.locator('#debt-chart-section').evaluate((d) => { d.open = true; });
 
     await expect(page.locator('#stat-net-worth-chart')).toContainText('$73,885');
     await expect(page.locator('#chart-trend-delta')).toContainText(/\$5,000 since you started/);
@@ -87,6 +89,7 @@ test.describe('Climb lifecycle', () => {
     await page.goto('/');
     await passGates(page);
     await startClimb(page);
+    await page.locator('#debt-chart-section').evaluate((d) => { d.open = true; });
 
     // Exactly one post-climb snapshot → empty state, never an "↑ since first
     // snapshot" trend built from the setup ramp. SVG hidden, line path empty,

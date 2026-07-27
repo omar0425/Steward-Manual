@@ -10,11 +10,6 @@ import { tierQuote, tierBehaviorLine, TIER_META } from '../tiers.js';
 import { stewardApiUrl } from '../api.js';
 import { cumulativePaidDownFromStats } from '../format.js';
 
-const TIER_IDS = [
-  'rock_bottom', 'broke', 'struggling', 'surviving', 'stabilizing',
-  'stable', 'building', 'thriving', 'winning', 'wealthy',
-];
-
 /* Steward AI ambient stage quote. Fetched once per (snapshot, tier); on success
    it overrides the static fallback line. 204 (no key / no climb) leaves the
    static quote in place, so the card is never empty or broken. */
@@ -44,7 +39,7 @@ function maybeApplyAiTierQuote(meta, tier) {
     .catch(() => { /* keep the static fallback */ });
 }
 
-window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTier, meta, stability: stab, snapshots, streak, correctedDebtSeries }) {
+window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTier, meta, stability: stab, snapshots, streak, correctedDebtSeries, aiEnabled }) {
   const quoteLabel = document.getElementById('tier-quote-label');
   const quoteText = document.getElementById('tier-quote-text');
   if (tier && quoteLabel && quoteText) {
@@ -52,7 +47,7 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
     // Show the static line immediately (no flash), then let the AI line override
     // it once it arrives — falling back to this if the AI is unavailable.
     quoteText.textContent = tierQuote(tier.id) || 'Keep the number moving in the right direction.';
-    maybeApplyAiTierQuote(meta, tier);
+    if (aiEnabled) maybeApplyAiTierQuote(meta, tier);
   }
 
   /* ── Mascot click interaction: cycle quote ↔ behavior ↔ cue, gentle pulse ──
@@ -165,13 +160,11 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
   if (ctaLine) {
     const gap = nextTier && nextTier.gapDollars > 0 ? Math.round(Number(nextTier.gapDollars)) : 0;
     const pace = Number(stats && (stats.monthlyPace || stats.avgMonthlyPayment)) || 0;
-    const stageLabel = (tier && tier.label) ? tier.label : 'this stage';
-
     if (gap > 0 && pace > 0) {
       const months = Math.max(1, Math.ceil(gap / pace));
       const moWord = months === 1 ? 'month' : 'months';
-      ctaLine.innerHTML = `~<span class="val" id="stat-monthly-target">${months}</span> ${moWord} to escape ${stageLabel}`;
-      ctaLine.title = `At your ~$${Math.round(pace).toLocaleString()}/mo pace, escaping ${stageLabel} ($${gap.toLocaleString()} to go) takes about ${months} ${moWord}.`;
+      ctaLine.innerHTML = `~<span class="val" id="stat-monthly-target">${months}</span> ${moWord} to your next stage`;
+      ctaLine.title = `At your ~$${Math.round(pace).toLocaleString()}/mo pace, reaching the next stage ($${gap.toLocaleString()} to go) takes about ${months} ${moWord}.`;
       if (monthlyTargetSub) { monthlyTargetSub.textContent = `at your ~$${Math.round(pace).toLocaleString()}/mo pace`; monthlyTargetSub.hidden = false; }
     } else if (gap > 0) {
       const suggested = Number(stats && stats.suggestedMonthly) || 0;
@@ -180,33 +173,13 @@ window.stewardVnextEnhance = function stewardVnextEnhance({ tier, stats, nextTie
         ctaLine.title = 'A realistic starting target (~2% of your balance). Log a few months and the Steward swaps this for your real pace and timeline.';
         if (monthlyTargetSub) { monthlyTargetSub.textContent = 'log to set your real timeline'; monthlyTargetSub.hidden = false; }
       } else {
-        ctaLine.innerHTML = `<span class="val" id="stat-monthly-target">$${gap.toLocaleString()}</span> to escape ${stageLabel}`;
+        ctaLine.innerHTML = `<span class="val" id="stat-monthly-target">$${gap.toLocaleString()}</span> to your next stage`;
         if (monthlyTargetSub) { monthlyTargetSub.textContent = 'log your balances to set a timeline'; monthlyTargetSub.hidden = false; }
       }
     } else {
       ctaLine.innerHTML = `<span class="val" id="stat-monthly-target">\u2014</span>`;
       ctaLine.removeAttribute('title');
       if (monthlyTargetSub) { monthlyTargetSub.textContent = ''; monthlyTargetSub.hidden = true; }
-    }
-  }
-
-  /* ── Journey bar (10-stage overview) ── */
-  const journeyFill = document.querySelector('#journey-bar .jb-fill');
-  if (journeyFill && tier) {
-    const idx = TIER_IDS.indexOf(tier.id);
-    if (idx >= 0) {
-      const pb = document.getElementById('command-progress-bar-fill');
-      const inBandPct = pb ? parseFloat(pb.style.width) || 0 : 0;
-      const overallPct = ((idx + inBandPct / 100) / 10) * 100;
-      journeyFill.style.width = overallPct.toFixed(1) + '%';
-      /* Update the journey label text */
-      const journeySection = document.querySelector('.journey-section');
-      if (journeySection) {
-        const labelSpans = journeySection.querySelectorAll('.journey-label span');
-        if (labelSpans.length >= 2) {
-          labelSpans[1].textContent = `Stage ${String(idx + 1).padStart(2, '0')} of 10`;
-        }
-      }
     }
   }
 

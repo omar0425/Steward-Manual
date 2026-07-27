@@ -2,91 +2,41 @@
 
 import { getDashboardRoot, isPlayDashboardDoc } from './shell.js';
 import { DASHBOARD_ONBOARDING_KEY } from './commitment.js';
+import { readUserStorage, writeUserStorage, removeUserStorage } from './user-storage.js';
 
 /* ── Dashboard onboarding (localStorage; guided walkthrough + spotlight) ─ */
 const DASHBOARD_ONBOARDING_STEPS = [
   {
-    lead: 'This card is your current payoff stage.',
+    lead: 'Your first move is ready.',
     body: [
-      'The badge, character, and stage name show where you are now. The line below the bar (\u201c$X debt remaining\u201d) is your full balance \u2014 every dollar still owed.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#hero-state-card'),
-  },
-  {
-    lead: 'This is your escape gap.',
-    body: [
-      'The dollars to unlock the next stage \u2014 not your total debt. This is the number to close next.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#hero-escape-primary'),
-  },
-  {
-    lead: 'The thin bar is in-stage progress.',
-    body: [
-      'How far you are through this stage. The dollar headline above is still the main signal; this bar resets when the next stage unlocks.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#command-progress-widget'),
-  },
-  {
-    lead: 'Your journey is the full 10-stage climb.',
-    body: [
-      'Context for the whole path. The stage counter shows where you are; the escape gap above tells you what to close next.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('.journey-section'),
-  },
-  {
-    lead: 'The next stage is locked.',
-    body: [
-      'This card previews what you unlock by closing the escape gap. The amount shown is the same dollars-to-go number — keep it shrinking and the lock breaks.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#locked-next-card'),
-  },
-  {
-    lead: 'This is where you update your numbers.',
-    body: [
-      'Edit balances inline whenever you make a payment, then hit Update Balances \u2014 or use \u26a1 Quick update to step through every account in seconds (Enter jumps to the next one). The \u201c\u2713 checked\u201d line under each name shows when you last verified that balance against the real statement; it turns amber when it\u2019s been over a month.',
-    ],
-    resolveTarget: () =>
-      onboardingResolveDashboardTarget('#manual-entry-panel')
-        || onboardingResolveDashboardTarget('#update-balances-btn'),
-  },
-  {
-    lead: 'Debt Accounts breaks down what you owe.',
-    body: [
-      'Sort by Balance or APR, and open APRs & terms to set each account\u2019s interest rate, minimum payment, and due day \u2014 those three numbers power the interest math, the payoff advice, and payment reminders.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#debt-accounts-list'),
-  },
-  {
-    lead: 'Pay this next is your strategy card.',
-    body: [
-      'Save most attacks the highest interest rate; Quick win clears the smallest balance first. Once minimum payments are set, it tells you the exact move: cover every minimum, then aim all extra dollars at the target.',
+      'Steward has picked one account to focus on. Choose “Save most” for the cheapest route or “Quick win” for faster momentum.',
     ],
     resolveTarget: () => onboardingResolveDashboardTarget('#pay-next-section:not([hidden])'),
   },
   {
-    lead: 'The chart asks: what if you paid more?',
+    lead: 'Keep the plan honest in one minute.',
     body: [
-      'Your debt line, plus a slider that runs the real math \u2014 drag it to see how many months sooner you\u2019d be free and how much interest you\u2019d keep from the bank at +$N per month.',
+      'Check balances walks through every account. Confirm what stayed the same, change what moved, and Steward updates the whole plan.',
     ],
-    resolveTarget: () =>
-      onboardingResolveDashboardTarget('#whatif-section:not([hidden])')
-        || onboardingResolveDashboardTarget('#networth-chart-svg'),
-  },
-  {
-    lead: 'Total Cleared is your permanent record.',
-    body: [
-      'It only goes up. New debt does not reduce it \u2014 this tracks every dollar paid against principal since tracking began.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('#stat-cumulative-paydown'),
-  },
-  {
-    lead: 'We stamp every save \u2014 and this strip is your toolbox.',
-    body: [
-      'Last snapshot and freshness show when your data was last touched. Down here you can also export a backup (JSON/CSV), restore one, and turn on \ud83d\udd14 payment reminders \u2014 a notification a few days before each due date on this device.',
-    ],
-    resolveTarget: () => onboardingResolveDashboardTarget('.data-strip'),
+    resolveTarget: () => onboardingResolveDashboardTarget('#hero-daily-action'),
   },
 ];
+
+const E2E_ONBOARDING_SUPPRESS = '__e2e_suppress__';
+
+function dashboardOnboardingComplete() {
+  try {
+    if (localStorage.getItem(DASHBOARD_ONBOARDING_KEY) === E2E_ONBOARDING_SUPPRESS) return true;
+  } catch {
+    /* ignore */
+  }
+  return readUserStorage(DASHBOARD_ONBOARDING_KEY) === '1';
+}
+
+function markDashboardOnboardingComplete() {
+  removeUserStorage(DASHBOARD_ONBOARDING_KEY);
+  writeUserStorage(DASHBOARD_ONBOARDING_KEY, '1');
+}
 
 /** Prefer targets inside the active dashboard root (avoids wrong node if IDs collide). */
 function onboardingResolveDashboardTarget(sel) {
@@ -402,11 +352,7 @@ function closeDashboardOnboarding(markComplete) {
   }
   dashboardOnboardingState.active = false;
   if (markComplete) {
-    try {
-      localStorage.setItem(DASHBOARD_ONBOARDING_KEY, '1');
-    } catch {
-      /* ignore */
-    }
+    markDashboardOnboardingComplete();
   }
 }
 
@@ -542,11 +488,7 @@ export function startDashboardOnboarding(opts = {}) {
   if (!getDashboardRoot()) return;
   if (dashboardOnboardingState.active) return;
   if (!force) {
-    try {
-      if (localStorage.getItem(DASHBOARD_ONBOARDING_KEY)) return;
-    } catch {
-      /* ignore */
-    }
+    if (dashboardOnboardingComplete()) return;
   }
 
   bindDashboardOnboardingOnce();

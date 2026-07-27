@@ -46,7 +46,7 @@ STEWARD_DB_PATH=/data/steward.db npm run backup:drill
 node scripts/restore-drill.js ~/StewardBackups/steward-2026-06-29-0900.db
 ```
 
-It checks: the copy opens, `PRAGMA integrity_check` is `ok`, `foreign_key_check` is clean, all 7 expected tables exist, and (fresh mode) every key table's row count matches live exactly. **Exit 0 = safe, exit 1 = do not rely on it.** Wire the fresh drill into a daily/weekly job and alert on non-zero exit.
+It checks: the copy opens, `PRAGMA integrity_check` is `ok`, `foreign_key_check` is clean, all 10 expected tables exist, and (fresh mode) every expected table's row count matches the live database exactly—including writes still represented in SQLite's WAL. **Exit 0 = safe, exit 1 = do not rely on it.** Wire the fresh drill into a daily/weekly job and alert on non-zero exit.
 
 ---
 

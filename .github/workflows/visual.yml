@@ -1,18 +1,22 @@
 name: Visual snapshots
 
-# On-demand only — NOT part of the merge-gating CI, so it can never turn a PR
-# red or block a merge. Run it from the Actions tab ("Run workflow"), or ask
-# Claude to trigger it. It generates/refreshes the reference screenshots and
-# commits them, so visual comparison can be run afterward.
+# On-demand comparison. Replacing expected images is an explicit input so a
+# regression cannot silently bless itself as the new baseline.
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh_baselines:
+        description: Replace and commit the expected screenshots
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
-  baselines:
+  visual:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,11 +25,18 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Generate baseline screenshots
+      - name: Compare against committed screenshots
+        if: ${{ !inputs.refresh_baselines }}
+        env:
+          VISUAL: '1'
+        run: npx playwright test e2e/visual.spec.js
+      - name: Refresh baseline screenshots
+        if: ${{ inputs.refresh_baselines }}
         env:
           VISUAL: '1'
         run: npx playwright test e2e/visual.spec.js --update-snapshots
       - name: Commit baselines
+        if: ${{ inputs.refresh_baselines }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -2,6 +2,7 @@
 
 import { stewardApiUrl, readJsonRes } from './api.js';
 import { STEWARD_SESSION_META_KEY, SESSION_APP_READY_KEY } from './session.js';
+import { readUserStorage, writeUserStorage, removeUserStorage } from './user-storage.js';
 
 /* ── First-run commitment (optional DOM: `#commitment-screen` on play.html) ─ */
 const STEWARD_PROMISE_MADE_KEY = 'steward_promise_made';
@@ -10,24 +11,20 @@ const STEWARD_PROMISE_TEXT_KEY = 'steward_promise_text';
 export const DASHBOARD_ONBOARDING_KEY = 'steward_dashboard_guided_tour_v2';
 
 export function readPromiseMadeFlag() {
-  try {
-    const v = localStorage.getItem(STEWARD_PROMISE_MADE_KEY);
-    return v === 'true' || v === '1';
-  } catch {
-    return false;
-  }
+  const v = readUserStorage(STEWARD_PROMISE_MADE_KEY);
+  return v === 'true' || v === '1';
+}
+
+export function readPromiseText() {
+  return (readUserStorage(STEWARD_PROMISE_TEXT_KEY) || '').trim();
 }
 
 function persistPromiseAck(customText) {
-  try {
-    localStorage.setItem(STEWARD_PROMISE_MADE_KEY, 'true');
-    localStorage.setItem(STEWARD_PROMISE_AT_KEY, new Date().toISOString());
-    const t = (customText || '').trim();
-    if (t) localStorage.setItem(STEWARD_PROMISE_TEXT_KEY, t);
-    else localStorage.removeItem(STEWARD_PROMISE_TEXT_KEY);
-  } catch (err) {
-    console.warn('[commitment] could not persist', err);
-  }
+  writeUserStorage(STEWARD_PROMISE_MADE_KEY, 'true');
+  writeUserStorage(STEWARD_PROMISE_AT_KEY, new Date().toISOString());
+  const t = (customText || '').trim();
+  if (t) writeUserStorage(STEWARD_PROMISE_TEXT_KEY, t);
+  else removeUserStorage(STEWARD_PROMISE_TEXT_KEY);
   syncPromiseToServer(customText);
 }
 
@@ -47,16 +44,21 @@ function syncPromiseToServer(text) {
 /* Server says the promise was already made (e.g. on another device) — copy it
    into localStorage so every later boot takes the fast local path. */
 export function hydratePromiseFromServer(data) {
-  try {
-    localStorage.setItem(STEWARD_PROMISE_MADE_KEY, 'true');
-    if (data && data.madeAt) localStorage.setItem(STEWARD_PROMISE_AT_KEY, data.madeAt);
-    const t = (data && data.text || '').trim();
-    if (t && !localStorage.getItem(STEWARD_PROMISE_TEXT_KEY)) {
-      localStorage.setItem(STEWARD_PROMISE_TEXT_KEY, t);
-    }
-  } catch (err) {
-    console.warn('[commitment] could not hydrate', err);
-  }
+  removeUserStorage(STEWARD_PROMISE_MADE_KEY);
+  removeUserStorage(STEWARD_PROMISE_AT_KEY);
+  removeUserStorage(STEWARD_PROMISE_TEXT_KEY);
+  if (!data || !data.made) return;
+  writeUserStorage(STEWARD_PROMISE_MADE_KEY, 'true');
+  if (data.madeAt) writeUserStorage(STEWARD_PROMISE_AT_KEY, data.madeAt);
+  const t = (data.text || '').trim();
+  if (t) writeUserStorage(STEWARD_PROMISE_TEXT_KEY, t);
+}
+
+export function writePromiseText(text) {
+  const t = (text || '').trim();
+  if (t) writeUserStorage(STEWARD_PROMISE_TEXT_KEY, t);
+  else removeUserStorage(STEWARD_PROMISE_TEXT_KEY);
+  syncPromiseToServer(text);
 }
 
 export function openCommitmentGate(done) {
@@ -102,7 +104,7 @@ export function resetPlayGame() {
     DASHBOARD_ONBOARDING_KEY,
   ];
   try {
-    keys.forEach(k => localStorage.removeItem(k));
+    keys.forEach(k => removeUserStorage(k));
   } catch (err) {
     console.warn('[play] reset localStorage failed', err);
   }
@@ -302,21 +304,10 @@ export function initCommitmentReasonEditor() {
   if (!displayEl || !editBtn || !inputEl) return;
 
   function readReason() {
-    try {
-      return (localStorage.getItem(STEWARD_PROMISE_TEXT_KEY) || '').trim();
-    } catch {
-      return '';
-    }
+    return readPromiseText();
   }
   function writeReason(text) {
-    try {
-      const t = (text || '').trim();
-      if (t) localStorage.setItem(STEWARD_PROMISE_TEXT_KEY, t);
-      else localStorage.removeItem(STEWARD_PROMISE_TEXT_KEY);
-    } catch (err) {
-      console.warn('[commitment] could not save reason', err);
-    }
-    syncPromiseToServer(text);
+    writePromiseText(text);
   }
   function refreshDisplay() {
     const r = readReason();

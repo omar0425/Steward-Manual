@@ -12,7 +12,7 @@ import { renderHeroBlock } from './render-hero.js';
 import {
   fillVnextHeroTurnAccounts, fillThisTurnPanel, renderStatsBlock,
 } from './render-stats.js';
-import { fillProgressNarrative, renderNetWorthClimb } from './render-progress.js';
+import { fillProgressNarrative } from './render-progress.js';
 import {
   refreshDebtPanelData, setDebtSortMode, toggleAprForm, fillDebtAccountsList, renderPayThisNext,
 } from './render-debts.js';
@@ -42,7 +42,7 @@ export function render(status, snapshots) {
   /* Dollars headline = primary product signal; in-band bar width uses inBandBarDisplayPct only (secondary). */
   const { rawPct: tierBarRawInBandPct, displayPct: inBandBarDisplayPct } = debtTierBandBarDisplay(stats);
   syncDebtTierBandDebugOverlay(stats, tierBarRawInBandPct, inBandBarDisplayPct);
-  const gapHeadline = formatNextTierGapHeadline(nextTier, tier);
+  const gapHeadline = formatNextTierGapHeadline(nextTier);
 
   applyDashboardTheme(tier.id, stab.id);
   setupHeroInteraction();
@@ -71,8 +71,6 @@ export function render(status, snapshots) {
     runwayText, inBandBarDisplayPct,
   });
 
-  renderNetWorthClimb(status.netWorthHistory);
-
   fillDebtAccountsList(stats);
   renderPayThisNext(stats);
   fillThisTurnPanel(stats);
@@ -94,6 +92,7 @@ export function render(status, snapshots) {
     window.stewardVnextEnhance({
       tier, stats, nextTier, meta, stability: stab, snapshots,
       streak: status.streak, correctedDebtSeries: status.correctedDebtSeries,
+      aiEnabled: status.aiEnabled,
     });
   }
 

@@ -1,7 +1,5 @@
 'use strict';
 
-import { TIER_FLOW, TIER_META } from './tiers.js';
-
 /* ── Dollar / number / date formatters ──────────────────────────── */
 
 export function formatRunway(monthsAhead) {
@@ -72,30 +70,16 @@ export function formatNextTierGapMoneyPrefix(gapDollars) {
   return rounded;
 }
 
-export function resolveTierLabelForEscapeHeadline(currentTier) {
-  if (!currentTier) return 'this stage';
-  if (typeof currentTier === 'string') {
-    const meta = TIER_META[currentTier];
-    if (meta && meta.label) return meta.label;
-    const fromFlow = TIER_FLOW.find(t => t.id === currentTier);
-    if (fromFlow && fromFlow.label) return fromFlow.label;
-    return 'this stage';
-  }
-  if (typeof currentTier === 'object' && currentTier.label) return currentTier.label;
-  return 'this stage';
-}
-
-/** Primary payoff line for UI: dollars to escape the current payoff stage (bar fill is secondary). */
-export function formatNextTierGapHeadline(nextTier, currentTier) {
-  if (!nextTier) return 'Final payoff stage — no dollars left to the next threshold';
+/** Primary payoff line for UI: dollars to reach the next payoff stage (bar fill is secondary). */
+export function formatNextTierGapHeadline(nextTier) {
+  if (!nextTier) return 'Debt-free is the final payoff stage';
   const g = Number(nextTier.gapDollars);
-  if (!Number.isFinite(g) || g < 0) return 'Final payoff stage — no dollars left to the next threshold';
-  const tierLabel = resolveTierLabelForEscapeHeadline(currentTier);
+  if (!Number.isFinite(g) || g < 0) return 'Debt-free is the final payoff stage';
   const money = formatNextTierGapMoneyPrefix(g);
   if (g === 0) {
-    return money === '$0' ? `At the threshold — next: ${nextTier.label}` : `${money} to escape ${tierLabel}`;
+    return money === '$0' ? `Ready for ${nextTier.label}` : `Pay down ${money} to reach ${nextTier.label}`;
   }
-  return `${money} to escape ${tierLabel}`;
+  return `Pay down ${money} to reach ${nextTier.label}`;
 }
 
 

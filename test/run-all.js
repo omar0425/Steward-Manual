@@ -23,6 +23,7 @@ test.after(() => {
 });
 
 require('./tiers-debt-band.test');
+require('./serialization.test');
 require('./climb-metrics.test');
 require('./api-state-machine.test');
 require('./api-snapshot.test');
@@ -52,6 +53,7 @@ require('./first-balance-origin.test');
 require('./payoff-optimizer.test');
 require('./payoff-plan-compare.test');
 require('./chat-archives.test');
+require('./restore-drill.test');
 require('./db-guards.test');
 require('./contrast.test');
 require('./payoff-plan.test');

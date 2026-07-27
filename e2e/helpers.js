@@ -18,7 +18,7 @@ function uniqueUser() {
  */
 async function suppressOnboarding(page) {
   await page.addInitScript(() => {
-    try { localStorage.setItem('steward_dashboard_guided_tour_v2', '1'); } catch (_) { /* ignore */ }
+    try { localStorage.setItem('steward_dashboard_guided_tour_v2', '__e2e_suppress__'); } catch (_) { /* ignore */ }
   });
 }
 
@@ -82,25 +82,25 @@ async function isSetupView(page) {
 }
 
 /**
- * From the setup view, add the given debt accounts and click "Save Debts".
+ * From the setup view, fill the ready first row, add any extra rows, and save.
  * accounts: [{ name, balance }]
  */
 async function addDebtAccounts(page, accounts) {
+  const rows = page.locator('#debt-accounts-entries .debt-account-entry-row');
   for (let i = 0; i < accounts.length; i++) {
-    await page.click('#add-debt-account-btn');
-    const rows = page.locator('#debt-accounts-entries .debt-account-entry-row');
+    if (await rows.count() <= i) await page.click('#add-debt-account-btn');
     const row = rows.nth(i);
     await row.locator('.debt-acct-name').fill(accounts[i].name);
     await row.locator('.debt-acct-balance').fill(String(accounts[i].balance));
   }
   await page.click('#save-snapshot-btn');
-  // "Start Climb" becomes visible once a non-zero account is saved.
-  await expect(page.locator('#start-climb-btn, #start-climb-empty-btn').first()).toBeVisible();
+  // The payoff-plan action becomes visible once a non-zero account is saved.
+  await expect(page.locator('#start-climb-btn')).toBeVisible();
 }
 
-/** Click whichever "Start Climb" button is visible to lock the baseline. */
+/** Reveal the payoff plan and lock the starting balance. */
 async function startClimb(page) {
-  const btn = page.locator('#start-climb-btn:visible, #start-climb-empty-btn:visible').first();
+  const btn = page.locator('#start-climb-btn:visible');
   await btn.click();
   // Climb start triggers a soft refresh into the dashboard; wait for the
   // setup view to clear and the tier card to render.

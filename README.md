@@ -29,17 +29,19 @@ No `.env` required. SQLite database is created automatically on first run.
 - **Climb Metrics** — Tracks cumulative paydown, streaks, per-account deltas, milestones (25%, 50%, 75%, 90%).
 - **Per-Account Tracking** — See which debts are shrinking and by how much.
 - **Interest Rate Management** — Set APR per account for prioritization.
-- **Mobile Responsive** — Optimized layout for small screens (480px breakpoint).
+- **Mobile Responsive** — Usable through very narrow 320px screens.
 - **Commitment System** — Your reason for climbing stays with you throughout.
+- **Optional AI Steward** — Per-account, off-by-default coaching and chat using your own numbers.
+- **Recovery Checks** — Consistent SQLite snapshots and a restore drill that verifies integrity and row counts.
 - **Dark UI** — Dark navy theme throughout.
 
 ## Data
 
-All data is stored locally in `steward.db` (SQLite). Nothing is sent to any external service.
+Financial data is stored in `steward.db` (SQLite) on the machine or mounted volume running Steward. Ordinary debt tracking does not require an AI key.
 
-## Note on `node_modules/express`
+AI features are optional and off by default for each account. If you enable AI Steward, the app sends the financial context needed for the feature—including account names, balances, rates, due dates, notes, and relevant memories—to Anthropic. Turning AI off stops those requests.
 
-If you see a stub copy of `node_modules/express/` checked into the repo, that is intentional — it exists so IDEs can resolve Express types without a full `npm install`. Do not delete it. Run `npm install` for the real dependencies before `npm start`.
+Backups and restore verification are documented in [RECOVERY.md](./RECOVERY.md).
 
 ## Development
 

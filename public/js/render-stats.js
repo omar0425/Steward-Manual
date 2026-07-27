@@ -277,7 +277,7 @@ export function renderStatsBlock({
       `Bar ${inBandBarDisplayPct.toFixed(1)}% through this payoff stage toward the next payoff stage—not share of total debt paid off.`,
     );
     progressWidget.title =
-      'The full escape line is on the hero card. Here, "Stage gap" repeats the dollar figure only. This bar is in-stage position—not breathing room or full payoff.';
+      'The hero headline shows the balance reduction needed to reach the next stage. This thin bar shows only your position inside the current stage.';
   }
   const progressPctLabel = document.getElementById('progress-pct-label');
   if (progressPctLabel) {
@@ -331,7 +331,7 @@ export function renderStatsBlock({
   const boardAxesHint = document.getElementById('board-axes-hint');
   if (boardAxesHint) {
     boardAxesHint.textContent =
-      'The escape goal is the hero headline. Below, the bar is only your position inside this stage.';
+      'The next-stage target is in the hero headline. This bar shows only your position inside the current stage.';
   }
 
   const boardRunwayLine = document.getElementById('board-runway-line');

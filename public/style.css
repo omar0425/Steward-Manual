@@ -599,15 +599,6 @@ i) => {
        t.classList.toggle('past', i < tierIndex);
      });
    ══════════════════════════════════════════════════════════════════════ */
-.journey-section { margin-bottom: 12px; opacity: 1; }
-.journey-label {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--text-2); margin-bottom: 12px;
-  display: flex; align-items: center; justify-content: space-between;
-}
-.journey-bar { height: 10px; background: rgba(255,255,255,0.13); border-radius: 5px; position: relative; overflow: hidden; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.07); }
-.jb-fill { position: absolute; top: 0; left: 0; height: 100%; background: linear-gradient(90deg, var(--state-progress-start), var(--state-progress-end)); border-radius: 5px; transition: width 800ms ease; }
-
 /* ══════════════════════════════════════════════════════════════════════
    🔴 P1 — STAGE GAP + TIER PROGRESS
    Existing IDs: next-tier-current, next-tier-target, board-tier-gap-label,
@@ -650,7 +641,6 @@ i) => {
 /* Light-mode: swap white-alpha tracks for dark-alpha so they're visible */
 [data-theme="light"] .progress-bar,
 [data-theme="light"] .progress-bar--hero { background: rgba(0,0,0,0.10); border-color: rgba(0,0,0,0.06); }
-[data-theme="light"] .journey-bar { background: rgba(0,0,0,0.10); border-color: rgba(0,0,0,0.06); }
 
 /* 🟢 P3+4 — Months to next + daily target
    NEW IDs: stat-months-to-next { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -1680,7 +1670,7 @@ hero-mood-copy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 /* ══════════════════════════════════════════════════════════════════════
    COMMITMENT SCREEN
    ══════════════════════════════════════════════════════════════════════ */
-.commitment-overlay { position: fixed; inset: 0; z-index: 160; display: grid; place-items: center; background: rgba(0,0,0,0.80); backdrop-filter: blur(10px); padding: 24px; }
+.commitment-overlay { position: fixed; inset: 0; z-index: 160; display: grid; place-items: center; background: var(--bg); padding: 24px; }
 .commitment-overlay[hidden] { display: none; }
 .commitment-inner { width: min(440px,100%); background: var(--surface); border: 1px solid var(--border-2); border-radius: var(--radius-xl); padding: 40px 36px 36px; text-align: center; position: relative; transition: background 300ms ease, box-shadow 300ms ease; }
 .commitment-inner::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg,transparent,rgba(200,168,76,0.5),transparent); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
@@ -2017,7 +2007,7 @@ body[data-theme-transitioning] .data-chip {
     box-shadow 220ms ease !important;
 }
 
-/* ── Validation chip (Save Debts inline error) ── */
+/* ── Validation chip for inline balance-entry errors ── */
 .manual-entry-validation {
   display: inline-flex;
   align-items: center;
@@ -2118,7 +2108,6 @@ body[data-theme-transitioning] .data-chip {
     padding: 10px 14px;
     font-size: 11px;
   }
-  .fab-update-balances .fab-label { display: none; }
   .fab-update-balances .fab-icon { font-size: 18px; }
 }
 
@@ -2276,9 +2265,7 @@ body[data-setup-mode="first"] #manual-entry-panel {
   box-shadow: 0 24px 80px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 /* During first-time setup there is no prior snapshot to diff against, so
-   "Update Balances" (which opens a paydown-confirmation dialog) is meaningless
-   and competes with the one action that matters: Start Climb. Hide it until the
-   climb is running. Inline edits are still captured — Start Climb persists the
+   "Update Balances" is meaningless. The payoff-plan action persists the
    on-screen balances before locking the baseline. */
 body[data-setup-mode="first"] #update-balances-btn { display: none; }
 
@@ -2294,7 +2281,6 @@ but readable enough to scan. */
 .section-label,
 .tier-quote-label,
 .hero-stage-kicker,
-.journey-label,
 .tc-section-label,
 .debt-total-label,
 .turn-net-label,
@@ -2306,7 +2292,6 @@ but readable enough to scan. */
   font-weight: 600;
 }
 
-.journey-label,
 .tc-section-label,
 .trophy-label,
 .data-chip-k,
@@ -2711,6 +2696,19 @@ body[data-setup-mode="first"] .setup-welcome {
 
 /* Ask the Steward */
 .ask-steward-panel[hidden] { display: none; }
+.ask-steward-consent {
+  margin: 12px 0;
+  padding: 12px 14px;
+  color: var(--text-2);
+  background: rgba(76, 201, 240, 0.06);
+  border: 1px solid rgba(76, 201, 240, 0.22);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.ask-steward-consent p { margin: 0 0 10px; }
+.ask-steward-consent .refresh-btn { margin-right: 8px; }
+.ask-steward-consent [aria-live] { color: var(--text-3); }
 /* 2×2 grid for the four suggested questions — equal cells, no orphaned button
    wrapping onto a lonely second row. Collapses to a single column on very
    narrow panels where two side-by-side chips would be cramped. */
@@ -2987,28 +2985,6 @@ body[data-setup-mode="first"] .setup-welcome {
   line-height: 1.7;
 }
 
-/* ── First-time onboarding hint ── */
-.first-time-hint {
-  background: rgba(212,175,55,0.08);
-  border: 1px dashed rgba(212,175,55,0.3);
-  border-radius: var(--radius-md, 8px);
-  padding: 20px 22px;
-  margin-bottom: 12px;
-}
-.first-time-hint-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--gold, #d4af37);
-  margin: 0 0 8px;
-}
-.first-time-hint-text {
-  font-size: 14px;
-  color: var(--text-2);
-  line-height: 1.5;
-  margin: 0;
-}
-
 /* ── Mobile polish ── */
 @media (max-width: 480px) {
   .saved-debt-row { gap: 8px; }
@@ -3257,6 +3233,11 @@ textarea:focus {
    forces awkward wrapping. Stack to a single column so each stat gets full width. */
 @media (max-width: 360px) {
   .sp-grid { grid-template-columns: 1fr; }
+  /* Preserve account, balance, and change—the three fields needed to act.
+     APR stays editable elsewhere and the trend is already hidden on phones. */
+  .debt-row { grid-template-columns: minmax(92px, 1fr) 82px 44px; gap: 6px; }
+  .debt-row > :nth-child(2),
+  .debt-row > :nth-child(5) { display: none; }
 }
 
 /* ── "How is this calculated?" — tappable explanations for derived values ──────
@@ -3487,6 +3468,13 @@ textarea:focus {
   font-variant-numeric: tabular-nums;
 }
 .quick-update-input.quick-update-invalid { border-color: var(--rose) !important; }
+.quick-update-error {
+  margin: 8px 0 0;
+  color: var(--rose);
+  font-size: 12px;
+  text-align: center;
+}
+.quick-update-error[hidden] { display: none; }
 .quick-update-hint { font-size: 11px; color: var(--text-3); margin: 12px 0 0; }
 /* Setup mode has no baseline yet — quick update is meaningless there (same
    rule as Update Balances). */
@@ -3807,3 +3795,333 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
   padding: 6px 14px;
 }
 .admin-bug-seen-btn:hover { border-color: var(--gold-2); color: var(--gold-2); }
+
+/* UX audit pass: make setup totals, advanced terms, and incomplete strategy
+   data obvious without adding more always-visible controls. */
+.setup-live-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 10px 0 2px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ask-steward-chips[hidden] { display: none; }
+.setup-live-total[hidden] { display: none; }
+.setup-live-total strong {
+  color: var(--gold-2);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.apr-form-promo-row {
+  display: block;
+  padding: 0 0 7px;
+}
+.apr-promo-summary {
+  width: fit-content;
+  margin-left: auto;
+  padding: 5px 0;
+  cursor: pointer;
+  color: var(--text-3);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.apr-promo-summary:hover { color: var(--gold-2); }
+.apr-form-promo-fields {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding-top: 5px;
+}
+
+.lab-apr-gate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(212,160,48,0.28);
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+}
+.lab-apr-gate[hidden] { display: none; }
+.lab-apr-gate p { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.lab-apr-gate .apr-edit-btn { flex: 0 0 auto; }
+
+@media (max-width: 600px) {
+  #update-balances-btn:disabled { opacity: 0.36; }
+  .fab-update-balances {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+  .fab-update-balances .fab-label { display: inline; }
+  .lab-apr-gate { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+  .hero-section {
+    gap: 14px;
+    padding: 14px;
+  }
+  .tier-card {
+    width: min(210px, 76vw);
+    min-height: 340px;
+  }
+  .hero-section .tier-card-character-mount {
+    bottom: 92px;
+    padding-top: 8px;
+  }
+  .hero-section #hero-steward-mount {
+    transform: scale(0.72);
+    transform-origin: center bottom;
+  }
+  .hero-section .tier-card-footer {
+    padding: 28px 12px 12px;
+    gap: 5px;
+  }
+  .hero-section .tier-card-name { font-size: 19px; }
+  .hero-story {
+    gap: 10px;
+    border-left: 0;
+    padding-left: 0;
+  }
+  .hero-stage-title {
+    font-size: 2.35rem;
+    margin-bottom: 10px;
+  }
+  .hero-escape-primary {
+    font-size: 2rem;
+    margin-bottom: 10px;
+  }
+  .hero-cta-line { margin-bottom: 12px; }
+  .stage-gap-section { margin-bottom: 8px; }
+  .hero-section .tier-quote-card {
+    padding: 13px 14px;
+    margin-top: 0;
+  }
+  .tier-quote-text { font-size: 20px; }
+  .apr-form-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .apr-form-fields {
+    grid-template-columns: minmax(74px, 1fr) minmax(72px, 1fr) minmax(62px, 0.8fr);
+    width: 100%;
+  }
+  .apr-form-head { display: none; }
+  .apr-promo-summary { margin-left: 0; }
+  .apr-form-promo-fields { justify-content: flex-start; }
+}
+
+/* Final UX pass: the dashboard leads with one repeatable action while analytics,
+   account administration, and AI remain available as clearly secondary tools. */
+.hero-daily-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.hero-daily-action.is-due {
+  border-color: rgba(212,160,48,0.46);
+  background: var(--amber-soft);
+}
+.hero-daily-copy { min-width: 0; }
+.hero-daily-eyebrow {
+  margin: 0 0 4px;
+  color: var(--gold-2);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.hero-daily-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.hero-daily-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.hero-daily-primary,
+.hero-daily-secondary {
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.hero-daily-primary {
+  padding: 10px 16px;
+  color: #0a0c14;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, var(--gold-2), var(--gold));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 12px var(--gold-glow);
+}
+.hero-daily-primary:hover { transform: translateY(-1px); }
+.hero-daily-secondary {
+  padding: 10px 12px;
+  color: var(--text-2);
+  border: 1px solid var(--border-2);
+  background: transparent;
+}
+.hero-daily-secondary:hover {
+  color: var(--gold-2);
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+
+.manual-entry-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px;
+  padding-top: 4px;
+}
+.manual-entry-heading .tc-section-sublabel {
+  max-width: 520px;
+  margin: 6px 0 0;
+}
+#add-debt-section.add-debt-disclosure {
+  margin-top: 18px;
+  padding-top: 0;
+  border-top: 1px solid var(--border);
+}
+.add-debt-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 12px 2px;
+  color: var(--text-2);
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.add-debt-summary::after {
+  content: '+';
+  color: var(--gold-2);
+  font-size: 18px;
+  line-height: 1;
+}
+.add-debt-disclosure[open] > .add-debt-summary::after { content: '−'; }
+.add-debt-summary:hover { color: var(--gold-2); }
+.add-debt-disclosure > .manual-entry-form { padding-top: 8px; }
+body[data-setup-mode="first"] .add-debt-summary { display: none; }
+body[data-setup-mode="first"] #add-debt-section {
+  margin-top: 0;
+  border-top: 0;
+}
+.setup-payoff-promise {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  color: var(--text-2);
+  border-left: 2px solid var(--gold);
+  background: var(--gold-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.setup-payoff-promise[hidden] { display: none; }
+
+.dashboard-tools-content {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+.dashboard-tools-content > .section-panel {
+  margin: 0;
+  padding: 14px 16px;
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: none;
+}
+.dashboard-tools-content > details.section-collapsible:not([open]) {
+  padding-bottom: 14px;
+}
+.dashboard-tools-content > .section-panel > .section-summary {
+  min-height: 28px;
+}
+
+.steward-ai-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(76,201,240,0.22);
+  border-radius: 10px;
+  background: rgba(76,201,240,0.06);
+}
+.steward-ai-optional-badge {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: #7fd8ff;
+  border: 1px solid rgba(76,201,240,0.32);
+  border-radius: 999px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.steward-ai-chat-name {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.steward-ai-chat-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  color: var(--text-3);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.steward-ai-chat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4cc9f0;
+}
+.ask-steward-panel[data-ai-enabled="0"] .steward-ai-chat-dot {
+  background: var(--text-3);
+}
+
+@media (max-width: 600px) {
+  .hero-daily-action { align-items: stretch; flex-direction: column; }
+  .hero-daily-buttons { display: grid; grid-template-columns: 1fr; }
+  .hero-daily-primary,
+  .hero-daily-secondary { width: 100%; min-height: 44px; }
+  .steward-ai-chat-header { align-items: flex-start; }
+}

@@ -150,7 +150,7 @@ function buildHeroSection() {
             <div id="hero-steward-mount"></div>
           </div>
           <div class="tier-card-footer">
-            <div class="tier-card-gap" id="card-tier-gap-headline" title="Escape gap \u2014 dollars left to unlock the next payoff stage.">\u2192 \u2014</div>
+            <div class="tier-card-gap" id="card-tier-gap-headline" title="The balance reduction needed to reach your next payoff stage.">\u2192 \u2014</div>
             <div class="tier-card-name" id="card-tier-name">Buried</div>
             <div class="tier-card-bar-track" title="In-stage progress \u2014 how far you are through this stage.">
               <div class="tier-card-bar-fill" id="card-bar-fill"></div>
@@ -183,7 +183,7 @@ function buildHeroSection() {
     <div class="hero-story">
       <div class="hero-eyebrow-row">
         <div class="hero-stage-block">
-          <p class="hero-stage-kicker">Stage</p>
+          <p class="hero-stage-kicker">Your payoff stage</p>
           <p class="hero-stage-title" id="hero-stage-title">\u2014</p>
         </div>
         <p class="sr-only" id="hero-badge" hidden></p>
@@ -193,7 +193,7 @@ function buildHeroSection() {
       </div>
       <p class="sr-only" id="hero-tier-label" aria-live="polite">Buried</p>
 
-      <p class="hero-escape-primary" id="hero-escape-primary" aria-live="polite" title="Escape gap \u2014 dollars left to unlock the next payoff stage. Not your total debt; the next threshold.">\u2014</p>
+      <p class="hero-escape-primary" id="hero-escape-primary" aria-live="polite" title="The balance reduction needed to reach your next payoff stage.">\u2014</p>
       <p class="hero-cta-line" id="hero-primary-cta"><span class="val" id="stat-monthly-target">\u2014</span></p>
       <p class="hero-cta-sub" id="hero-cta-sub" hidden></p>
       <p class="hero-interest-ticker" id="hero-interest-ticker" hidden></p>
@@ -206,6 +206,17 @@ function buildHeroSection() {
       <span class="stat-sentinel" id="stat-debt-remaining" hidden></span>
       <span class="stat-sentinel" id="stat-net-worth" hidden></span>
 
+      <div class="hero-daily-action" id="hero-daily-action">
+        <div class="hero-daily-copy">
+          <p class="hero-daily-eyebrow">Today's check-in</p>
+          <p class="hero-daily-note" id="hero-daily-note">Confirm your balances to keep every recommendation honest.</p>
+        </div>
+        <div class="hero-daily-buttons">
+          <button type="button" class="hero-daily-primary" id="hero-quick-update-btn">Check balances</button>
+          <button type="button" class="hero-daily-secondary" id="hero-manage-accounts-btn">Manage accounts</button>
+        </div>
+      </div>
+
       <!-- In-stage position (secondary to the dollar headline; thin) -->
       <div class="stage-gap-section" title="In-stage progress — how far you are through the current stage. Resets when the next stage unlocks.">
         <p class="stage-gap-eyebrow">This stage</p>
@@ -215,16 +226,6 @@ function buildHeroSection() {
         <div class="progress-pct" id="progress-pct-label"></div>
       </div>
 
-      <!-- 10-stage journey — context; reads after the directive + in-stage bar -->
-      <div class="journey-section">
-        <div class="journey-label">
-          <span>Your journey</span>
-          <span>Stage 01 of 10</span>
-        </div>
-        <div class="journey-bar" id="journey-bar">
-          <div class="jb-fill" style="width:0%"></div>
-        </div>
-      </div>
     </div>
 
     <!-- Motivational quote — spans the full hero width as a footer strip -->
@@ -239,10 +240,10 @@ function buildHeroSection() {
 function buildDebtReductionChart() {
   /* Wrapped in <details> so users can collapse the chart to compress the page.
      Open by default; the section-summary mirrors the original header layout. */
-  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'debt-chart-section', open: '' });
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'debt-chart-section' });
   section.innerHTML = `
     <summary class="section-summary chart-header" title="Total debt still owed, plotted across your most recent snapshots.">
-      <h2 class="tc-section-label" style="margin:0;">Debt Remaining</h2>
+      <h2 class="tc-section-label" style="margin:0;">Debt over time</h2>
       <span class="section-summary-meta">
         <span class="chart-current neg" id="stat-net-worth-chart">\u2014</span>
         <span class="chart-trend" id="chart-trend-delta" title="Change versus your locked starting debt (the dashed line). Down is paydown; up means debt grew."></span>
@@ -278,12 +279,12 @@ function buildSessionPanel() {
   const section = el('section', { class: 'section-panel session-card dashboard-only-section', id: 'session-card' });
   section.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;padding-top:4px;">
-      <h2 class="tc-section-label" style="margin:0;" title="This Turn — net change in your debt since the previous snapshot. Negative = you paid down; positive = balances grew.">This Turn</h2>
+      <h2 class="tc-section-label" style="margin:0;" title="Net change in your debt since the previous balance check. Negative = you paid down; positive = balances grew.">Since your last check</h2>
       <span class="turn-since-label" id="turn-since-label"></span>
     </div>
     <div class="session-hero">
       <span class="session-net-val" id="this-turn-net">\u2014</span>
-      <span class="session-net-label" id="this-turn-net-label">Net this turn</span>
+      <span class="session-net-label" id="this-turn-net-label">Net balance change</span>
     </div>
     <div id="this-turn-list"></div>
   `;
@@ -295,8 +296,8 @@ function buildDebtAccountsPanel() {
   section.innerHTML = `
     <div class="debt-accounts-head">
       <div class="debt-accounts-head-text">
-        <h2 class="tc-section-label" style="margin:0;">Debt Accounts</h2>
-        <p class="tc-section-sublabel">Read-only overview · update balances in the Your Debts panel</p>
+        <h2 class="tc-section-label" style="margin:0;">Account breakdown</h2>
+        <p class="tc-section-sublabel">View-only balances, rates, and trends. Use Balance check-in to make changes.</p>
       </div>
       <div class="debt-accounts-controls">
         <button class="apr-edit-btn" id="apr-edit-btn" type="button">APRs & terms</button>
@@ -322,7 +323,7 @@ function buildDebtAccountsPanel() {
     <div class="commitment-reason-wrap" id="commitment-reason-wrap" hidden>
       <p class="commitment-reason-display" id="commitment-reason-display"></p>
       <button class="commitment-reason-edit-btn" id="commitment-reason-edit-btn" type="button" title="Edit your reason" aria-label="Edit your reason">✎</button>
-      <input type="text" class="commitment-reason-input" id="commitment-reason-input" maxlength="120" hidden autocomplete="off" spellcheck="false" />
+      <input type="text" class="commitment-reason-input" id="commitment-reason-input" maxlength="120" hidden autocomplete="off" spellcheck="false" aria-label="Your reason for climbing" />
     </div>
   `;
   // Wire the APR-edit and sort buttons via listeners instead of inline onclick
@@ -338,10 +339,11 @@ function buildDebtAccountsPanel() {
 
 function buildStageProgressDetail() {
   /* Collapsible — same pattern as the trend chart. */
-  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'stage-progress-section', open: '' });
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'stage-progress-section' });
   section.innerHTML = `
     <summary class="section-summary">
-      <h2 class="tc-section-label" style="margin:0;">Stage progress</h2>
+      <h2 class="tc-section-label" style="margin:0;">Progress details</h2>
+      <span class="section-summary-meta lab-summary-hint">pace, interest &amp; history</span>
     </summary>
     <div id="progress-milestone-recent" class="milestone-recent-banner" hidden aria-live="polite"></div>
     <p class="progress-note" id="progress-stale-note" hidden style="font-size:12px;color:var(--amber);margin-bottom:12px;"></p>
@@ -433,6 +435,10 @@ function buildStrategyLab() {
       <span class="section-summary-meta lab-summary-hint">which plan wins?</span>
     </summary>
     <p class="tc-section-sublabel" style="margin-top:0;">Plays each strategy forward month by month against your real balances, APRs, and promo deadlines — all on this device.</p>
+    <div class="lab-apr-gate" id="lab-apr-gate" hidden>
+      <p>Add at least one APR first. Without rates, Steward can compare balance order but cannot tell you which plan saves the most interest.</p>
+      <button type="button" class="apr-edit-btn" id="lab-add-aprs-btn">Add APRs</button>
+    </div>
     <div class="lab-controls">
       <label class="calc-field lab-budget-field">
         <span class="calc-label">Monthly budget</span>
@@ -468,12 +474,12 @@ function buildCumulativePaydownTrophy() {
     <div class="trophy-row">
       <div class="trophy-icon" aria-hidden="true">\uD83C\uDFC6</div>
       <div class="trophy-body">
-        <p class="trophy-label" title="Total balance you've cleared since you started. Interest is already reflected — the balance fell by this much after it was added, so it is not subtracted again.">Principal Cleared</p>
+        <p class="trophy-label" title="Total balance you've cleared since you started. Interest is already reflected — the balance fell by this much after it was added, so it is not subtracted again.">Total paid down</p>
         <p class="trophy-val" id="stat-cumulative-paydown">\u2014</p>
         <p class="trophy-sub" id="cumulative-pct"></p>
         <p class="trophy-saved" id="trophy-interest-saved" title="How much less interest your balances cost each month now versus your starting balances \u2014 money your paydown is keeping from the bank." hidden></p>
       </div>
-      <p class="trophy-context">Real progress against your starting balance \u2014 how much your payments have knocked your total balance down since you began.</p>
+      <p class="trophy-context">Your balance reduction since the climb began.</p>
     </div>
   `;
   return section;
@@ -483,16 +489,20 @@ function buildManualEntryForm() {
   const section = el('section', { class: 'section-panel manual-entry-panel', id: 'manual-entry-panel' });
   section.innerHTML = `
     <div class="setup-welcome" id="setup-welcome">
-      <p class="setup-eyebrow">Welcome to Steward</p>
-      <h1 class="setup-title">Start with every debt.</h1>
-      <p class="setup-copy">Add each credit card, loan, and liability first. Steward will lock that total as your starting line only when you press Start Climb.</p>
+      <p class="setup-eyebrow">Two minutes to a clear plan</p>
+      <h1 class="setup-title">See what to pay first.</h1>
+      <p class="setup-copy">Add every credit card, loan, and liability. Steward will total them, identify your first payoff target, and show the next milestone before you leave setup.</p>
       <div class="setup-steps" aria-label="First time setup steps">
-        <span>Add debts</span>
-        <span>Review total</span>
-        <span>Start climb</span>
+        <span>1 · Add balances</span>
+        <span>2 · See your target</span>
       </div>
     </div>
-    <h2 class="tc-section-label" style="margin:0 0 16px;padding-top:4px;">Your Debts</h2>
+    <div class="manual-entry-heading">
+      <div>
+        <h2 class="tc-section-label" style="margin:0;">Balance check-in</h2>
+        <p class="tc-section-sublabel">A quick balance check keeps your target, timeline, and progress accurate.</p>
+      </div>
+    </div>
 
     <!-- Saved debts list (shown when debts exist) -->
     <div id="saved-debts-list" class="saved-debts-list" style="display:none;">
@@ -502,32 +512,37 @@ function buildManualEntryForm() {
         <span id="saved-debts-total-val">$0</span>
       </div>
       <div class="manual-entry-actions">
-        <button type="button" class="commitment-btn" id="update-balances-btn">Update Balances</button>
-        <button type="button" class="commitment-btn commitment-btn--ghost" id="quick-update-btn"
-                title="Step through each account in seconds — Enter moves to the next.">⚡ Quick update</button>
-        <button type="button" class="commitment-btn setup-start-btn" id="start-climb-btn" hidden>Start Climb</button>
+        <button type="button" class="commitment-btn" id="quick-update-btn"
+                title="Step through each account in seconds — Enter moves to the next.">Check balances</button>
+        <button type="button" class="commitment-btn commitment-btn--ghost" id="update-balances-btn">Save edited balances</button>
+        <button type="button" class="commitment-btn setup-start-btn" id="start-climb-btn" hidden>Show my payoff plan</button>
         <p class="data-strip-msg" id="snapshot-save-msg"></p>
         <button type="button" class="undo-last-btn" id="undo-last-btn" hidden>↶ Undo last update (entered the wrong amount?)</button>
       </div>
     </div>
 
     <!-- Add new debt form -->
-    <div id="add-debt-section">
+    <details id="add-debt-section" class="add-debt-disclosure">
+      <summary class="add-debt-summary">Manage accounts</summary>
       <form id="manual-snapshot-form" class="manual-entry-form" autocomplete="off">
         <div class="manual-entry-accounts">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <p class="manual-entry-sub-label" id="add-debt-heading">Add your debts</p>
-            <button type="button" class="refresh-btn" id="add-debt-account-btn" aria-label="Add another debt account">+ Add Account</button>
+            <button type="button" class="refresh-btn" id="add-debt-account-btn" aria-label="Add another debt account">+ Add Debt</button>
           </div>
           <div id="debt-accounts-entries"></div>
+          <div class="setup-live-total" id="setup-live-total" hidden aria-live="polite">
+            <span id="setup-live-total-label">Starting debt</span>
+            <strong id="setup-live-total-value">$0</strong>
+          </div>
+          <p class="setup-payoff-promise" id="setup-payoff-promise" hidden></p>
           <p class="manual-entry-hint">Add each credit card, loan, or liability with its current balance.</p>
         </div>
         <div class="manual-entry-actions">
-          <button type="submit" class="commitment-btn" id="save-snapshot-btn">Save Debts</button>
-          <button type="button" class="commitment-btn setup-start-btn" id="start-climb-empty-btn" hidden>Start Climb</button>
+          <button type="submit" class="commitment-btn" id="save-snapshot-btn">Save balances</button>
         </div>
       </form>
-    </div>
+    </details>
   `;
   return section;
 }
@@ -577,10 +592,10 @@ function buildDataStrip() {
    user's own numbers. Hidden until initAskSteward() confirms AI is configured
    (and only on an active climb). Built collapsed; wiring lives in steward-ai.js. */
 const ASK_STEWARD_QUESTIONS = [
-  'Which debt should I pay first?',
-  'When could I be debt-free?',
-  'How am I doing?',
-  'What is interest costing me?',
+  'Explain why this account is first.',
+  'Turn my next payment into a plan.',
+  'What changed since my last update?',
+  'Where am I losing the most to interest?',
 ];
 
 function buildAskStewardPanel() {
@@ -590,15 +605,39 @@ function buildAskStewardPanel() {
   const section = el('details', { class: 'section-panel dashboard-only-section ask-steward-panel section-collapsible', id: 'ask-steward-panel', hidden: true });
   section.innerHTML = `
     <summary class="section-summary">
-      <h2 class="tc-section-label" style="margin:0;">Ask the Steward</h2>
-      <span class="section-summary-meta lab-summary-hint">your numbers, answered</span>
+      <h2 class="tc-section-label" style="margin:0;">Steward AI</h2>
+      <span class="section-summary-meta lab-summary-hint">optional explanation &amp; help</span>
     </summary>
-    <p class="tc-section-sublabel" style="margin-top:0;">Answers drawn from your own numbers.</p>
-    <div class="ask-steward-chips" id="ask-steward-chips">
+    <p class="tc-section-sublabel" style="margin-top:0;">Use it when you want an explanation, a second opinion, or a hands-free entry. Your core dashboard works without AI.</p>
+    <div class="ask-steward-consent" id="ask-steward-consent">
+      <p><strong>AI is optional.</strong> When enabled, Steward sends your account names, balances, rates, due dates, notes, and relevant memories to Anthropic to answer you. It stays off until you choose otherwise.</p>
+      <button type="button" class="refresh-btn" id="ask-steward-consent-toggle" aria-pressed="false">Enable AI Steward</button>
+      <span id="ask-steward-consent-msg" aria-live="polite"></span>
+    </div>
+    <div class="ask-steward-chips" id="ask-steward-chips" hidden>
       ${ASK_STEWARD_QUESTIONS.map(q => `<button type="button" class="ask-steward-chip">${q}</button>`).join('')}
     </div>
     <div class="ask-steward-answer" id="ask-steward-answer" hidden aria-live="polite"></div>
   `;
+  return section;
+}
+
+function buildOptionalToolsPanel() {
+  const section = el('details', {
+    class: 'section-panel dashboard-only-section section-collapsible dashboard-tools-section',
+    id: 'optional-tools-section',
+  });
+  section.innerHTML = `
+    <summary class="section-summary">
+      <h2 class="tc-section-label" style="margin:0;">Tools &amp; guidance</h2>
+      <span class="section-summary-meta lab-summary-hint">calculator, strategy &amp; optional AI</span>
+    </summary>
+  `;
+  const content = el('div', { class: 'dashboard-tools-content' });
+  content.appendChild(buildPaydownCalculator());
+  content.appendChild(buildStrategyLab());
+  content.appendChild(buildAskStewardPanel());
+  section.appendChild(content);
   return section;
 }
 
@@ -630,7 +669,7 @@ export function mountPlayShell(root) {
      display:contents so every panel flows in ONE column in DOM order. That
      makes DOM order the phone reading order, so panels are laid out as a
      single story — act, then review, then tools:
-       column A (the story so far): your debts → pay this next → this turn →
+       column A (the story so far): pay this next → balance check-in → this turn →
        debt-remaining chart;
        column B (the record + tools): debt accounts → stage progress → trophy →
        calculator → strategy lab → ask the Steward.
@@ -640,8 +679,8 @@ export function mountPlayShell(root) {
      col B are collapsed <details>, so they add little height until opened.
      Hero/strip/danger/footer stay full-width siblings. */
   const colA = el('div', { class: 'dash-col', id: 'dash-col-a' });
-  colA.appendChild(buildManualEntryForm());
   colA.appendChild(buildPayThisNextCard());
+  colA.appendChild(buildManualEntryForm());
   colA.appendChild(buildSessionPanel());
   colA.appendChild(buildDebtReductionChart());
 
@@ -649,9 +688,7 @@ export function mountPlayShell(root) {
   colB.appendChild(buildDebtAccountsPanel());
   colB.appendChild(buildStageProgressDetail());
   colB.appendChild(buildCumulativePaydownTrophy());
-  colB.appendChild(buildPaydownCalculator());
-  colB.appendChild(buildStrategyLab());
-  colB.appendChild(buildAskStewardPanel());
+  colB.appendChild(buildOptionalToolsPanel());
 
   dashboard.appendChild(colA);
   dashboard.appendChild(colB);
@@ -667,9 +704,9 @@ export function mountPlayShell(root) {
     <div class="play-danger-action" id="account-security-section">
       <p class="play-danger-action-title">Account security</p>
       <form class="account-pw-form" id="change-password-form" autocomplete="off" hidden>
-        <input type="password" class="account-pw-input" id="cp-current" placeholder="Current password" autocomplete="current-password" maxlength="200" />
-        <input type="password" class="account-pw-input" id="cp-new" placeholder="New password (10+ chars)" autocomplete="new-password" maxlength="200" />
-        <input type="password" class="account-pw-input" id="cp-confirm" placeholder="Confirm new password" autocomplete="new-password" maxlength="200" />
+        <input type="password" class="account-pw-input" id="cp-current" placeholder="Current password" autocomplete="current-password" maxlength="200" aria-label="Current password" />
+        <input type="password" class="account-pw-input" id="cp-new" placeholder="New password (10+ chars)" autocomplete="new-password" maxlength="200" aria-label="New password" />
+        <input type="password" class="account-pw-input" id="cp-confirm" placeholder="Confirm new password" autocomplete="new-password" maxlength="200" aria-label="Confirm new password" />
         <button type="submit" class="play-danger-btn" id="cp-submit">Change password</button>
       </form>
       <p class="account-security-msg" id="account-security-msg" aria-live="polite"></p>
@@ -698,6 +735,33 @@ export function mountPlayShell(root) {
   dashboard.appendChild(dangerZone);
   dashboard.appendChild(buildStewardFooter());
 
+  const heroQuickUpdate = dashboard.querySelector('#hero-quick-update-btn');
+  if (heroQuickUpdate) {
+    heroQuickUpdate.addEventListener('click', () => {
+      const quickUpdate = document.getElementById('quick-update-btn');
+      if (quickUpdate && !quickUpdate.hidden) {
+        quickUpdate.click();
+        return;
+      }
+      const panel = document.getElementById('manual-entry-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  const heroManageAccounts = dashboard.querySelector('#hero-manage-accounts-btn');
+  if (heroManageAccounts) {
+    heroManageAccounts.addEventListener('click', () => {
+      const disclosure = document.getElementById('add-debt-section');
+      if (disclosure && 'open' in disclosure) disclosure.open = true;
+      const panel = document.getElementById('manual-entry-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.setTimeout(() => {
+        const addButton = document.getElementById('add-debt-account-btn');
+        if (addButton) addButton.focus({ preventScroll: true });
+      }, 350);
+    });
+  }
+
   root.appendChild(dashboard);
 
   /* Sticky floating action — scrolls back to the manual-entry panel.
@@ -707,11 +771,11 @@ export function mountPlayShell(root) {
     type: 'button',
     class: 'fab-update-balances',
     id: 'fab-update-balances',
-    'aria-label': 'Scroll to update balances',
-    title: 'Update your balances',
+    'aria-label': 'Check account balances',
+    title: 'Check account balances',
     hidden: true,
   });
-  fab.innerHTML = '<span class="fab-icon" aria-hidden="true">✎</span><span class="fab-label">Update balances</span>';
+  fab.innerHTML = '<span class="fab-icon" aria-hidden="true">⚡</span><span class="fab-label">Check balances</span>';
   root.appendChild(fab);
 }
 

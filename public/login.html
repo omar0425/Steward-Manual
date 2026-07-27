@@ -16,7 +16,7 @@
       min-height: 100vh;
       display: grid;
       place-items: center;
-      padding: 40px 24px;
+      padding: 24px;
       background: var(--start-bg);
     }
 
@@ -33,8 +33,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 28px;
+      gap: 10px;
+      margin-bottom: 18px;
     }
 
     .login-brand-icon {
@@ -66,7 +66,7 @@
       background: var(--surface);
       border: 1px solid var(--border-2);
       border-radius: var(--radius-xl);
-      padding: 40px 36px 36px;
+      padding: 32px 36px 30px;
       position: relative;
     }
 
@@ -101,7 +101,7 @@
     .login-sub {
       font-size: 13px;
       color: var(--text-2);
-      margin-bottom: 28px;
+      margin-bottom: 20px;
       line-height: 1.5;
     }
 
@@ -109,16 +109,16 @@
     .login-divider {
       height: 1px;
       background: var(--border);
-      margin-bottom: 28px;
+      margin-bottom: 20px;
     }
 
     /* Form fields */
     .login-field {
-      margin-bottom: 16px;
+      margin-bottom: 13px;
     }
 
     .login-field:last-of-type {
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
     .login-label {
@@ -403,7 +403,7 @@
             <div class="login-field">
               <label class="login-label" for="login-password">Password</label>
               <input class="login-input" id="login-password" name="password"
-                     type="password" autocomplete="current-password" placeholder="••••••••••" required maxlength="200" />
+                     type="password" autocomplete="current-password" placeholder="Enter your password" required maxlength="200" />
             </div>
 
             <button class="login-btn" id="login-submit" type="submit">Sign in</button>
@@ -429,8 +429,8 @@
 
         <!-- ── Register panel ── -->
         <div class="login-panel" id="panel-register">
-          <div class="login-headline">Create account.</div>
-          <div class="login-sub">Join Steward and start tracking your progress.</div>
+          <div class="login-headline">Start your climb.</div>
+          <div class="login-sub">Create your private account. You’ll add your debts manually—no bank connection required.</div>
           <div class="login-divider"></div>
 
           <div class="login-error" id="register-error"></div>
@@ -451,14 +451,14 @@
             <div class="login-field">
               <label class="login-label" for="reg-password">Password</label>
               <input class="login-input" id="reg-password" name="password"
-                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200"
+                     type="password" autocomplete="new-password" placeholder="Create a password" required maxlength="200"
                      aria-describedby="reg-password-hint" />
               <div class="login-hint" id="reg-password-hint">Minimum 10 characters</div>
             </div>
             <div class="login-field">
               <label class="login-label" for="reg-confirm">Confirm password</label>
               <input class="login-input" id="reg-confirm" name="confirm"
-                     type="password" autocomplete="new-password" placeholder="••••••••••" required maxlength="200" />
+                     type="password" autocomplete="new-password" placeholder="Type it again" required maxlength="200" />
             </div>
 
             <button class="login-btn" id="register-submit" type="submit">Create account</button>

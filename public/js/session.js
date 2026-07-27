@@ -1,5 +1,7 @@
 'use strict';
 
+import { readUserStorage, writeUserStorage } from './user-storage.js';
+
 /* ── App session (Start Game) — localStorage only; no financial data ─ */
 export const STEWARD_SESSION_META_KEY = 'steward_app_session_meta_v1';
 export const SESSION_APP_READY_KEY = 'steward_app_ready';
@@ -29,7 +31,7 @@ function normalizeSessionMeta(raw) {
 
 export function readSessionMeta() {
   try {
-    const raw = localStorage.getItem(STEWARD_SESSION_META_KEY);
+    const raw = readUserStorage(STEWARD_SESSION_META_KEY);
     if (!raw) return defaultSessionMeta();
     return normalizeSessionMeta(JSON.parse(raw));
   } catch {
@@ -40,7 +42,7 @@ export function readSessionMeta() {
 export function writeSessionMeta(meta) {
   try {
     const normalized = normalizeSessionMeta(meta);
-    localStorage.setItem(STEWARD_SESSION_META_KEY, JSON.stringify(normalized));
+    writeUserStorage(STEWARD_SESSION_META_KEY, JSON.stringify(normalized));
   } catch (err) {
     console.warn('[session] could not persist metadata', err);
   }

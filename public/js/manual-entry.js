@@ -3,6 +3,7 @@
 import { stewardApiUrl, readJsonRes } from './api.js';
 import { manualRefresh } from './boot.js';
 import { offerFirstVisitDashboardOnboarding } from './onboarding.js';
+import { createModalController } from './dialog.js';
 
 let _debtAccountCounter = 0;
 let _originalDebtAccounts = [];
@@ -58,6 +59,7 @@ function addDebtAccountRow(container, name, balance, id) {
     <button type="button" class="debt-acct-remove" aria-label="Remove account">&times;</button>
   `;
   const nameInput = row.querySelector('.debt-acct-name');
+  const balanceInput = row.querySelector('.debt-acct-balance');
   const removeBtn = row.querySelector('.debt-acct-remove');
   // Keep the remove button's aria-label in sync with the typed name so
   // screen readers announce e.g. "Remove Chase Sapphire" instead of a
@@ -67,15 +69,22 @@ function addDebtAccountRow(container, name, balance, id) {
     removeBtn.setAttribute('aria-label', n ? `Remove ${n}` : 'Remove account');
   };
   nameInput.addEventListener('input', syncRemoveLabel);
+  balanceInput.addEventListener('input', updateSetupLiveTotal);
   if (name) nameInput.value = name;
   if (balance != null) row.querySelector('.debt-acct-balance').value = balance;
   syncRemoveLabel();
-  removeBtn.addEventListener('click', () => { row.remove(); syncAddSaveBtnVisibility(); });
+  removeBtn.addEventListener('click', () => {
+    row.remove();
+    syncAddSaveBtnVisibility();
+    updateSetupLiveTotal();
+  });
   container.appendChild(row);
   syncAddSaveBtnVisibility();
+  updateSetupLiveTotal();
+  return row;
 }
 
-/* The bottom "Save account" / "Save Debts" button only has meaning once there's
+/* The bottom save button only has meaning once there's
    at least one account row to commit. With an empty #debt-accounts-entries it
    renders as an orphaned, dead button (layout audit #4) — so hide it until a row
    exists and reveal it the moment "+ Add Account" creates one. */
@@ -84,6 +93,31 @@ function syncAddSaveBtnVisibility() {
   const saveBtn = document.getElementById('save-snapshot-btn');
   if (!entries || !saveBtn) return;
   saveBtn.hidden = entries.querySelector('.debt-account-entry-row') == null;
+}
+
+function updateSetupLiveTotal() {
+  const rows = document.querySelectorAll('#debt-accounts-entries .debt-account-entry-row');
+  const wrap = document.getElementById('setup-live-total');
+  const value = document.getElementById('setup-live-total-value');
+  const label = document.getElementById('setup-live-total-label');
+  const promise = document.getElementById('setup-payoff-promise');
+  if (!wrap || !value) return;
+  let total = 0;
+  for (const row of rows) {
+    const balance = Number(row.querySelector('.debt-acct-balance')?.value);
+    if (Number.isFinite(balance) && balance > 0) total += balance;
+  }
+  const hasSavedAccounts = document.querySelector('#saved-debts-rows .saved-debt-row') != null;
+  if (label) label.textContent = hasSavedAccounts ? 'New accounts total' : 'Starting debt';
+  value.textContent = fmtDollar(Math.round(total));
+  wrap.hidden = rows.length === 0;
+  if (promise) {
+    const isSetup = document.body && document.body.dataset.setupMode === 'first';
+    promise.hidden = !isSetup || total <= 0;
+    promise.textContent = promise.hidden
+      ? ''
+      : 'Next, Steward turns this starting line into one account to attack first and one milestone to reach.';
+  }
 }
 
 function collectDebtAccounts() {
@@ -179,7 +213,7 @@ async function verifyAccountRow(row, btn) {
   const curr = Math.round(parseFloat(input && input.value));
   const prev = Math.round(parseFloat(row.dataset.prevBalance));
   if (Number.isFinite(curr) && Number.isFinite(prev) && curr !== prev) {
-    flashVerifiedMeta(row, 'balance edited — Update Balances to save');
+    flashVerifiedMeta(row, 'balance edited — save the edited balances below');
     return;
   }
   btn.disabled = true;
@@ -208,25 +242,27 @@ async function verifyAccountRow(row, btn) {
 function renderSavedDebtsList(debtLines) {
   const listEl = document.getElementById('saved-debts-list');
   const rowsEl = document.getElementById('saved-debts-rows');
-  const totalEl = document.getElementById('saved-debts-total-val');
   const addSection = document.getElementById('add-debt-section');
   const heading = document.getElementById('add-debt-heading');
   const addBtn = document.getElementById('save-snapshot-btn');
 
   if (!listEl || !rowsEl || !debtLines || debtLines.length === 0) {
+    _originalDebtAccounts = [];
     // No saved debts — show the add form with financials visible (first-time setup)
     if (listEl) listEl.style.display = 'none';
     if (addSection) {
       addSection.style.display = '';
-      const addFin = addSection.querySelector('.manual-entry-financials');
-      if (addFin) addFin.style.display = '';
+      if ('open' in addSection) addSection.open = true;
     }
     if (heading) heading.textContent = 'Add your debts';
     // Nothing saved yet, so saving IS the primary action — keep it gold.
-    if (addBtn) { addBtn.textContent = 'Save Debts'; addBtn.classList.remove('commitment-btn--ghost'); }
+    if (addBtn) { addBtn.textContent = 'Save balances'; addBtn.classList.remove('commitment-btn--ghost'); }
     setSetupStartVisible(false);
-    // Hide "Save Debts" until the first account row is added (no orphaned button).
+    // Hide the save action until an account row is available.
     syncAddSaveBtnVisibility();
+    updateSetupLiveTotal();
+    setUpdateBalancesDirty(false);
+    window.dispatchEvent(new Event('steward:saved-debts-changed'));
     return;
   }
 
@@ -235,10 +271,8 @@ function renderSavedDebtsList(debtLines) {
 
   // Populate saved debts
   rowsEl.innerHTML = '';
-  let total = 0;
 
   for (const acct of debtLines) {
-    total += acct.balance;
     const row = document.createElement('div');
     row.className = 'saved-debt-row';
     row.dataset.accountId = acct.id;
@@ -276,10 +310,11 @@ function renderSavedDebtsList(debtLines) {
     row.querySelector('.saved-debt-remove').addEventListener('click', () => {
       row.remove();
       updateSavedTotal();
-      // If no saved debts remain, hide the list
+      // Keep the save action visible when the final row is removed so the
+      // explicit "stop tracking all accounts" change can be persisted.
       const remaining = rowsEl.querySelectorAll('.saved-debt-row');
       if (remaining.length === 0) {
-        listEl.style.display = 'none';
+        listEl.style.display = '';
         if (heading) heading.textContent = 'Add your debts';
       }
     });
@@ -287,14 +322,18 @@ function renderSavedDebtsList(debtLines) {
     rowsEl.appendChild(row);
   }
 
-  if (totalEl) totalEl.textContent = fmtDollar(total);
   listEl.style.display = '';
 
   // Switch add section to "add more" mode. The list above already owns the
   // primary action (Update Balances / Start Climb), so this becomes the
   // clearly-secondary "Add account" — relabeled and de-emphasized to a ghost
   // button so users don't confuse it with saving their paydown.
-  if (addSection) addSection.style.display = '';
+  if (addSection) {
+    addSection.style.display = '';
+    if ('open' in addSection) {
+      addSection.open = document.body && document.body.dataset.setupMode === 'first';
+    }
+  }
   if (heading) heading.textContent = 'Add another account';
   /* Bottom button commits the new rows. Labeled "Save account" (not "Add
      account") so it reads distinctly from the "+ Add Account" row-adder above
@@ -302,25 +341,23 @@ function renderSavedDebtsList(debtLines) {
   if (addBtn) { addBtn.textContent = 'Save account'; addBtn.classList.add('commitment-btn--ghost'); }
 
   // Hide the financial snapshot block in the add form — user updates financials via UPDATE BALANCES
-  const addFinancials = addSection && addSection.querySelector('.manual-entry-financials');
-  if (addFinancials) addFinancials.style.display = 'none';
-
   // Clear any leftover rows in the add form
   const addEntries = document.getElementById('debt-accounts-entries');
   if (addEntries) addEntries.innerHTML = '';
   // Empty entries → keep the "Save account" button hidden so it isn't orphaned.
   syncAddSaveBtnVisibility();
+  updateSetupLiveTotal();
+  updateSavedTotal();
+  window.dispatchEvent(new Event('steward:saved-debts-changed'));
 }
 
 function setSetupStartVisible(visible) {
-  // Show exactly ONE Start Climb button. Once any debt is saved the saved-debts
-  // list is visible and owns the primary action; the add-form's duplicate would
-  // give the user two identical buttons stacked a few rows apart, which reads as
-  // a bug. Keep the duplicate permanently hidden.
+  // Once balances are saved, the saved-debts list owns the single next action.
   const main = document.getElementById('start-climb-btn');
-  if (main) main.hidden = !visible;
-  const dupe = document.getElementById('start-climb-empty-btn');
-  if (dupe) dupe.hidden = true;
+  if (main) {
+    main.hidden = !visible;
+    main.textContent = 'Show my payoff plan';
+  }
 }
 
 function updateSavedTotal() {
@@ -442,8 +479,7 @@ function mirrorLiveDebtState(rows, liveTotal) {
   for (const row of rows) if (row.dataset.accountId) liveIds.add(row.dataset.accountId);
   for (const orig of _originalDebtAccounts) {
     if (!liveIds.has(orig.id)) {
-      livePaidDown += orig.balance;
-      liveNet += -orig.balance;
+      dirty = true;
     }
   }
 
@@ -482,6 +518,27 @@ function mirrorLiveDebtState(rows, liveTotal) {
   /* "Unsaved changes" badge — non-blocking nudge that the dashboard is showing
      a preview. Lives next to the saved-debts total so it's near the action. */
   ensureUnsavedBadge(dirty);
+  setUpdateBalancesDirty(dirty);
+}
+
+function setUpdateBalancesDirty(dirty) {
+  const btn = document.getElementById('update-balances-btn');
+  if (!btn) return;
+  const isSetupMode = document.body && document.body.dataset.setupMode === 'first';
+  btn.disabled = !isSetupMode && !dirty;
+  btn.title = btn.disabled
+    ? 'Edit a balance first, or use Check balances for the faster guided flow.'
+    : 'Save the edited balances shown above.';
+}
+
+function syncUpdateBalancesDirtyState() {
+  const rows = document.querySelectorAll('#saved-debts-rows .saved-debt-row');
+  let total = 0;
+  for (const row of rows) {
+    const value = Number(row.querySelector('.saved-debt-balance-input')?.value);
+    if (Number.isFinite(value) && value >= 0) total += value;
+  }
+  mirrorLiveDebtState(rows, total);
 }
 
 function ensureUnsavedBadge(show) {
@@ -496,7 +553,7 @@ function ensureUnsavedBadge(show) {
     badge = document.createElement('div');
     badge.id = 'saved-debts-unsaved-badge';
     badge.className = 'saved-debts-unsaved-badge';
-    badge.textContent = 'Unsaved — Update Balances to save';
+    badge.textContent = 'Unsaved edits — save them below';
     // Sit on its own line just above the action button. Appending it INSIDE the
     // total row made it the row's :last-child, where the dollar-amount styling
     // ballooned it to 16px rose and stranded the total via space-between.
@@ -562,9 +619,6 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
     return;
   }
 
-  // Remember the trigger so focus can return there after the dialog closes.
-  const previouslyFocused = document.activeElement;
-
   const overlay = document.createElement('div');
   overlay.id = 'paydown-confirm-dialog';
   overlay.className = 'paydown-confirm-overlay';
@@ -617,6 +671,7 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   `;
 
   document.body.appendChild(overlay);
+  let modalController = null;
 
   // Save stays disabled until every new account is classified.
   const saveBtnEl = overlay.querySelector('.paydown-confirm-save');
@@ -639,12 +694,8 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   }
 
   const closeDialog = () => {
+    if (modalController) modalController.release();
     overlay.remove();
-    // Return focus to whatever opened the dialog so keyboard users don't
-    // land at the top of the document.
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
-      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
-    }
   };
 
   overlay.querySelector('.paydown-confirm-cancel').addEventListener('click', closeDialog);
@@ -663,9 +714,11 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   const focusTarget = toClassify.length > 0
     ? overlay.querySelector('.paydown-classify-opts input[type="radio"]')
     : saveBtnEl;
-  if (focusTarget) {
-    try { focusTarget.focus(); } catch (_) { /* ignore */ }
-  }
+  modalController = createModalController(overlay, {
+    initialFocus: focusTarget,
+    onDismiss: closeDialog,
+  });
+  modalController.focusInitial();
 }
 
 /* ── Quick Update ─────────────────────────────────────────────────────────────
@@ -680,8 +733,6 @@ function openQuickUpdate() {
   if (rows.length === 0) return;
   const existing = document.getElementById('quick-update-overlay');
   if (existing) existing.remove();
-  const previouslyFocused = document.activeElement;
-
   const steps = rows.map((row) => ({
     row,
     name: row.dataset.name || 'Account',
@@ -696,35 +747,37 @@ function openQuickUpdate() {
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-labelledby', 'quick-update-title');
+  overlay.setAttribute('aria-describedby', 'quick-update-hint quick-update-error');
   overlay.innerHTML = `
     <div class="paydown-confirm-card quick-update-card">
-      <h3 class="paydown-confirm-title" id="quick-update-title">Quick update</h3>
+      <h3 class="paydown-confirm-title" id="quick-update-title">Check balances</h3>
       <div class="quick-update-progress" id="quick-update-progress"></div>
       <div class="quick-update-name" id="quick-update-name"></div>
       <div class="quick-update-prev" id="quick-update-prev"></div>
       <div class="apr-form-input-wrap quick-update-wrap">
         <span class="apr-form-suffix" style="left:12px;right:auto;">$</span>
         <input type="number" id="quick-update-input" class="apr-form-input quick-update-input"
-               min="0" step="1" inputmode="numeric" style="padding-left:26px;" />
+               min="0" step="1" inputmode="numeric" style="padding-left:26px;" aria-label="Account balance"
+               aria-describedby="quick-update-prev quick-update-error" />
       </div>
+      <p class="quick-update-error" id="quick-update-error" role="alert" hidden></p>
       <div class="paydown-confirm-actions">
         <button type="button" class="paydown-confirm-cancel" id="quick-update-back">Back</button>
         <button type="button" class="paydown-confirm-save" id="quick-update-next">Next</button>
       </div>
-      <p class="quick-update-hint">Enter ↵ moves to the next account · Esc cancels</p>
+      <p class="quick-update-hint" id="quick-update-hint">Confirm or change each balance · Enter moves on · Esc cancels</p>
     </div>
   `;
   document.body.appendChild(overlay);
 
   const input = overlay.querySelector('#quick-update-input');
   const backBtn = overlay.querySelector('#quick-update-back');
+  const errorEl = overlay.querySelector('#quick-update-error');
+  let modalController = null;
 
   const close = () => {
-    document.removeEventListener('keydown', onKey, true);
+    if (modalController) modalController.release();
     overlay.remove();
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
-      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
-    }
   };
 
   const showStep = () => {
@@ -735,6 +788,12 @@ function openQuickUpdate() {
       Number.isFinite(s.prev) ? `currently $${s.prev.toLocaleString()}` : '';
     input.value = s.staged != null ? String(s.staged)
       : Number.isFinite(s.prev) ? String(s.prev) : '';
+    input.setAttribute('aria-label', `${s.name} balance`);
+    input.removeAttribute('aria-invalid');
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.hidden = true;
+    }
     overlay.querySelector('#quick-update-next').textContent = idx === steps.length - 1 ? 'Finish' : 'Next';
     backBtn.textContent = idx === 0 ? 'Cancel' : 'Back';
     try { input.focus(); input.select(); } catch (_) { /* ignore */ }
@@ -744,8 +803,18 @@ function openQuickUpdate() {
     const v = Math.round(parseFloat(input.value));
     if (!Number.isFinite(v) || v < 0) {
       input.classList.add('quick-update-invalid');
+      input.setAttribute('aria-invalid', 'true');
+      if (errorEl) {
+        errorEl.textContent = 'Enter a balance of $0 or more.';
+        errorEl.hidden = false;
+      }
       window.setTimeout(() => input.classList.remove('quick-update-invalid'), 900);
       return false;
+    }
+    input.removeAttribute('aria-invalid');
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.hidden = true;
     }
     steps[idx].staged = v;
     return true;
@@ -781,10 +850,6 @@ function openQuickUpdate() {
     showStep();
   };
 
-  const onKey = (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); close(); }
-  };
-  document.addEventListener('keydown', onKey, true);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); advance(); }
   });
@@ -792,6 +857,10 @@ function openQuickUpdate() {
   backBtn.addEventListener('click', goBack);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
+  modalController = createModalController(overlay, {
+    initialFocus: input,
+    onDismiss: close,
+  });
   showStep();
 }
 
@@ -818,7 +887,7 @@ function resyncSavedDebtsFromServer() {
         : [];
       renderSavedDebtsList(lines);
       ensureUnsavedBadge(false);
-      // "Start Climb" is a setup-only action; once the climb is running the
+      // The payoff-plan reveal is setup-only; once the climb is running the
       // server reports setupIncomplete=false, so keep the buttons hidden.
       setSetupStartVisible(status && status.setupIncomplete === true);
     })
@@ -886,8 +955,8 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
   if (btnEl) btnEl.disabled = true;
   if (msgEl) msgEl.textContent = 'Saving…';
 
-  if (!debtAccounts || debtAccounts.length === 0) {
-    if (msgEl) msgEl.textContent = 'Enter at least one debt account.';
+  if (!Array.isArray(debtAccounts)) {
+    if (msgEl) msgEl.textContent = 'Debt accounts could not be read. Refresh and try again.';
     if (btnEl) btnEl.disabled = false;
     saveInFlight = false;
     return;
@@ -932,12 +1001,19 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
     if (res.ok && data.ok) {
       if (data.setupIncomplete) {
         if (document.body) document.body.dataset.setupMode = 'first';
-        if (msgEl) msgEl.textContent = 'Saved. Add every debt, then start the climb.';
+        if (msgEl) msgEl.textContent = 'Balances saved. Your payoff plan is ready.';
         renderSavedDebtsList(activeAccounts);
         setSetupStartVisible(activeAccounts.length > 0);
+        const planBtn = document.getElementById('start-climb-btn');
+        if (planBtn && !planBtn.hidden) {
+          window.requestAnimationFrame(() => {
+            planBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            try { planBtn.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+          });
+        }
       } else {
         if (msgEl) {
-          msgEl.textContent = `Saved! Tier: ${data.tier}`;
+          msgEl.textContent = 'Saved. Keep climbing.';
           // Surface preserved-field notice so the user understands why a 0
           // input didn't replace prior data. The message includes the
           // "allowZero" escape hatch — friendlier than silent overwrite.
@@ -955,6 +1031,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
             // "Update Balances" button is not rebuilt by the delayed refresh, so
             // skipping this left it disabled forever after a preserved-field save.
             if (btnEl) btnEl.disabled = false;
+            if (btnEl && btnEl.id === 'update-balances-btn') syncUpdateBalancesDirtyState();
             saveInFlight = false;
             return;
           }
@@ -975,6 +1052,7 @@ async function saveSnapshot(debtAccounts, msgEl, btnEl, opts = {}) {
   }
 
   if (btnEl) btnEl.disabled = false;
+  if (btnEl && btnEl.id === 'update-balances-btn') syncUpdateBalancesDirtyState();
   saveInFlight = false;
 }
 
@@ -985,24 +1063,26 @@ export function initManualEntryForm() {
   const addBtn = document.getElementById('add-debt-account-btn');
   const container = document.getElementById('debt-accounts-entries');
   const updateBtn = document.getElementById('update-balances-btn');
-  const startBtns = [
-    document.getElementById('start-climb-btn'),
-    document.getElementById('start-climb-empty-btn'),
-  ].filter(Boolean);
+  const startBtns = [document.getElementById('start-climb-btn')].filter(Boolean);
   const msg = document.getElementById('snapshot-save-msg');
 
   if (!form || !addBtn || !container) return;
 
   // "+ Add Account" button
   addBtn.addEventListener('click', () => {
-    addDebtAccountRow(container);
+    const row = addDebtAccountRow(container);
+    const nameInput = row && row.querySelector('.debt-acct-name');
+    if (nameInput) {
+      nameInput.focus();
+      nameInput.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   });
 
   // Set the initial "Save" button state before any data loads (avoids a flash of
   // an orphaned button on first paint).
   syncAddSaveBtnVisibility();
 
-  // "Save Debts" — adds new debts (from the add form)
+  // "Save balances" — adds new debts from the account form.
   /* Validation toast: snappy 3s auto-dismiss, a clear × button so users can
      get rid of it instantly, and dismissal on any subsequent interaction with
      the add-debt form. QA bug #7. */
@@ -1110,6 +1190,11 @@ export function initManualEntryForm() {
       const newAccounts = collectDebtAccounts();
       const allAccounts = [...updatedAccounts, ...newAccounts];
       const summary = buildPaydownSummary(allAccounts);
+      if (!isSetupMode && summary.changes.length === 0 && newAccounts.length === 0) {
+        if (msg) msg.textContent = 'Balances are already up to date.';
+        setUpdateBalancesDirty(false);
+        return;
+      }
       // Only ask the new-debt-vs-already-had question once a climb is running —
       // during first-run setup every account is just inventory, no baseline yet.
       const newForClimb = isSetupMode ? [] : newAccounts.filter(a => a.balance > 0);
@@ -1140,7 +1225,7 @@ export function initManualEntryForm() {
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Could not start climb.');
         if (formMsg) formMsg.textContent = 'Climb started.';
-        // The climb is now running, so the setup-only "Start Climb" buttons must
+        // The climb is now running, so the setup-only payoff-plan action must
         // not linger on the dashboard. This soft-refresh path never reloads the
         // page, so hide them explicitly (page reload would re-hide via prefill).
         setSetupStartVisible(false);
@@ -1148,6 +1233,8 @@ export function initManualEntryForm() {
         // baseline locked, so the dashboard re-renders into play mode
         // without the start-game gate flashing back in mid-transition.
         await manualRefresh();
+        const accountDisclosure = document.getElementById('add-debt-section');
+        if (accountDisclosure && 'open' in accountDisclosure) accountDisclosure.open = false;
         // First-visit tour. Boot only offers it on a full-page load, and the
         // setup view has no dashboard root yet — so without this, a brand-new
         // user's first dashboard session never gets the tour (it would
@@ -1164,21 +1251,6 @@ export function initManualEntryForm() {
   prefillFromLastSnapshot();
 }
 
-function showFirstTimeHint() {
-  const container = document.getElementById('debt-accounts-entries');
-  const existing = document.getElementById('first-time-hint');
-  if (existing || !container) return;
-
-  const hint = document.createElement('div');
-  hint.id = 'first-time-hint';
-  hint.className = 'first-time-hint';
-  hint.innerHTML = `
-    <p class="first-time-hint-title">Start by adding your debts</p>
-    <p class="first-time-hint-text">Click <strong>"+ Add Account"</strong> above to enter each credit card, loan, or liability. Once saved, you'll be able to track your paydown progress over time.</p>
-  `;
-  container.parentNode.insertBefore(hint, container);
-}
-
 function prefillFromLastSnapshot() {
   fetch(stewardApiUrl('/api/status'))
     .then(r => r.json())
@@ -1192,11 +1264,21 @@ function prefillFromLastSnapshot() {
         setSetupStartVisible(status.setupIncomplete === true);
       } else {
         setSetupStartVisible(false);
-        showFirstTimeHint();
+        const disclosure = document.getElementById('add-debt-section');
+        if (disclosure && 'open' in disclosure) disclosure.open = true;
+        const container = document.getElementById('debt-accounts-entries');
+        if (container && !container.querySelector('.debt-account-entry-row')) {
+          addDebtAccountRow(container);
+        }
       }
     })
     .catch(() => {
-      showFirstTimeHint();
+      const disclosure = document.getElementById('add-debt-section');
+      if (disclosure && 'open' in disclosure) disclosure.open = true;
+      const container = document.getElementById('debt-accounts-entries');
+      if (container && !container.querySelector('.debt-account-entry-row')) {
+        addDebtAccountRow(container);
+      }
     });
 }
 
@@ -1207,16 +1289,16 @@ function prefillFromLastSnapshot() {
 function showReclassifyDialog() {
   const existing = document.getElementById('reclassify-dialog');
   if (existing) existing.remove();
-  const previouslyFocused = document.activeElement;
 
   const overlay = document.createElement('div');
   overlay.id = 'reclassify-dialog';
   overlay.className = 'paydown-confirm-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'reclassify-dialog-title');
   overlay.innerHTML = `
     <div class="paydown-confirm-card">
-      <h3 class="paydown-confirm-title">Reclassify added debt</h3>
+      <h3 class="paydown-confirm-title" id="reclassify-dialog-title">Reclassify added debt</h3>
       <p class="paydown-classify-intro">Move an amount out of "new debt added". Use this for debt you already had but forgot to log at the start, or for interest that got counted as new spending.</p>
       <div class="reclassify-field">
         <label class="reclassify-label" for="reclassify-amount">Amount</label>
@@ -1237,12 +1319,11 @@ function showReclassifyDialog() {
     </div>
   `;
   document.body.appendChild(overlay);
+  let modalController = null;
 
   const closeDialog = () => {
+    if (modalController) modalController.release();
     overlay.remove();
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
-      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
-    }
   };
   const msgEl = overlay.querySelector('#reclassify-msg');
   const showMsg = (text) => { if (msgEl) { msgEl.textContent = text; msgEl.hidden = false; } };
@@ -1285,7 +1366,11 @@ function showReclassifyDialog() {
   });
 
   const amtInput = overlay.querySelector('#reclassify-amount');
-  if (amtInput) { try { amtInput.focus(); } catch (_) { /* ignore */ } }
+  modalController = createModalController(overlay, {
+    initialFocus: amtInput,
+    onDismiss: closeDialog,
+  });
+  modalController.focusInitial();
 }
 
 // Delegated so it works whichever render created the button.
@@ -1301,7 +1386,6 @@ document.addEventListener('click', (e) => {
 function showUndoConfirm() {
   const existing = document.getElementById('undo-confirm-dialog');
   if (existing) existing.remove();
-  const previouslyFocused = document.activeElement;
 
   const trigger = document.getElementById('undo-last-btn');
   const isCorrection = trigger && trigger.dataset && trigger.dataset.undoLabel === 'correction';
@@ -1315,9 +1399,10 @@ function showUndoConfirm() {
   overlay.className = 'paydown-confirm-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'undo-confirm-title');
   overlay.innerHTML = `
     <div class="paydown-confirm-card">
-      <h3 class="paydown-confirm-title">${title}</h3>
+      <h3 class="paydown-confirm-title" id="undo-confirm-title">${title}</h3>
       <p class="paydown-classify-intro">${body}</p>
       <p class="reclassify-msg" id="undo-confirm-msg" hidden></p>
       <div class="paydown-confirm-actions">
@@ -1327,12 +1412,11 @@ function showUndoConfirm() {
     </div>
   `;
   document.body.appendChild(overlay);
+  let modalController = null;
 
   const closeDialog = () => {
+    if (modalController) modalController.release();
     overlay.remove();
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
-      try { previouslyFocused.focus(); } catch (_) { /* ignore */ }
-    }
   };
   const msgEl = overlay.querySelector('#undo-confirm-msg');
   const showMsg = (t) => { if (msgEl) { msgEl.textContent = t; msgEl.hidden = false; } };
@@ -1365,6 +1449,12 @@ function showUndoConfirm() {
       showMsg('Network error. Try again.');
     }
   });
+
+  modalController = createModalController(overlay, {
+    initialFocus: overlay.querySelector('.paydown-confirm-cancel'),
+    onDismiss: closeDialog,
+  });
+  modalController.focusInitial();
 }
 
 document.addEventListener('click', (e) => {

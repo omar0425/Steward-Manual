@@ -6,6 +6,7 @@
    account-cleared-seen so it never re-fires. */
 
 import { stewardApiUrl } from './api.js';
+import { createModalController } from './dialog.js';
 
 let _showing = false;
 
@@ -63,7 +64,8 @@ function drawCard(cleared) {
   return c;
 }
 
-async function dismiss(overlay) {
+async function dismiss(overlay, modalController) {
+  if (modalController) modalController.release();
   overlay.remove();
   _showing = false;
   try {
@@ -97,17 +99,17 @@ function showOverlay(clearedList) {
   overlay.querySelector('.cleared-journey').textContent = `${fmtMoney(cleared.startBalance)} → $0`;
   overlay.querySelector('.cleared-date').textContent = fmtDate(cleared.clearedAt);
   document.body.appendChild(overlay);
+  let modalController = null;
+  const closeOverlay = () => void dismiss(overlay, modalController);
 
-  overlay.querySelector('#cleared-dismiss').addEventListener('click', () => void dismiss(overlay));
+  overlay.querySelector('#cleared-dismiss').addEventListener('click', closeOverlay);
   // Same escape hatches as every other Steward overlay: click the dim or Esc.
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) void dismiss(overlay); });
-  const onKey = (e) => {
-    if (e.key === 'Escape') {
-      document.removeEventListener('keydown', onKey, true);
-      void dismiss(overlay);
-    }
-  };
-  document.addEventListener('keydown', onKey, true);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+  modalController = createModalController(overlay, {
+    initialFocus: overlay.querySelector('#cleared-dismiss'),
+    onDismiss: closeOverlay,
+  });
+  modalController.focusInitial();
 
   overlay.querySelector('#cleared-save').addEventListener('click', async () => {
     const canvas = drawCard(cleared);

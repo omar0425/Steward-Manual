@@ -4,7 +4,6 @@ import { tierBehaviorLine } from './tiers.js';
 import { isPlayDashboardDoc } from './shell.js';
 import {
   fmtDollar,
-  formatNextTierGapHeadline,
   TOOLTIP_LIQUID_CUSHION_RUNWAY,
   WEALTHY_EXPOSED_HERO_PRIMARY,
   formatHeroBreathingRoomLine,
@@ -57,7 +56,7 @@ export function renderHeroBlock({
 
   const heroAxesHint = document.getElementById('hero-axes-hint');
   if (heroAxesHint) {
-    heroAxesHint.textContent = 'The headline on the card is your escape gap. The thin bar is only your position inside this stage—not breathing room or total debt paid down.';
+    heroAxesHint.textContent = 'The headline shows what it takes to reach the next stage. The thin bar shows only your position inside this stage.';
   }
   const heroLiqRunwayEl = document.getElementById('hero-liquidity-runway');
   if (heroLiqRunwayEl) {
@@ -78,6 +77,21 @@ export function renderHeroBlock({
     heroLive.className = 'hero-live-pill';
     if (meta.freshness.startsWith('Stale')) heroLive.classList.add('is-stale');
     else if (meta.freshness.includes('h ago')) heroLive.classList.add('is-aged');
+  }
+  const heroDaily = document.getElementById('hero-daily-action');
+  const heroDailyNote = document.getElementById('hero-daily-note');
+  const heroDailyButton = document.getElementById('hero-quick-update-btn');
+  if (heroDaily && heroDailyNote && heroDailyButton) {
+    const freshness = String(meta && meta.freshness || '');
+    const stale = freshness.startsWith('Stale');
+    const aged = stale || freshness.includes('h ago') || freshness.includes('d ago');
+    heroDaily.classList.toggle('is-due', aged);
+    heroDailyNote.textContent = freshness === 'Live'
+      ? 'Balances are current. Recheck whenever an account changes.'
+      : aged
+        ? `${freshness || 'Balances need a check'}. Take one minute to refresh your plan.`
+        : 'Confirm your balances to keep every recommendation honest.';
+    heroDailyButton.textContent = aged ? 'Check balances now' : 'Check balances';
   }
   if (showcaseLink) showcaseLink.textContent = 'Explore all 10 debt tiers';
 
@@ -165,7 +179,7 @@ export function renderHeroBlock({
   const cardBarTrack = document.querySelector('.card-bar-track');
   if (cardBarTrack) {
     cardBarTrack.title =
-      'Thin bar: position inside this payoff stage only. The prominent line above states your dollar gap to escape this stage.';
+      'Thin bar: position inside this payoff stage only. The prominent line above states the balance reduction needed to reach the next stage.';
   }
   const cardBarFillEl = document.getElementById('card-bar-fill');
   if (cardBarFillEl) cardBarFillEl.style.width = `${inBandBarDisplayPct}%`;

@@ -15,6 +15,7 @@ const { DatabaseSync } = require('node:sqlite');
 const apiRouter = require('../routes/api');
 const {
   withUser, resetAllGameState, checkLiveDbIntegrity, safetySnapshot, setConfig,
+  isPathInsideDirectory,
 } = require('../db');
 
 const BACKUP_DIR = path.join(path.dirname(path.resolve(process.env.STEWARD_DB_PATH)), 'backups');
@@ -55,6 +56,13 @@ test('guards: the live DB passes the boot integrity probe', () => {
   const integ = checkLiveDbIntegrity();
   assert.equal(integ.ok, true, `quick_check verdict: ${integ.verdict}`);
   assert.equal(integ.verdict, 'ok');
+});
+
+test('guards: volume containment rejects sibling paths with the same prefix', () => {
+  const mount = path.resolve('C:\\data');
+  assert.equal(isPathInsideDirectory(path.join(mount, 'steward.db'), mount), true);
+  assert.equal(isPathInsideDirectory(path.resolve('C:\\database\\steward.db'), mount), false);
+  assert.equal(isPathInsideDirectory(mount, mount), false);
 });
 
 test('guards: safetySnapshot writes a consistent, openable copy', () => {

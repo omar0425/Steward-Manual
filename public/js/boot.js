@@ -5,7 +5,8 @@ import { readSessionMeta, writeSessionMeta, startPlaytimeTracking } from './sess
 import { render, setDebtSortMode, refreshDebtPanelData } from './render.js';
 import { mountStartScreenSteward } from './character.js';
 import { offerFirstVisitDashboardOnboarding, installDashboardHowItWorksButton } from './onboarding.js';
-import { readPromiseMadeFlag, hydratePromiseFromServer, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor, initAccountSecurity } from './commitment.js';
+import { readPromiseMadeFlag, readPromiseText, hydratePromiseFromServer, openCommitmentGate, initPlayResetBtn, initDeleteAccountBtn, initCommitmentReasonEditor, initAccountSecurity } from './commitment.js';
+import { initializeUserStorageScope } from './user-storage.js';
 import { AppMode, transitionTo, isSessionResume } from './state.js';
 import { maybeShowStewardAiComment, initAskSteward } from './steward-ai.js';
 import { initPushToggle } from './push-client.js';
@@ -245,7 +246,7 @@ function initStartGameGate() {
 
   // Show stored commitment text on the start gate
   try {
-    const reason = localStorage.getItem('steward_promise_text');
+    const reason = readPromiseText();
     const quoteEl = document.getElementById('start-commitment-quote');
     if (quoteEl && reason && reason.trim()) {
       quoteEl.textContent = '“' + reason.trim() + '”';
@@ -337,34 +338,37 @@ function initStickyUpdateFab() {
     if (list.style.display === 'none') return false;
     return !!list.querySelector('.saved-debt-row');
   }
-  function setVisibleByContext(panelInView) {
-    if (panelInView || !panelHasSavedDebts()) fab.hidden = true;
+  function setVisibleByContext(actionInView) {
+    if (actionInView || !panelHasSavedDebts()) fab.hidden = true;
     else fab.hidden = false;
   }
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver(
-      entries => {
-        for (const entry of entries) setVisibleByContext(entry.isIntersecting);
-      },
-      { threshold: 0.05 },
-    );
-    io.observe(panel);
-  } else {
-    /* Fallback: show whenever scrolled more than panel height. */
-    window.addEventListener('scroll', () => {
-      const r = panel.getBoundingClientRect();
-      setVisibleByContext(r.bottom > 0 && r.top < window.innerHeight);
-    }, { passive: true });
+  function actionIsInView() {
+    const heroAction = document.getElementById('hero-quick-update-btn');
+    const heroRect = heroAction && heroAction.getBoundingClientRect();
+    if (heroRect && heroRect.bottom > 0 && heroRect.top < window.innerHeight) return true;
+    const action = document.getElementById('quick-update-btn');
+    if (!action || action.hidden) return false;
+    const r = action.getBoundingClientRect();
+    return r.bottom > 0 && r.top < window.innerHeight;
   }
+  let syncQueued = false;
+  const syncVisibility = () => {
+    if (syncQueued) return;
+    syncQueued = true;
+    window.requestAnimationFrame(() => {
+      syncQueued = false;
+      setVisibleByContext(actionIsInView());
+    });
+  };
+  window.addEventListener('scroll', syncVisibility, { passive: true });
+  window.addEventListener('steward:saved-debts-changed', () => {
+    syncVisibility();
+  });
+  window.addEventListener('resize', syncVisibility, { passive: true });
+  syncVisibility();
   fab.addEventListener('click', () => {
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    /* After scroll settles, focus the first editable input if present. */
-    window.setTimeout(() => {
-      const first = panel.querySelector('.saved-debt-balance-input, .debt-acct-balance, .debt-acct-name');
-      if (first && typeof first.focus === 'function') {
-        try { first.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
-      }
-    }, 420);
+    const quick = document.getElementById('quick-update-btn');
+    if (quick) quick.click();
   });
 }
 
@@ -409,24 +413,21 @@ export function initDashboardBoot() {
   // Chat writes to the ledger via AI tools; give it a way to refresh the
   // dashboard so recorded entries show up without a manual reload.
   window.stewardRefreshDashboard = () => load({ refresh: true });
-  const root = document.getElementById('commitment-screen');
-  if (!root) {
-    initStartGameGate();
-    return;
-  }
-  if (readPromiseMadeFlag()) {
-    initStartGameGate();
-    return;
-  }
-  // No local flag — either a brand-new user, or a returning user on a new
-  // device/browser (the promise used to live only in localStorage). Check the
-  // server copy before re-asking someone mid-climb to commit again.
+  // Establish the account-specific browser-storage namespace first, then ask
+  // the server for the authoritative commitment. Never trust a global browser
+  // flag here: a second account in the same browser must not inherit it.
   void (async () => {
+    await initializeUserStorageScope();
+    const root = document.getElementById('commitment-screen');
+    if (!root) {
+      initStartGameGate();
+      return;
+    }
     try {
       const res = await fetch(stewardApiUrl('/api/config/promise'));
       const data = await res.json();
+      hydratePromiseFromServer(data);
       if (data && data.made) {
-        hydratePromiseFromServer(data);
         initStartGameGate();
         return;
       }
@@ -484,6 +485,8 @@ async function load(options = {}) {
         startupBootComplete = true;
         transitionTo(AppMode.READY, status.setupIncomplete ? 'setup incomplete' : 'no data: setup welcome');
         window.setTimeout(() => {
+          const disclosure = document.getElementById('add-debt-section');
+          if (disclosure && 'open' in disclosure) disclosure.open = true;
           const panel = document.getElementById('manual-entry-panel');
           if (panel) panel.scrollIntoView({ block: 'center', behavior: 'auto' });
         }, 80);

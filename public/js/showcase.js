@@ -146,7 +146,7 @@ function illustrativeGapHeadline(tier, tierIndex, rockBottomBuffer) {
   else upper = ALL_TIERS[tierIndex - 1].threshold;
   const sampleDebt = (upper + lower) / 2;
   const gap = Math.max(0, sampleDebt - lower);
-  return formatNextTierGapHeadline({ gapDollars: gap, label: nextT.label }, tier);
+  return formatNextTierGapHeadline({ gapDollars: gap, label: nextT.label });
 }
 
 function nextTierElement(tier, tierIndex, rockBottomBuffer) {
@@ -309,7 +309,7 @@ function markActiveFromApi() {
           if (activeTierId === 'wealthy') {
             nextTargetEl.textContent = formatNextTierGapHeadline(null);
           } else if (nextTier) {
-            nextTargetEl.textContent = formatNextTierGapHeadline(nextTier, activeTierId);
+            nextTargetEl.textContent = formatNextTierGapHeadline(nextTier);
           } else {
             nextTargetEl.textContent = formatNextTierGapHeadline(null);
           }

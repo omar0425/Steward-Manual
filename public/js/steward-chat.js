@@ -15,7 +15,12 @@
    - the suggestion chips feed the chat instead of the one-shot endpoint */
 
 import { stewardApiUrl } from './api.js';
-import { buildSteward } from './character.js';
+import {
+  initializeUserStorageScope,
+  readUserStorage,
+  writeUserStorage,
+  removeUserStorage,
+} from './user-storage.js';
 
 let _busy = false;
 // Client-side copy of the live thread — powers the export and keeps the
@@ -23,53 +28,17 @@ let _busy = false;
 let _currentMessages = [];
 const DRAFT_KEY = 'steward-chat-draft';
 
-/* Small holographic "AI Steward" avatar for the chat header — the same character
-   rig, reskinned via data-skin="ai", scaled down. Mirrors the tier the dashboard
-   is currently showing (read off the hero card) so a Buried user gets the grim
-   hologram and a Debt-Free user the triumphant one. Purely cosmetic. */
-function currentStewardState() {
-  const card = document.getElementById('hero-state-card');
-  const heroState = card && card.dataset ? card.dataset.state : null;
-  return heroState || 'building';
-}
-
 function buildAiStewardHeader() {
   const header = el('div', 'steward-ai-chat-header');
-  header.style.cssText = 'display:flex;align-items:center;gap:14px;padding:2px 2px 12px;';
-
-  const avatar = el('div', 'steward-ai-chat-avatar');
-  // Decorative — the "AI Steward" text label beside it carries the meaning, so
-  // hide the character from the a11y tree (its template carries an aria-label
-  // without a role, which axe flags as a prohibited attribute otherwise).
-  avatar.setAttribute('aria-hidden', 'true');
-  avatar.style.cssText = 'flex:0 0 auto;width:100px;height:120px;position:relative;overflow:hidden;'
-    + 'border-radius:16px;background:radial-gradient(circle at 50% 30%,#0b2f6e,#04122e);'
-    + 'box-shadow:0 0 0 1px rgba(76,201,240,0.35),0 0 18px rgba(76,201,240,0.22);';
-  const wrap = buildSteward(currentStewardState(), { skin: 'ai' });
-  if (wrap) {
-    const charEl = wrap.querySelector('.steward-character');
-    if (charEl) charEl.removeAttribute('aria-label');
-    // Push the character down within its own frame so the (tall) top hat + "AI"
-    // band land inside the bust crop instead of poking out the top.
-    wrap.style.setProperty('--scene-shift-y', '60px');
-    const inner = el('div', 'steward-ai-chat-avatar-inner');
-    inner.style.cssText = 'position:absolute;left:50%;top:6px;transform:translateX(-50%) scale(0.6);transform-origin:top center;';
-    inner.appendChild(wrap);
-    avatar.appendChild(inner);
-  }
-
+  header.appendChild(el('span', 'steward-ai-optional-badge', 'AI · optional'));
   const meta = el('div', 'steward-ai-chat-meta');
-  const name = el('div', 'steward-ai-chat-name', 'AI Steward');
-  name.style.cssText = 'font-family:"Cormorant Garamond",Georgia,serif;font-weight:800;font-size:1.15rem;color:#dff2ff;';
+  const name = el('div', 'steward-ai-chat-name', 'Explain the plan—or record a change.');
   const status = el('div', 'steward-ai-chat-status');
-  status.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase;color:#7fd8ff;margin-top:2px;';
-  const dot = el('span'); dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:#4cc9f0;box-shadow:0 0 6px #4cc9f0;';
+  const dot = el('span', 'steward-ai-chat-dot');
   status.appendChild(dot);
-  status.appendChild(el('span', null, 'Online · reading your numbers'));
+  status.appendChild(el('span', null, 'Online · grounded in your numbers'));
   meta.appendChild(name);
   meta.appendChild(status);
-
-  header.appendChild(avatar);
   header.appendChild(meta);
   return header;
 }
@@ -153,7 +122,7 @@ async function sendChat(threadEl, input, sendBtn, message) {
   if (_busy || !message.trim()) return;
   _busy = true;
   input.value = '';
-  try { localStorage.removeItem(DRAFT_KEY); } catch (_) { /* ignore */ }
+  removeUserStorage(DRAFT_KEY);
   input.dispatchEvent(new Event('input')); // collapse the auto-grown box + counter
   input.disabled = true;
   sendBtn.disabled = true;
@@ -273,7 +242,7 @@ async function refreshMemoryList() {
 function buildChatUi(panel, state) {
   // Retitle the panel: it's a conversation now.
   const sub = panel.querySelector('.tc-section-sublabel');
-  if (sub) sub.textContent = 'A running conversation, grounded in your own numbers. Tell it what happened — “paid $500 on the Visa” — and it records the entry for you.';
+  if (sub) sub.textContent = 'Optional help for explanations, second opinions, or entries like “paid $500 on Visa.” The dashboard works without it.';
 
   // ── Standing situation note ──
   const noteWrap = el('details', 'steward-chat-note');
@@ -282,6 +251,7 @@ function buildChatUi(panel, state) {
   noteArea.className = 'steward-chat-note-input';
   noteArea.rows = 3;
   noteArea.maxLength = 2000;
+  noteArea.setAttribute('aria-label', 'Your situation note for the Steward');
   noteArea.placeholder = 'e.g. “Work slowed down in June so I missed two payments on the Visa. Back to full hours now. Trying to catch up without touching savings.”';
   noteArea.value = state.situationNote || '';
   const noteActions = el('div', 'steward-chat-note-actions');
@@ -357,16 +327,12 @@ function buildChatUi(panel, state) {
     const left = input.maxLength - input.value.length;
     counter.hidden = left > 200;
     counter.textContent = left <= 200 ? `${left} characters left` : '';
-    try {
-      if (input.value.trim()) localStorage.setItem(DRAFT_KEY, input.value);
-      else localStorage.removeItem(DRAFT_KEY);
-    } catch (_) { /* private mode */ }
+    if (input.value.trim()) writeUserStorage(DRAFT_KEY, input.value);
+    else removeUserStorage(DRAFT_KEY);
   };
   input.addEventListener('input', syncInput);
-  try {
-    const draft = localStorage.getItem(DRAFT_KEY);
-    if (draft) { input.value = draft; window.setTimeout(syncInput, 0); }
-  } catch (_) { /* ignore */ }
+  const draft = readUserStorage(DRAFT_KEY);
+  if (draft) { input.value = draft; window.setTimeout(syncInput, 0); }
 
   send.addEventListener('click', () => void sendChat(thread, input, send, input.value));
   input.addEventListener('keydown', (e) => {
@@ -483,6 +449,28 @@ function buildChatUi(panel, state) {
   panel.appendChild(counter);
   panel.appendChild(tools);
 
+  const syncAiAvailability = (enabled, configured = true) => {
+    const isEnabled = enabled === true;
+    input.disabled = !isEnabled;
+    send.disabled = !isEnabled;
+    input.placeholder = isEnabled
+      ? "Tell the Steward what's going on, or ask anything..."
+      : (configured ? 'Enable AI Steward above to start chatting.' : 'AI is not configured on this server.');
+    for (const chip of chips.querySelectorAll('.ask-steward-chip')) chip.disabled = !isEnabled;
+    const statusSpans = panel.querySelectorAll('.steward-ai-chat-status span');
+    const statusLabel = statusSpans.length ? statusSpans[statusSpans.length - 1] : null;
+    if (statusLabel) {
+      statusLabel.textContent = isEnabled
+        ? 'Online · grounded in your numbers'
+        : 'AI off · notes stay in Steward';
+    }
+  };
+  syncAiAvailability(state.enabled, state.configured);
+  window.addEventListener('steward:ai-consent-changed', (event) => {
+    const detail = event && event.detail ? event.detail : {};
+    syncAiAvailability(detail.enabled, detail.configured);
+  });
+
   // The one-shot answer box is superseded by the thread.
   const oneShot = panel.querySelector('#ask-steward-answer');
   if (oneShot) oneShot.remove();
@@ -502,6 +490,7 @@ function buildChatUi(panel, state) {
 export async function initStewardChat() {
   const panel = document.getElementById('ask-steward-panel');
   if (!panel || panel.dataset.chatMode === '1') return;
+  await initializeUserStorageScope();
   let res;
   try {
     res = await fetch(stewardApiUrl('/api/steward-ai/chat'));

@@ -65,6 +65,61 @@ test('POST /api/snapshot: aggregate-only snapshots update climb paydown totals',
   });
 });
 
+test('POST /api/snapshot: an explicit empty account list stops tracking without inventing paydown', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'card-a', name: 'Card A', balance: 1000 },
+        { id: 'loan-b', name: 'Loan B', balance: 500 },
+      ],
+    });
+    assert.equal(res.status, 200);
+    res = await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(res.status, 200);
+
+    res = await postJson(baseUrl, '/api/snapshot', {
+      debtAccounts: [
+        { id: 'card-a', name: 'Card A', balance: 800 },
+        { id: 'loan-b', name: 'Loan B', balance: 500 },
+      ],
+    });
+    assert.equal(res.status, 200);
+
+    res = await postJson(baseUrl, '/api/snapshot', { debtAccounts: [] });
+    assert.equal(res.status, 200);
+
+    const status = await (await fetch(`${baseUrl}/api/status`)).json();
+    assert.equal(status.stats.debtRemaining, 0);
+    assert.deepEqual(status.stats.debtAccountLines, []);
+    assert.equal(status.stats.cumulativePaidDown, 200, 'untracking is not paydown');
+    assert.equal(status.stats.cumulativeNewDebtAdded, 0);
+  });
+});
+
+test('POST /api/snapshot: rejects a non-array debtAccounts value', async () => {
+  await withApp(async (baseUrl) => {
+    const res = await postJson(baseUrl, '/api/snapshot', { debtAccounts: 'not-an-array' });
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /must be an array/i);
+  });
+});
+
+test('AI consent: defaults off per account and cannot enable without a configured key', async () => {
+  await withApp(async (baseUrl) => {
+    let res = await fetch(`${baseUrl}/api/steward-ai/consent`);
+    assert.equal(res.status, 200);
+    let body = await res.json();
+    assert.equal(body.configured, false);
+    assert.equal(body.enabled, false);
+
+    res = await postJson(baseUrl, '/api/steward-ai/consent', { enabled: true });
+    assert.equal(res.status, 409);
+
+    res = await postJson(baseUrl, '/api/steward-ai/consent', { enabled: 'yes' });
+    assert.equal(res.status, 400);
+  });
+});
+
 test('POST /api/snapshot: first saved debts stay in setup until start-game', async () => {
   await withApp(async (baseUrl) => {
     let res = await postJson(baseUrl, '/api/snapshot', {

@@ -17,6 +17,11 @@ import { mountPlayShell } from './views/play.js';
 import { loadCharacterTemplate } from './template-loader.js';
 import './views/dashboard-enhance.js';
 import { initManualEntryForm } from './manual-entry.js';
+import {
+  initializeUserStorageScope,
+  readUserStorage,
+  writeUserStorage,
+} from './user-storage.js';
 
 /* ── Window exports ─────────────────────────────────────────────
    showcase.html runs a <script type="module"> after main.js loads and
@@ -114,6 +119,7 @@ function initLogout() {
 function initEmailPrompt() {
   const DISMISS_KEY = 'steward-email-prompt-dismissed';
   (async () => {
+    await initializeUserStorageScope();
     let me;
     try {
       const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
@@ -121,7 +127,7 @@ function initEmailPrompt() {
       me = await res.json();
     } catch { return; }
     if (!me || !me.needsEmail) return;
-    try { if (localStorage.getItem(DISMISS_KEY) === '1') return; } catch { /* ignore */ }
+    if (readUserStorage(DISMISS_KEY) === '1') return;
 
     const banner = document.createElement('div');
     banner.id = 'email-prompt-banner';
@@ -149,7 +155,7 @@ function initEmailPrompt() {
     const save  = banner.querySelector('#email-prompt-save');
     const msg   = banner.querySelector('#email-prompt-msg');
     banner.querySelector('#email-prompt-dismiss').addEventListener('click', () => {
-      try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ }
+      writeUserStorage(DISMISS_KEY, '1');
       banner.remove();
     });
     save.addEventListener('click', async () => {
@@ -173,7 +179,7 @@ function initEmailPrompt() {
         if (res.ok) {
           msg.textContent = 'Saved.';
           msg.style.color = 'var(--emerald, #14a469)';
-          try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ }
+          writeUserStorage(DISMISS_KEY, '1');
           setTimeout(() => banner.remove(), 1200);
         } else {
           msg.textContent = data.error || 'Could not save.';

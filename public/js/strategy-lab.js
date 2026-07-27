@@ -8,6 +8,7 @@ import { stewardApiUrl } from './api.js';
 
 let _wired = false;
 let _defaultBudget = null;
+let _hasAnyApr = true;
 
 const STRATEGY_LABELS = {
   avalanche: 'Avalanche',
@@ -120,6 +121,10 @@ async function runComparison() {
   const raw = String(input && input.value || '').trim() || (_defaultBudget ? String(_defaultBudget) : '');
   const budget = parseFloat(raw.replace(',', '.'));
   const say = (msg) => { if (note) { note.textContent = msg; note.hidden = !msg; } };
+  if (!_hasAnyApr) {
+    say('Add an APR before comparing interest-saving strategies.');
+    return;
+  }
   if (!Number.isFinite(budget) || budget <= 0) {
     say('Enter the total dollars you can put toward debt each month.');
     return;
@@ -142,7 +147,7 @@ async function runComparison() {
   } catch {
     say('Comparison failed — check your connection and try again.');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Compare strategies'; }
+    if (btn) { btn.disabled = !_hasAnyApr; btn.textContent = 'Compare strategies'; }
   }
 }
 
@@ -154,11 +159,28 @@ export function renderStrategyLab(stats) {
   if (Number.isFinite(pace) && pace > 0) _defaultBudget = Math.round(pace);
   const input = document.getElementById('lab-budget');
   if (input && !input.value && _defaultBudget) input.placeholder = String(_defaultBudget);
-  if (_wired) return;
+  _hasAnyApr = !(stats && stats.payoffPlan && stats.payoffPlan.hasApr === false);
+  const gate = document.getElementById('lab-apr-gate');
   const btn = document.getElementById('lab-run-btn');
+  if (gate) gate.hidden = _hasAnyApr;
+  if (btn) btn.disabled = !_hasAnyApr;
+  if (!_hasAnyApr) {
+    const results = document.getElementById('lab-results');
+    if (results) results.hidden = true;
+  }
+  if (_wired) return;
   if (!btn || !input) return;
   btn.addEventListener('click', runComparison);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runComparison(); } });
+  const addAprs = document.getElementById('lab-add-aprs-btn');
+  if (addAprs) {
+    addAprs.addEventListener('click', () => {
+      const aprPanel = document.getElementById('apr-form-panel');
+      const aprEdit = document.getElementById('apr-edit-btn');
+      if (aprPanel && aprPanel.hidden && aprEdit) aprEdit.click();
+      (aprPanel || aprEdit)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
   // Empty input + a known pace → run with the pace on first open, so the
   // panel never opens onto a dead form.
   _wired = true;

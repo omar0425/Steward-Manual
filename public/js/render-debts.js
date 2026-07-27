@@ -4,6 +4,7 @@ import { fmtDollar, fmtSignedDollar } from './format.js';
 import { stewardApiUrl } from './api.js';
 import { updateInterestMeter } from './interest-meter.js';
 import { createInfoDot } from './info-popover.js';
+import { readPromiseText } from './commitment.js';
 
 let _aprRates = {};
 let _debtHistory = {};
@@ -284,9 +285,15 @@ function buildAprForm(panel) {
 
     // Promo terms sub-row — feeds the Strategy Lab's cliff-aware planning.
     // Kept on its own quiet line so the everyday three fields stay uncluttered.
-    const promo = document.createElement('div');
+    const promo = document.createElement('details');
     promo.className = 'apr-form-promo-row';
     const acctName = acct.name || 'Account';
+    const promoSummary = document.createElement('summary');
+    promoSummary.className = 'apr-promo-summary';
+    promoSummary.textContent = 'Advanced promo terms';
+    const promoFields = document.createElement('div');
+    promoFields.className = 'apr-form-promo-fields';
+    promo.open = Boolean(terms.promoEndsOn || terms.postPromoApr != null || terms.deferredInterest);
 
     const endWrap = document.createElement('label');
     endWrap.className = 'apr-promo-field';
@@ -327,7 +334,8 @@ function buildAprForm(panel) {
     defWrap.appendChild(defInput);
     defWrap.append('deferred interest');
 
-    promo.append(endWrap, postWrap, defWrap);
+    promoFields.append(endWrap, postWrap, defWrap);
+    promo.append(promoSummary, promoFields);
     form.appendChild(promo);
   }
 
@@ -420,6 +428,9 @@ function buildAprForm(panel) {
     const btn = document.getElementById('apr-edit-btn');
     if (btn) btn.classList.remove('active');
     if (_lastDebtStats) fillDebtAccountsList(_lastDebtStats);
+    if (typeof window.stewardRefreshDashboard === 'function') {
+      void window.stewardRefreshDashboard();
+    }
   });
 
   actions.appendChild(cancel);
@@ -565,20 +576,15 @@ export function fillDebtAccountsList(stats) {
   const reasonEl = document.getElementById('commitment-reason-display');
   const reasonWrap = document.getElementById('commitment-reason-wrap');
   if (reasonEl) {
-    try {
-      const reason = localStorage.getItem('steward_promise_text');
-      if (reason && reason.trim()) {
-        reasonEl.textContent = reason.trim();
-        reasonEl.hidden = false;
-        if (reasonWrap) reasonWrap.hidden = false;
-      } else {
-        reasonEl.hidden = true;
-        /* Keep the wrap visible — empty-state shows a "+ Add your reason" prompt. */
-        if (reasonWrap) reasonWrap.hidden = false;
-      }
-    } catch (_) {
+    const reason = readPromiseText();
+    if (reason) {
+      reasonEl.textContent = reason;
+      reasonEl.hidden = false;
+      if (reasonWrap) reasonWrap.hidden = false;
+    } else {
       reasonEl.hidden = true;
-      if (reasonWrap) reasonWrap.hidden = true;
+      /* Keep the wrap visible — empty-state shows a "+ Add your reason" prompt. */
+      if (reasonWrap) reasonWrap.hidden = false;
     }
   }
 
