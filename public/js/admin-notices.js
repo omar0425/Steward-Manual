@@ -168,14 +168,33 @@ function buildPanel(data) {
   return section;
 }
 
+/* Where to hang the panel. It used to sit right after "Ask the Steward", but
+   that panel was later folded into the collapsed "Tools & guidance" drawer and
+   took this one with it — the reports still rendered, just inside a closed
+   <details> nobody opens. Prefer the drawer itself, then climb out of every
+   enclosing fold, so the panel lands at the top level wherever the dashboard
+   moves next. */
+function mountAnchor() {
+  let node = document.getElementById('optional-tools-section')
+    || document.getElementById('ask-steward-panel');
+  if (!node) return null;
+  for (
+    let fold = node.parentElement && node.parentElement.closest('details');
+    fold;
+    fold = node.parentElement && node.parentElement.closest('details')
+  ) {
+    node = fold;
+  }
+  return node;
+}
+
 export async function initAdminNotices() {
   try {
     const res = await fetch(stewardApiUrl('/api/admin/bug-reports'));
     if (!res.ok) return;
     const data = await res.json().catch(() => null);
     if (!data || data.admin !== true) return; // not the admin — do nothing, silently
-    // Mount next to "Ask the Steward" so it reads as part of the dashboard.
-    const anchor = document.getElementById('ask-steward-panel');
+    const anchor = mountAnchor();
     if (!anchor || !anchor.parentElement) return;
     anchor.insertAdjacentElement('afterend', buildPanel(data));
   } catch { /* never surface anything */ }
