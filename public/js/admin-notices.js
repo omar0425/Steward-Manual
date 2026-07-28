@@ -29,7 +29,71 @@ function severityChip(severity) {
   return el('span', `admin-bug-chip admin-bug-chip--${s}`, s);
 }
 
-function renderReports(listEl, reports) {
+/* Two-step delete: the first click arms the button, the second commits. A
+   report is gone for good once removed, and this panel is a dense list of
+   similar-looking rows — a single misplaced click should not destroy one.
+   Arming resets after a few seconds, and only one row can be armed at a time. */
+function attachDeleteControl(row, report, onDeleted) {
+  const btn = el('button', 'admin-bug-delete-btn', 'Delete');
+  btn.type = 'button';
+  btn.title = 'Remove this report permanently';
+  btn.setAttribute('aria-label', `Delete report: ${report.title || 'untitled report'}`);
+  let armed = false;
+  let armTimer = null;
+
+  const disarm = () => {
+    armed = false;
+    if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+    btn.textContent = 'Delete';
+    btn.classList.remove('is-armed');
+  };
+
+  btn.addEventListener('click', async (e) => {
+    // The button lives inside <summary>; without this the click also toggles
+    // the row open/closed, which reads as the panel jumping around mid-delete.
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!armed) {
+      for (const other of listOfArmedButtons(btn)) other.dispatchEvent(new CustomEvent('admin-bug-disarm'));
+      armed = true;
+      btn.textContent = 'Delete for good?';
+      btn.classList.add('is-armed');
+      armTimer = setTimeout(disarm, 5000);
+      return;
+    }
+
+    disarm();
+    btn.disabled = true;
+    try {
+      const res = await fetch(stewardApiUrl(`/api/admin/bug-reports/${report.id}`), { method: 'DELETE' });
+      // 404 means someone already removed it; refreshing shows the truth either
+      // way, so both outcomes end in the same resync.
+      if (res.ok || res.status === 404) {
+        await onDeleted();
+        return;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Delete failed';
+      setTimeout(() => { btn.textContent = 'Delete'; }, 2500);
+    } catch {
+      btn.disabled = false;
+      btn.textContent = 'Delete failed';
+      setTimeout(() => { btn.textContent = 'Delete'; }, 2500);
+    }
+  });
+
+  btn.addEventListener('admin-bug-disarm', disarm);
+  return btn;
+}
+
+/* Every armed delete button except the one being clicked. */
+function listOfArmedButtons(except) {
+  return Array.from(document.querySelectorAll('.admin-bug-delete-btn.is-armed'))
+    .filter((b) => b !== except);
+}
+
+function renderReports(listEl, reports, onDeleted) {
   listEl.textContent = '';
   if (!reports.length) {
     listEl.appendChild(el('p', 'admin-bug-empty', 'No bugs captured. Quiet skies.'));
@@ -48,6 +112,7 @@ function renderReports(listEl, reports) {
     if (r.url) meta.push(r.url);
     meta.push(fmtWhen(r.lastSeenAt));
     head.appendChild(el('span', 'admin-bug-meta', meta.filter(Boolean).join(' · ')));
+    head.appendChild(attachDeleteControl(row, r, onDeleted));
     row.appendChild(head);
     row.appendChild(el('p', 'admin-bug-report-text',
       r.report || 'Not AI-triaged (no key configured or daily AI budget spent).'));
@@ -69,15 +134,24 @@ function buildPanel(data) {
   const list = el('div', 'admin-bug-list');
   section.appendChild(list);
 
+  /* Re-pull the list from the server rather than splicing the row out locally:
+     a delete also moves newCount, and the panel shows 50 of possibly more, so
+     removing one can pull another into view. */
+  async function refresh() {
+    try {
+      const res = await fetch(stewardApiUrl('/api/admin/bug-reports'));
+      const fresh = await res.json().catch(() => null);
+      if (fresh && fresh.admin) update(fresh);
+    } catch { /* leave the panel as-is */ }
+  }
+
   const seenBtn = el('button', 'admin-bug-seen-btn', 'Mark all seen');
   seenBtn.type = 'button';
   seenBtn.addEventListener('click', async () => {
     seenBtn.disabled = true;
     try {
       await fetch(stewardApiUrl('/api/admin/bug-reports/seen'), { method: 'POST' });
-      const res = await fetch(stewardApiUrl('/api/admin/bug-reports'));
-      const fresh = await res.json().catch(() => null);
-      if (fresh && fresh.admin) update(fresh);
+      await refresh();
     } catch { /* leave the panel as-is */ }
     seenBtn.disabled = false;
   });
@@ -88,7 +162,7 @@ function buildPanel(data) {
     badge.textContent = n > 0 ? String(n) : '';
     badge.hidden = n === 0;
     seenBtn.hidden = n === 0;
-    renderReports(list, Array.isArray(d.reports) ? d.reports : []);
+    renderReports(list, Array.isArray(d.reports) ? d.reports : [], refresh);
   }
   update(data);
   return section;

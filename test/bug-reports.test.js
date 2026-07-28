@@ -21,6 +21,7 @@ const {
   listBugReports,
   countNewBugReports,
   markAllBugReportsSeen,
+  deleteBugReport,
   withUser,
   setConfig,
   resetAllGameState,
@@ -180,6 +181,59 @@ test('admin mark-all-seen clears the badge and is idempotent', async () => {
     const again = await fetch(`${baseUrl}/api/admin/bug-reports/seen`, { method: 'POST' });
     assert.equal((await again.json()).cleared, 0);
   });
+});
+
+test('admin delete: removes one report, is admin-only, and frees the signature', async () => {
+  const signature = 'test-delete-' + process.pid;
+  const marker = `Deletable report ${process.pid}`;
+
+  // A non-admin must not be able to delete — and must not learn the id exists.
+  await withApp('SomeRegularUser', async (baseUrl) => {
+    const { id } = upsertBugReport({ signature, kind: 'error', userId: 1, raw: '{}' });
+    setBugReportTriage(id, { severity: 'low', title: marker, report: null });
+    const res = await fetch(`${baseUrl}/api/admin/bug-reports/${id}`, { method: 'DELETE' });
+    assert.equal(res.status, 404, 'non-admin gets a plain 404');
+    assert.ok(listBugReports(200).some((r) => r.id === id), 'and the report survives');
+  });
+
+  await withApp(ADMIN, async (baseUrl) => {
+    const target = listBugReports(200).find((r) => r.title === marker);
+    assert.ok(target, 'report is present before the delete');
+
+    const res = await fetch(`${baseUrl}/api/admin/bug-reports/${target.id}`, { method: 'DELETE' });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.deleted, target.id);
+
+    assert.ok(!listBugReports(200).some((r) => r.id === target.id), 'row is gone');
+
+    // Deleting the same id again is an honest 404, not a silent success — the
+    // panel uses it to notice its list is stale.
+    const again = await fetch(`${baseUrl}/api/admin/bug-reports/${target.id}`, { method: 'DELETE' });
+    assert.equal(again.status, 404);
+
+    // A non-numeric id is rejected before it reaches the database.
+    const bad = await fetch(`${baseUrl}/api/admin/bug-reports/not-a-number`, { method: 'DELETE' });
+    assert.equal(bad.status, 400);
+
+    // The UNIQUE signature is free again: the same bug recurring later files as
+    // a fresh report rather than colliding with a hidden tombstone row.
+    const revived = upsertBugReport({ signature, kind: 'error', userId: 1, raw: '{}' });
+    assert.equal(revived.isNew, true, 'same bug recurring files anew');
+    assert.notEqual(revived.id, target.id);
+    run(() => deleteBugReport(revived.id));
+  });
+});
+
+test('deleteBugReport: reports whether a row actually went away', () => {
+  const { id } = upsertBugReport({ signature: 'test-del-unit-' + process.pid, kind: 'error', userId: 1, raw: '{}' });
+  assert.equal(run(() => deleteBugReport(id)), true);
+  assert.equal(run(() => deleteBugReport(id)), false, 'second delete is a no-op, not a throw');
+  // Junk ids are refused rather than turned into a DELETE with a NaN parameter.
+  for (const junk of [0, -3, 1.5, null, undefined, 'abc', {}]) {
+    assert.equal(run(() => deleteBugReport(junk)), false, `refused: ${String(junk)}`);
+  }
 });
 
 test('ledger invariants: clean climb passes; each corruption fires its rule', async () => {
