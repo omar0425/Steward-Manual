@@ -1251,11 +1251,31 @@ export function initManualEntryForm() {
   prefillFromLastSnapshot();
 }
 
+/* Open the add-debt fold and put one blank row in it, so setup starts on a
+   typable field instead of an "+ Add Account" button the user must find first.
+   Idempotent — never appends a second empty row. */
+function openSetupWithReadyRow() {
+  const disclosure = document.getElementById('add-debt-section');
+  if (disclosure && 'open' in disclosure) disclosure.open = true;
+  const container = document.getElementById('debt-accounts-entries');
+  if (container && !container.querySelector('.debt-account-entry-row')) {
+    addDebtAccountRow(container);
+  }
+}
+
 function prefillFromLastSnapshot() {
   fetch(stewardApiUrl('/api/status'))
     .then(r => r.json())
     .then(status => {
-      if (!status || !status.stats || (!status.ready && status.setupIncomplete !== true)) return;
+      // A brand-new account gets { ready:false, noData:true } with no `stats`
+      // at all. Returning here skipped the ready row for the one user it
+      // exists for — their first sight of setup was an empty panel and a
+      // button to press. Treat "nothing on file yet" as the setup case.
+      if (!status || !status.stats || (!status.ready && status.setupIncomplete !== true)) {
+        setSetupStartVisible(false);
+        openSetupWithReadyRow();
+        return;
+      }
       const s = status.stats;
 
       // Render saved debts list if we have debt account data
@@ -1264,22 +1284,10 @@ function prefillFromLastSnapshot() {
         setSetupStartVisible(status.setupIncomplete === true);
       } else {
         setSetupStartVisible(false);
-        const disclosure = document.getElementById('add-debt-section');
-        if (disclosure && 'open' in disclosure) disclosure.open = true;
-        const container = document.getElementById('debt-accounts-entries');
-        if (container && !container.querySelector('.debt-account-entry-row')) {
-          addDebtAccountRow(container);
-        }
+        openSetupWithReadyRow();
       }
     })
-    .catch(() => {
-      const disclosure = document.getElementById('add-debt-section');
-      if (disclosure && 'open' in disclosure) disclosure.open = true;
-      const container = document.getElementById('debt-accounts-entries');
-      if (container && !container.querySelector('.debt-account-entry-row')) {
-        addDebtAccountRow(container);
-      }
-    });
+    .catch(openSetupWithReadyRow);
 }
 
 /* ── Reclassify already-counted "new debt added" ──────────────────────────────

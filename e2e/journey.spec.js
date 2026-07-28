@@ -92,6 +92,12 @@ async function updateBalances(page, edits) {
 }
 
 async function addAccountMidClimb(page, name, balance) {
+  // Mid-climb, the add-debt form is folded into a collapsed <details>; its
+  // inputs exist but are not visible, so fill() times out. Open it first.
+  await page.evaluate(() => {
+    const d = document.getElementById('add-debt-section');
+    if (d && 'open' in d) d.open = true;
+  });
   await page.evaluate(() => { const b = document.getElementById('add-debt-account-btn'); if (b) b.click(); });
   const row = page.locator('#debt-accounts-entries .debt-account-entry-row').last();
   await row.locator('.debt-acct-name').fill(name);

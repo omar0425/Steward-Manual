@@ -232,6 +232,16 @@ export function initAskSteward() {
         ? (consentEnabled ? 'AI is enabled for this account.' : 'AI is off for this account.')
         : 'No AI key is configured on this server.';
     }
+    // The consent button lives two folds deep (Tools & guidance → Steward AI),
+    // so with AI off the Steward simply goes quiet with nothing on screen
+    // explaining why or how to bring him back. Say it on the drawer the user
+    // can actually see. The gate itself is unchanged: still off until clicked.
+    const toolsHint = document.querySelector('#optional-tools-section > summary .lab-summary-hint');
+    if (toolsHint && configured) {
+      toolsHint.textContent = consentEnabled
+        ? 'calculator, strategy & AI'
+        : 'calculator, strategy & AI (off — turn on inside)';
+    }
     if (announce) {
       window.dispatchEvent(new CustomEvent('steward:ai-consent-changed', {
         detail: { enabled: consentEnabled, configured },
@@ -248,6 +258,10 @@ export function initAskSteward() {
       configured = !!(state && state.configured);
       consentEnabled = !!(state && state.enabled);
       if (configured) panel.hidden = false;
+      // Unfold the Steward's own panel while he is muted, so opening the drawer
+      // lands on the enable button instead of a second closed section. Once AI
+      // is on it folds normally again — the chat UI inside is tall.
+      if (configured && !consentEnabled) panel.open = true;
       syncConsentUi(true);
     })
     .catch(() => { /* leave hidden */ });

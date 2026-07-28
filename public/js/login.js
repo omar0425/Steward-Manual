@@ -211,7 +211,7 @@
         if (res.ok) {
           window.location.href = '/';
         } else {
-          showError('register-error', data.error || 'Registration failed. Try a different username.');
+          showError('register-error', data.error || 'Registration failed. Try different details.');
         }
       } catch {
         showError('register-error', 'Could not reach the server. Try again.');

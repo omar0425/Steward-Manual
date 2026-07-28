@@ -240,7 +240,7 @@ function buildHeroSection() {
 function buildDebtReductionChart() {
   /* Wrapped in <details> so users can collapse the chart to compress the page.
      Open by default; the section-summary mirrors the original header layout. */
-  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'debt-chart-section' });
+  const section = el('details', { class: 'section-panel dashboard-only-section section-collapsible', id: 'debt-chart-section', open: '' });
   section.innerHTML = `
     <summary class="section-summary chart-header" title="Total debt still owed, plotted across your most recent snapshots.">
       <h2 class="tc-section-label" style="margin:0;">Debt over time</h2>

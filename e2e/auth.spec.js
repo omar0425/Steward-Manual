@@ -53,7 +53,7 @@ test.describe('Authentication', () => {
     await page.fill('#reg-password', PASSWORD);
     await page.fill('#reg-confirm', PASSWORD);
     await page.click('#register-submit');
-    await expect(page.locator('#register-error')).toContainText(/different username|could not create/i);
+    await expect(page.locator('#register-error')).toContainText(/already in use|different details/i);
   });
 
   test('login with wrong password shows an error and stays on /login', async ({ page }) => {

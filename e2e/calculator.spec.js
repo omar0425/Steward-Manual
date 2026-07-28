@@ -16,7 +16,10 @@ test.describe('Paydown calculator + average APR', () => {
       await startClimb(page);
     }
 
-    // The calculator ships collapsed — open its <details> fold first.
+    // The calculator now sits two folds deep: it moved inside the "Tools &
+    // guidance" drawer, which ships collapsed as well. Opening only the inner
+    // fold leaves the inputs hidden, so open the drawer first.
+    await page.locator('#optional-tools-section').evaluate((d) => { d.open = true; });
     await page.locator('#paydown-calc-section').evaluate((d) => { d.open = true; });
     const dollars = page.locator('#calc-dollars');
     const percent = page.locator('#calc-percent');

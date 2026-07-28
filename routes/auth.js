@@ -148,19 +148,19 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Email is too long.' });
     }
 
+    // One message for both collisions. Naming which field clashed would let the
+    // form be used to probe whether a given username or email has an account,
+    // so the wording stays deliberately ambiguous between the two — but it does
+    // name BOTH fields, because "try a different username" sent people editing
+    // the one field that was fine while the email was the actual conflict.
+    const TAKEN_ERROR = 'That username or email is already in use. Try different details.';
     const existing = findUserByUsername(username.trim());
     if (existing) {
-      // Generic 400 — login uses identical 401s for wrong-user vs wrong-password
-      // to prevent username enumeration; mirror that protection here so register
-      // does not confirm whether an account exists.
-      return res.status(400).json({ ok: false, error: 'Could not create account. Try a different username.' });
+      return res.status(400).json({ ok: false, error: TAKEN_ERROR });
     }
-    // Same protection for email: don't leak "this email is taken." Return the
-    // identical generic error so register can't be used to test which emails
-    // have accounts.
     const normalizedEmail = email && email.trim() ? email.trim().toLowerCase() : null;
     if (normalizedEmail && findUserByEmail(normalizedEmail)) {
-      return res.status(400).json({ ok: false, error: 'Could not create account. Try a different username.' });
+      return res.status(400).json({ ok: false, error: TAKEN_ERROR });
     }
 
     const user = await createLocalUserAsync(username.trim(), password, normalizedEmail);

@@ -64,7 +64,10 @@ test.describe('Dashboard chrome', () => {
 
     await expect(page.locator('#hero-quick-update-btn')).toBeVisible();
     await expect(page.locator('#hero-quick-update-btn')).toContainText(/check balances/i);
-    await expect(page.locator('#debt-chart-section')).not.toHaveAttribute('open', '');
+    // The chart is the one detail section that stays OPEN: it is the picture of
+    // the climb, and folding it made the dashboard read as though the graph had
+    // been removed. Everything below it still starts folded.
+    await expect(page.locator('#debt-chart-section')).toHaveAttribute('open', '');
     await expect(page.locator('#stage-progress-section')).not.toHaveAttribute('open', '');
     await expect(page.locator('#add-debt-section')).not.toHaveAttribute('open', '');
     await expect(page.locator('#optional-tools-section')).not.toHaveAttribute('open', '');
@@ -84,7 +87,10 @@ test.describe('Dashboard chrome', () => {
     await page.locator('#quick-update-input').fill('');
     await page.locator('#quick-update-next').click();
     await expect(page.locator('#quick-update-input')).toHaveAttribute('aria-invalid', 'true');
-    await expect(page.locator('#quick-update-error')).toContainText(/zero or more/i);
+    // Match the message the app actually renders ("Enter a balance of $0 or
+    // more."). The original /zero or more/ never matched the "$0" wording, so
+    // this assertion failed from the moment it was written.
+    await expect(page.locator('#quick-update-error')).toContainText(/\$0 or more/i);
     await page.locator('#quick-update-next').focus();
     await page.keyboard.press('Tab');
     await expect(page.locator('#quick-update-input')).toBeFocused();
