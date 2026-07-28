@@ -38,6 +38,7 @@ const {
   listBugReports,
   countNewBugReports,
   markAllBugReportsSeen,
+  deleteBugReport,
   bugReportsInLastDay,
 } = require('../db');
 const { monthlyPaceFromSnapshots, projectDebtFree, paidThisMonth, averageMonthlyPaydown, suggestedMonthlyTarget } = require('../services/pace');
@@ -2851,6 +2852,24 @@ router.post('/admin/bug-reports/seen', express.json(), (req, res) => {
   if (!isAdminUser(req)) return res.status(404).end();
   const cleared = markAllBugReportsSeen();
   res.json({ ok: true, cleared });
+});
+
+// Remove a handled report for good. Admin-only, and 404 for everyone else —
+// same shape as the seen route, so a non-admin can't even tell the id existed.
+// Deletion is permanent by design: "seen" already covers "read but keep it",
+// so the only thing left for this control to mean is "gone".
+router.delete('/admin/bug-reports/:id', (req, res) => {
+  if (!isAdminUser(req)) return res.status(404).end();
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: 'A numeric report id is required.' });
+  }
+  // Already gone (double-click, or a second admin tab) is reported honestly
+  // rather than as success — the client uses it to resync its stale list.
+  if (!deleteBugReport(id)) {
+    return res.status(404).json({ ok: false, error: 'That report no longer exists.' });
+  }
+  res.json({ ok: true, deleted: id, newCount: countNewBugReports() });
 });
 
 // ── GET /health ───────────────────────────────────────────────────────────────

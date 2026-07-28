@@ -998,6 +998,22 @@ function markAllBugReportsSeen() {
   return db.prepare(`UPDATE bug_reports SET status = 'seen' WHERE status = 'new'`).run().changes;
 }
 
+/**
+ * Permanently remove one report. Returns true when a row was actually deleted,
+ * false when the id was already gone (a double-click, or two admin tabs open).
+ *
+ * The row is dropped rather than flagged: its `signature` is UNIQUE, so leaving
+ * a tombstone behind would make the same bug recurring later collide with a
+ * hidden row and never resurface. Deleting frees the signature — if the problem
+ * happens again it files as a fresh report, which is the honest outcome for
+ * something the operator judged handled.
+ */
+function deleteBugReport(id) {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) return false;
+  return db.prepare(`DELETE FROM bug_reports WHERE id = ?`).run(n).changes > 0;
+}
+
 /** Cheap spam guard: occurrences recorded in the last 24h (all users). */
 function bugReportsInLastDay() {
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
@@ -1149,6 +1165,7 @@ module.exports = {
   listBugReports,
   countNewBugReports,
   markAllBugReportsSeen,
+  deleteBugReport,
   bugReportsInLastDay,
   getConfig,
   setConfig,

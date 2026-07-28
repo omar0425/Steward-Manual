@@ -3789,6 +3789,28 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
 .admin-bug-chip--low { background: rgba(255, 255, 255, 0.04); }
 .admin-bug-title { min-width: 0; flex: 1; word-break: break-word; color: var(--text); font-weight: 600; }
 .admin-bug-meta { flex-shrink: 0; color: var(--text-3); font-size: 11px; }
+/* Sits in the row header, muted until hovered so it never competes with the
+   title. Armed (awaiting the confirming second click) it turns rose — the same
+   colour the panel already uses for high severity, i.e. "this one bites". */
+.admin-bug-delete-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  color: var(--text-3);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 9px;
+}
+.admin-bug-delete-btn:hover { border-color: var(--rose); color: var(--rose); }
+.admin-bug-delete-btn:focus-visible { outline: 2px solid var(--gold-2); outline-offset: 2px; }
+.admin-bug-delete-btn.is-armed {
+  border-color: var(--rose);
+  color: var(--rose);
+  background: rgba(224, 82, 110, 0.14);
+  font-weight: 600;
+}
+.admin-bug-delete-btn:disabled { opacity: 0.55; cursor: default; }
 .admin-bug-report-text {
   margin: 0;
   padding: 0 12px 10px;
