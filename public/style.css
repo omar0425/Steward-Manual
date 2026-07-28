@@ -3760,8 +3760,12 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
   padding: 0;
 }
 .admin-bug-row--new { border-color: var(--gold-2); }
+/* Wraps on purpose: the title is the ONLY shrinkable item in this row (chip and
+   meta are flex-shrink: 0). Without wrapping, anything else added to the row —
+   a confirm button, a longer meta — steals the title's width until it renders
+   one character per line down the card. Overflow goes to a new line instead. */
 .admin-bug-head {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 12px;
   cursor: pointer;
   font-size: 12.5px;
@@ -3779,7 +3783,11 @@ body[data-setup-mode="first"] #quick-update-btn { display: none; }
 .admin-bug-chip--high { background: rgba(224, 82, 110, 0.18); color: var(--rose); border-color: var(--rose); }
 .admin-bug-chip--medium { background: rgba(212, 168, 83, 0.15); color: var(--gold-2); border-color: var(--gold-2); }
 .admin-bug-chip--low { background: rgba(255, 255, 255, 0.04); }
-.admin-bug-title { min-width: 0; flex: 1; word-break: break-word; color: var(--text); font-weight: 600; }
+/* min-width: 0 let this collapse to nothing; combined with break-word that
+   wrapped the title one letter per line. A floor keeps it legible, and the row
+   wraps rather than squeezing it. overflow-wrap (not word-break) so only a word
+   too long for the line is broken, never ordinary prose. */
+.admin-bug-title { min-width: 14ch; flex: 1 1 14ch; overflow-wrap: break-word; color: var(--text); font-weight: 600; }
 .admin-bug-meta { flex-shrink: 0; color: var(--text-3); font-size: 11px; }
 /* Sits in the row header, muted until hovered so it never competes with the
    title. Armed (awaiting the confirming second click) it turns rose — the same

@@ -82,3 +82,28 @@ test('the suffix field still reserves room on the right', () => {
   const pad = declaredPx(`#${id}`, 'padding-right');
   assert.ok(Number.isFinite(pad) && pad > AFFIX_LEFT, `#${id} padding-right: ${pad}`);
 });
+
+// Same failure family, different row: a flex line where exactly one item can
+// shrink. The admin bug-report head is chip + title + meta, and only the title
+// is shrinkable — so anything else placed in that row (a confirm button, a
+// longer meta) steals its width until the title wraps one character per line
+// down the card. A width floor plus a wrapping row makes that impossible.
+test('the bug-report title cannot be squeezed into a vertical column', () => {
+  const raw = /\.admin-bug-title\s*\{([^}]*)\}/.exec(css);
+  assert.ok(raw, '.admin-bug-title rule exists');
+  const decl = raw[1];
+
+  // A zero floor is what allowed the collapse; require a real minimum.
+  const min = /min-width:\s*([\d.]+)(ch|px|rem|em)/.exec(decl);
+  assert.ok(min, `min-width must be a real length, got: ${decl.trim()}`);
+  assert.ok(Number(min[1]) > 0, `min-width ${min[1]}${min[2]} must exceed 0`);
+
+  // And the row must be allowed to wrap, or the floor just causes overflow.
+  const head = /\.admin-bug-head\s*\{([^}]*)\}/.exec(css);
+  assert.ok(head, '.admin-bug-head rule exists');
+  assert.match(head[1], /flex-wrap:\s*wrap/, 'the head row wraps instead of squeezing');
+
+  // word-break: break-word breaks mid-word aggressively; overflow-wrap only
+  // breaks a word that genuinely cannot fit.
+  assert.doesNotMatch(decl, /word-break:\s*break-word/, 'use overflow-wrap, not word-break');
+});
