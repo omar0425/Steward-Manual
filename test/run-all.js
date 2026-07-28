@@ -56,6 +56,7 @@ require('./chat-archives.test');
 require('./restore-drill.test');
 require('./db-guards.test');
 require('./contrast.test');
+require('./affix-padding.test');
 require('./payoff-plan.test');
 require('./audit-metrics.test');
 require('./corrected-series.test');
