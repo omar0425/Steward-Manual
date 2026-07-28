@@ -640,7 +640,11 @@ i) => {
 .calc-affix { position: absolute; left: 11px; color: var(--text-3); font-family: 'IBM Plex Mono', monospace; font-size: 13px; pointer-events: none; }
 .calc-affix--suffix { left: auto; right: 11px; }
 .calc-input { width: 100%; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 15px; }
-#calc-dollars { padding-left: 22px; }
+/* The affix sits ABSOLUTELY over the field, so the input must reserve room for
+   it or the value renders on top of the "$". Keyed off the markup pattern, not
+   individual ids: #lab-budget reused this wrap+affix structure without a
+   matching per-id rule and its digits collided with the affix. */
+.calc-affix:not(.calc-affix--suffix) + .calc-input { padding-left: 22px; }
 #calc-percent { padding-right: 26px; }
 .calc-input:focus { outline: none; border-color: var(--gold, #c8a84c); }
 .calc-eq { align-self: center; color: var(--text-3); font-size: 18px; padding-bottom: 8px; }
