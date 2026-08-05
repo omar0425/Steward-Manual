@@ -164,17 +164,70 @@ test('route: APRs, terms, commitment, reclassify, and verify all arm', async () 
     }
 
     // Reclassify needs "new debt added" on the books: raise a balance as a
-    // purchase first (that save arms — consume it), then move it to interest.
+    // purchase first — a backslide, so that save must NOT arm — then the
+    // correction (moving it to interest) does.
     const up = await post('/snapshot', {
       totalDebt: 10200,
       debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10200 }],
       classifications: { visa: 'purchase' },
     });
     assert.equal(up.status, 200);
-    await seen();
+    assert.equal(await cutsceneReady(baseUrl), false, 'a spending increase must not arm');
     const rec = await post('/climb/reclassify-added-debt', { amount: 200, kind: 'interest' });
     assert.equal(rec.status, 200);
     assert.equal(await cutsceneReady(baseUrl), true, 'reclassify arms the cutscene');
+  });
+});
+
+test('route: backsliding saves never arm — the reel is a reward, not a laugh track', async () => {
+  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+    const post = (path, body) => fetch(`${baseUrl}/api${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const seen = () => fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+    const save = (balance, classifications) => post('/snapshot', {
+      totalDebt: balance,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance }],
+      ...(classifications ? { classifications } : {}),
+    });
+
+    await save(10000);
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    await seen();
+
+    // Interest posted → balance up → no video.
+    let res = await save(10040, { visa: 'interest' });
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false, 'an interest increase must not arm');
+
+    // A new loan → up → no video.
+    res = await save(10240, { visa: 'new_loan' });
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false, 'a new-loan increase must not arm');
+
+    // Forgot-to-log debt is bookkeeping, not backsliding → still worthy.
+    res = await save(10440, { visa: 'preexisting' });
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), true, 'a preexisting correction still arms');
+    await seen();
+
+    // A flat confirm check-in is the habit itself → worthy.
+    res = await save(10440);
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), true, 'a flat check-in still arms');
+    await seen();
+
+    // Net movement decides a mixed pull: a real payment that outweighs the
+    // interest that posted alongside it still earns the moment.
+    res = await post('/snapshot', {
+      totalDebt: 9975,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 9975 }],
+      classifications: {},
+    });
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), true, 'a net paydown arms');
   });
 });
 

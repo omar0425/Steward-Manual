@@ -940,6 +940,11 @@ function saveSnapshotForUser(rawBody, username) {
     // All writes for this pull are atomic: a crash mid-pull can't leave half-written
     // climb state (snapshot without balances, balances without metrics, etc.).
     transaction(() => {
+    // The cutscene is a REWARD: a save whose real movement is against the
+    // player — interest posted, new spending, a new loan — must not play one.
+    // Computed per-branch below; setup saves and flat check-ins stay worthy
+    // (entering and confirming balances is the habit the reel exists for).
+    let cutsceneWorthy = true;
     const snapshotId = insertSnapshot({
       source:           'manual',
       pulled_at:        now,
@@ -994,6 +999,20 @@ function saveSnapshotForUser(rawBody, username) {
           setConfig('pending_account_cleared', JSON.stringify(clearedNow));
         }
 
+        // Net this pull's credited movement: paydown on tracked accounts
+        // counts FOR, classified increases count AGAINST — except
+        // 'preexisting' (debt they always had, only now reported: that is
+        // bookkeeping, not backsliding). A removed account is "stop
+        // tracking", neither. Unclassified rises and unflagged new accounts
+        // count against, matching how the climb metrics read them.
+        let credited = 0;
+        for (const [id, bal] of debtBalanceMap) {
+          const prevBal = Number(prevBalances.get(id));
+          const delta = Number.isFinite(prevBal) ? roundMoney(prevBal - bal) : -bal;
+          if (delta < 0 && increaseClassifications[String(id)] === 'preexisting') continue;
+          credited = roundMoney(credited + delta);
+        }
+        cutsceneWorthy = credited >= 0;
       }
 
       // Build display rows for the debt sync debug
@@ -1017,6 +1036,7 @@ function saveSnapshotForUser(rawBody, username) {
       captureUndoState(snapshotId, getAllDebtAccountBalances());
       const climb = getClimbStatsFromConfig();
       const lastDebt = climb.lastAggregateDebt;
+      if (Number.isFinite(lastDebt)) cutsceneWorthy = debtRemaining <= lastDebt;
       if (Number.isFinite(lastDebt) && lastDebt > 0) {
         const delta = roundMoney(debtRemaining - lastDebt);
         if (delta < 0) {
@@ -1030,14 +1050,14 @@ function saveSnapshotForUser(rawBody, username) {
       setConfig('last_aggregate_debt_for_climb', String(debtRemaining));
     }
 
-    // Cutscene trigger (cutscene user only): every successful save earns a
-    // moment — entering balances IS the habit the app exists to reward, so
-    // the reel follows the action itself rather than a paydown threshold.
-    // (The old $500-accumulator lives on as tested pure math in
-    // services/cutscene.js.) Clips rotate — never the same one twice in a
-    // row — and the chosen index is pinned at arm time so every range
-    // request of one playback resolves to the same file.
-    armCutscene(username);
+    // Cutscene trigger (cutscene user only): a successful save earns a
+    // moment — unless this pull's movement went AGAINST the player (interest,
+    // spending, a new loan), in which case the reel stays quiet; celebrating
+    // a backslide reads as mockery. (The old $500-accumulator lives on as
+    // tested pure math in services/cutscene.js.) Clips rotate — never the
+    // same one twice in a row — and the chosen index is pinned at arm time
+    // so every range request of one playback resolves to the same file.
+    if (cutsceneWorthy) armCutscene(username);
     }); // end transaction — snapshot + balances + history + climb metrics commit together
 
     const response = {
