@@ -385,4 +385,70 @@ test.describe('Ship-readiness sweep', () => {
     expect(page.url()).toMatch(/\/login/);
     expect(errs, errs.join('\n')).toEqual([]);
   });
+
+  test('13. Phone: a tall confirm dialog (many balances to classify) scrolls to Save', async ({ browser }) => {
+    // Regression: with ~6 accounts all going UP, the classify section made the
+    // confirm card taller than a phone screen. The overlay is fixed + centered,
+    // so the card clipped at both ends and the bottom rows + Save button were
+    // unreachable — swipes scrolled the page BEHIND the modal instead.
+    const ctx = await browser.newContext({ ...devices['iPhone 12'] });
+    const page = await ctx.newPage();
+    const errs = attachConsoleGuard(page);
+    try {
+      await suppressOnboarding(page);
+      await register(page);
+      await passGates(page);
+      const accounts = [
+        { name: 'Amex', balance: 4000 }, { name: 'Discover', balance: 3000 },
+        { name: 'BofA', balance: 2500 }, { name: 'Citi', balance: 2000 },
+        { name: 'Klarna', balance: 2236 }, { name: 'CapOne', balance: 1953 },
+      ];
+      await addDebtAccounts(page, accounts);
+      await startClimb(page);
+
+      // Raise every balance so all six need a classification (tallest case).
+      for (const a of accounts) {
+        const input = page.locator(`.saved-debt-row[data-name="${a.name}"] .saved-debt-balance-input`);
+        await input.fill(String(a.balance + 50));
+        await input.dispatchEvent('input');
+      }
+      await page.waitForTimeout(150);
+      await page.evaluate(() => { const b = document.getElementById('update-balances-btn'); if (b) b.click(); });
+      const dialog = page.locator('#paydown-confirm-dialog');
+      await expect(dialog).toBeVisible({ timeout: 5000 });
+
+      // The card must fit the viewport and scroll internally, not clip.
+      const card = page.locator('.paydown-confirm-card');
+      const metrics = await card.evaluate((el) => ({
+        boxTop: el.getBoundingClientRect().top,
+        boxBottom: el.getBoundingClientRect().bottom,
+        winH: window.innerHeight,
+        scrollable: el.scrollHeight > el.clientHeight,
+        overflowY: getComputedStyle(el).overflowY,
+      }));
+      expect(metrics.boxTop, 'card top clipped above the viewport').toBeGreaterThanOrEqual(0);
+      expect(metrics.boxBottom, 'card bottom clipped below the viewport').toBeLessThanOrEqual(metrics.winH + 1);
+      expect(metrics.scrollable, 'six classify groups should overflow an iPhone-height card').toBe(true);
+      expect(metrics.overflowY).toBe('auto');
+
+      // Every classify row — including the last, formerly unreachable ones —
+      // must be reachable with real scrolls + clicks (no JS-click bypass).
+      const rows = dialog.locator('.paydown-classify-row');
+      await expect(rows).toHaveCount(accounts.length);
+      for (let i = 0; i < accounts.length; i++) {
+        const radio = rows.nth(i).locator('input[value="interest"]');
+        await radio.scrollIntoViewIfNeeded();
+        await radio.check();
+      }
+      const save = page.locator('.paydown-confirm-save');
+      await save.scrollIntoViewIfNeeded();
+      await expect(save).toBeInViewport();
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(page.locator('#snapshot-save-msg')).toContainText('Saved', { timeout: 8000 });
+      expect(errs, errs.join('\n')).toEqual([]);
+    } finally {
+      await ctx.close();
+    }
+  });
 });
