@@ -15,6 +15,7 @@
    - the suggestion chips feed the chat instead of the one-shot endpoint */
 
 import { stewardApiUrl } from './api.js';
+import { buildAiStewardBadge } from './steward-ai.js';
 import {
   initializeUserStorageScope,
   readUserStorage,
@@ -30,7 +31,10 @@ const DRAFT_KEY = 'steward-chat-draft';
 
 function buildAiStewardHeader() {
   const header = el('div', 'steward-ai-chat-header');
-  header.appendChild(el('span', 'steward-ai-optional-badge', 'AI · optional'));
+  // The same holographic AI Steward that fronts his dialog cards presides over
+  // the chat too — the panel gets his face, not just a text chip.
+  const portrait = buildAiStewardBadge({ size: 0.6, margin: '0' });
+  if (portrait) header.appendChild(portrait);
   const meta = el('div', 'steward-ai-chat-meta');
   const name = el('div', 'steward-ai-chat-name', 'Explain the plan—or record a change.');
   const status = el('div', 'steward-ai-chat-status');
@@ -40,6 +44,7 @@ function buildAiStewardHeader() {
   meta.appendChild(name);
   meta.appendChild(status);
   header.appendChild(meta);
+  header.appendChild(el('span', 'steward-ai-optional-badge', 'AI · optional'));
   return header;
 }
 

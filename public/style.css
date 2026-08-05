@@ -4124,14 +4124,20 @@ body[data-setup-mode="first"] #add-debt-section {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Portrait | name+status | pill. On a narrow phone the pill drops to its
+     own row (right-aligned) instead of squeezing the name into a column. */
+  flex-wrap: wrap;
   margin: 4px 0 14px;
   padding: 12px 14px;
   border: 1px solid rgba(76,201,240,0.22);
   border-radius: 10px;
   background: rgba(76,201,240,0.06);
 }
+.steward-ai-chat-header .steward-ai-badge { flex: 0 0 auto; }
+.steward-ai-chat-meta { flex: 1; min-width: 170px; }
 .steward-ai-optional-badge {
   flex: 0 0 auto;
+  margin-left: auto;
   padding: 5px 8px;
   color: #7fd8ff;
   border: 1px solid rgba(76,201,240,0.32);
