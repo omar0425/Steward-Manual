@@ -2599,6 +2599,18 @@ body[data-setup-mode="first"] .setup-welcome {
   padding: 24px 28px;
   max-width: 440px;
   width: 100%;
+  /* A check-in with several balances to classify outgrows a phone screen.
+     The overlay is fixed and centered, so an overflowing card clips at BOTH
+     ends with no way to scroll to them — cap the card to the visible
+     viewport and scroll inside it instead. The dvh line (where supported)
+     tracks iOS Safari's collapsing toolbars; the vh line is the fallback.
+     overscroll-behavior keeps the inner scroll from chaining to the page
+     behind the modal. */
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .paydown-confirm-title {
   font-family: 'Cormorant Garamond', serif;
@@ -2814,10 +2826,14 @@ body[data-setup-mode="first"] .setup-welcome {
   /* Long quarterly letters / certificates can exceed the viewport on a
      phone in landscape. Cap to the visible area minus overlay padding,
      then let the card body scroll inside instead of pushing actions
-     off-screen. */
+     off-screen. dvh (where supported) tracks iOS Safari's collapsing
+     toolbars — plain 100vh is the expanded-toolbar height, which hides
+     the bottom of the card behind the bottom bar. */
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
 }
 .steward-ai-eyebrow {
