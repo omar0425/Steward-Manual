@@ -113,16 +113,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Default JSON parser (100kb) for the whole app. The data-restore routes handle
-// full exports that legitimately exceed that, and mount their own 8mb parser —
-// but a global parser here would consume the stream first and reject the body
-// with 413 before the route parser ran, silently breaking restore for exactly
-// the users with enough history to need it. Skip those paths so their larger
-// limit applies.
+// Default JSON parser (100kb) for the whole app. Some routes handle bodies that
+// legitimately exceed that and mount their own larger parser — data restore
+// (full exports, 8mb) and Steward AI chat (document attachments, 18mb). A
+// global parser here would consume the stream first and reject the body with
+// 413 before the route parser ran, silently breaking exactly the requests
+// those limits exist for. Skip those paths so their larger limit applies.
 const globalJsonParser = express.json();
-const RESTORE_PATH_RE = /^(?:\/api\/restore|\/admin\/api\/users\/\d+\/restore)\/?$/;
+const LARGE_BODY_PATH_RE = /^(?:\/api\/restore|\/admin\/api\/users\/\d+\/restore|\/api\/steward-ai\/chat)\/?$/;
 app.use((req, res, next) => {
-  if (RESTORE_PATH_RE.test(req.path)) return next();
+  if (LARGE_BODY_PATH_RE.test(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
 

@@ -27,6 +27,11 @@ export { refreshDebtPanelData, setDebtSortMode, toggleAprForm };
 let lastRenderedCumulativePaidDown = null;
 
 export function render(status, snapshots) {
+  // Personal easter egg (cutscene user only): the server arms it after each
+  // real action — saves, climb start, APRs & terms, the commitment. Checked
+  // BEFORE the ready gate so setup-mode saves get their moment too.
+  maybePlayCutscene(status);
+
   if (!status.ready) return;
 
   upgradeDashboardLayout();
@@ -82,11 +87,6 @@ export function render(status, snapshots) {
 
   // "Account CLEARED" — one-shot celebration armed by the snapshot route.
   maybeCelebrateCleared(status);
-
-  // Personal easter egg (cutscene user only): the server arms it when one
-  // balance update clears $500+ of debt; plays once, then cutscene-seen.
-  // (An old comment here said "every 75th login" — that trigger never shipped.)
-  maybePlayCutscene(status);
 
   if (typeof window.stewardVnextEnhance === 'function') {
     window.stewardVnextEnhance({

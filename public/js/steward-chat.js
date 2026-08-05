@@ -63,10 +63,15 @@ function fmtMsgTime(iso) {
 
 /* One message row: who + text, a muted timestamp, and (on Steward replies) a
    copy button so advice can be pasted into notes without hand-selection. */
-function buildMsgRow(role, text, at) {
+function buildMsgRow(role, text, at, attachments) {
   const row = el('div', `steward-chat-msg steward-chat-msg--${role === 'assistant' ? 'steward' : 'you'}`);
   row.appendChild(el('span', 'steward-chat-who', role === 'assistant' ? '🧐' : 'You'));
   const body = el('span', 'steward-chat-text', text);
+  if (Array.isArray(attachments) && attachments.length) {
+    for (const name of attachments) {
+      body.appendChild(el('span', 'steward-chat-attach-tag', `📎 ${name}`));
+    }
+  }
   row.appendChild(body);
   const meta = el('span', 'steward-chat-msg-meta');
   const time = fmtMsgTime(at);
@@ -91,19 +96,22 @@ function buildMsgRow(role, text, at) {
 
 function renderThread(threadEl, messages) {
   threadEl.textContent = '';
-  _currentMessages = (messages || []).map((m) => ({ role: m.role, text: m.text, at: m.at || null }));
+  _currentMessages = (messages || []).map((m) => ({
+    role: m.role, text: m.text, at: m.at || null,
+    attachments: Array.isArray(m.attachments) ? m.attachments : null,
+  }));
   for (const m of _currentMessages) {
-    threadEl.appendChild(buildMsgRow(m.role, m.text, m.at));
+    threadEl.appendChild(buildMsgRow(m.role, m.text, m.at, m.attachments));
   }
   threadEl.scrollTop = threadEl.scrollHeight;
 }
 
 function appendMsg(threadEl, role, text, opts = {}) {
   const at = opts.at || new Date().toISOString();
-  const row = buildMsgRow(role, text, opts.pending ? null : at);
+  const row = buildMsgRow(role, text, opts.pending ? null : at, opts.attachments);
   threadEl.appendChild(row);
   threadEl.scrollTop = threadEl.scrollHeight;
-  if (!opts.pending) _currentMessages.push({ role, text, at });
+  if (!opts.pending) _currentMessages.push({ role, text, at, attachments: opts.attachments || null });
   return row;
 }
 
@@ -118,7 +126,41 @@ function appendActionReceipts(threadEl, actions) {
   threadEl.scrollTop = threadEl.scrollHeight;
 }
 
+// ── Document attachments (PDF / photo / JSON / CSV / text) ───────────────────
+// Files the player stages for the NEXT message. Read into base64 at send time;
+// the server forwards the bytes to the model for that one turn and keeps only
+// the names in history.
+const ATTACH_MAX_FILES = 3;
+const ATTACH_MAX_BYTES = 6 * 1024 * 1024;
+const ATTACH_EXT_TYPES = {
+  pdf: 'application/pdf', json: 'application/json', csv: 'text/csv',
+  txt: 'text/plain', md: 'text/markdown',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
+};
+let _stagedFiles = [];
+
+function attachMediaType(file) {
+  if (file.type && file.type !== 'application/octet-stream') return file.type;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  return ATTACH_EXT_TYPES[ext] || null;
+}
+
+function readFileBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error('read failed'));
+    r.onload = () => {
+      const s = String(r.result || '');
+      resolve(s.slice(s.indexOf(',') + 1)); // strip the data:…;base64, prefix
+    };
+    r.readAsDataURL(file);
+  });
+}
+
 async function sendChat(threadEl, input, sendBtn, message) {
+  const files = _stagedFiles.slice();
+  // A document with no note still means something: "read this and act".
+  if (!message.trim() && files.length) message = 'Read the attached document and record anything that matters.';
   if (_busy || !message.trim()) return;
   _busy = true;
   input.value = '';
@@ -126,22 +168,33 @@ async function sendChat(threadEl, input, sendBtn, message) {
   input.dispatchEvent(new Event('input')); // collapse the auto-grown box + counter
   input.disabled = true;
   sendBtn.disabled = true;
-  appendMsg(threadEl, 'user', message.trim());
-  const pending = appendMsg(threadEl, 'assistant', 'The Steward is considering…', { pending: true });
+  const attachmentNames = files.map((f) => f.name);
+  setStagedFiles([]);
+  appendMsg(threadEl, 'user', message.trim(), attachmentNames.length ? { attachments: attachmentNames } : {});
+  const pending = appendMsg(threadEl, 'assistant',
+    files.length ? 'The Steward is reading your document…' : 'The Steward is considering…', { pending: true });
   pending.classList.add('steward-chat-msg--pending');
-  // On failure the message is restored into the box, so retrying is one tap —
-  // a failed send must never mean retyping the whole thing.
+  // On failure the message (and any staged files) are restored, so retrying is
+  // one tap — a failed send must never mean retyping or re-picking anything.
   const restoreOnError = () => {
     if (!input.value.trim()) {
       input.value = message.trim();
       input.dispatchEvent(new Event('input'));
     }
+    if (files.length && _stagedFiles.length === 0) setStagedFiles(files);
   };
   try {
+    const attachments = [];
+    for (const f of files) {
+      attachments.push({ name: f.name, mediaType: attachMediaType(f), data: await readFileBase64(f) });
+    }
     const res = await fetch(stewardApiUrl('/api/steward-ai/chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: message.trim() }),
+      body: JSON.stringify({
+        message: message.trim(),
+        ...(attachments.length ? { attachments } : {}),
+      }),
     });
     const data = await res.json().catch(() => null);
     pending.classList.remove('steward-chat-msg--pending');
@@ -193,6 +246,37 @@ function exportConversation() {
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// Staged-file chips live above the input row; re-rendered on every change.
+let _stagedRowEl = null;
+
+function setStagedFiles(files) {
+  _stagedFiles = files.slice(0, ATTACH_MAX_FILES);
+  if (!_stagedRowEl) return;
+  _stagedRowEl.textContent = '';
+  _stagedRowEl.hidden = _stagedFiles.length === 0;
+  _stagedFiles.forEach((f, i) => {
+    const chip = el('span', 'steward-chat-attach-chip');
+    chip.appendChild(el('span', 'steward-chat-attach-chip-name', `📎 ${f.name}`));
+    const rm = el('button', 'steward-chat-memory-del', '✕');
+    rm.type = 'button';
+    rm.title = 'Remove this file';
+    rm.setAttribute('aria-label', `Remove attached file ${f.name}`);
+    rm.addEventListener('click', () => {
+      setStagedFiles(_stagedFiles.filter((_, j) => j !== i));
+    });
+    chip.appendChild(rm);
+    _stagedRowEl.appendChild(chip);
+  });
+}
+
+/** Validate one picked file; returns an error string or null when stageable. */
+function stageFileError(file) {
+  if (_stagedFiles.length >= ATTACH_MAX_FILES) return `At most ${ATTACH_MAX_FILES} files per message.`;
+  if (!attachMediaType(file)) return `"${file.name}" isn't a type the Steward reads — use PDF, photo, JSON, CSV, or text.`;
+  if (file.size > ATTACH_MAX_BYTES) return `"${file.name}" is too big — keep each file under 6 MB.`;
+  return null;
 }
 
 // ── "What the Steward remembers" — player-visible memory with delete ─────────
@@ -293,7 +377,42 @@ function buildChatUi(panel, state) {
   thread.setAttribute('aria-live', 'polite');
   renderThread(thread, state.messages || []);
 
+  // Staged attachments render as removable chips just above the input.
+  const stagedRow = el('div', 'steward-chat-attach-row');
+  stagedRow.hidden = true;
+  _stagedRowEl = stagedRow;
+
   const inputRow = el('div', 'steward-chat-input-row');
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.multiple = true;
+  fileInput.accept = '.pdf,.json,.csv,.txt,.md,application/pdf,application/json,text/csv,text/plain,text/markdown,image/png,image/jpeg,image/webp,image/gif';
+  fileInput.hidden = true;
+  fileInput.setAttribute('aria-hidden', 'true');
+  const attachBtn = el('button', 'steward-chat-attach-btn', '📎');
+  attachBtn.type = 'button';
+  attachBtn.title = 'Attach a statement, bill photo, or export (PDF, image, JSON, CSV, text)';
+  attachBtn.setAttribute('aria-label', 'Attach a document for the Steward to read');
+  attachBtn.addEventListener('click', () => fileInput.click());
+  const attachMsg = el('div', 'steward-chat-attach-msg');
+  attachMsg.setAttribute('role', 'status');
+  attachMsg.hidden = true;
+  fileInput.addEventListener('change', () => {
+    attachMsg.hidden = true;
+    const next = _stagedFiles.slice();
+    for (const f of Array.from(fileInput.files || [])) {
+      const err = stageFileError(f);
+      if (err) {
+        attachMsg.textContent = err;
+        attachMsg.hidden = false;
+        break;
+      }
+      next.push(f);
+    }
+    setStagedFiles(next);
+    fileInput.value = ''; // allow re-picking the same file after a remove
+  });
+
   const input = document.createElement('textarea');
   input.className = 'steward-chat-input';
   input.id = 'steward-chat-input';
@@ -309,6 +428,8 @@ function buildChatUi(panel, state) {
   const send = el('button', 'commitment-btn steward-chat-send', 'Send');
   send.type = 'button';
   send.id = 'steward-chat-send';
+  inputRow.appendChild(attachBtn);
+  inputRow.appendChild(fileInput);
   inputRow.appendChild(input);
   inputRow.appendChild(send);
 
@@ -445,6 +566,8 @@ function buildChatUi(panel, state) {
   panel.insertBefore(memWrap, chips);
   panel.insertBefore(archWrap, chips);
   panel.appendChild(thread);
+  panel.appendChild(stagedRow);
+  panel.appendChild(attachMsg);
   panel.appendChild(inputRow);
   panel.appendChild(counter);
   panel.appendChild(tools);
@@ -453,6 +576,7 @@ function buildChatUi(panel, state) {
     const isEnabled = enabled === true;
     input.disabled = !isEnabled;
     send.disabled = !isEnabled;
+    attachBtn.disabled = !isEnabled;
     input.placeholder = isEnabled
       ? "Tell the Steward what's going on, or ask anything..."
       : (configured ? 'Enable AI Steward above to start chatting.' : 'AI is not configured on this server.');

@@ -1,20 +1,26 @@
 'use strict';
 
 /* ── Milestone cutscene ─────────────────────────────────────────────────────
-   A personal easter egg for LoudFlipFlopz: whenever a balance update clears
-   $500+ of debt, the server arms a `cutsceneReady` flag (status payload). On the
-   next dashboard render we play ONE random clip fullscreen, wrapped in Steward
-   chrome, then tell the server to clear the flag so it plays only once.
+   A personal easter egg for LoudFlipFlopz: the server arms a `cutsceneReady`
+   flag (status payload) after each real action — a saved check-in, starting
+   the climb, APRs & terms, the commitment, a reconcile tick. On the next
+   dashboard render we play ONE clip fullscreen, wrapped in Steward chrome,
+   then tell the server to clear the flag so each arm plays exactly once.
+   A later action re-arms, so one page session can play several — but never
+   two at once, and never a replay of a consumed arm.
 
    The clip is served by the auth-gated route GET /api/cutscene/video, which
-   302-redirects the cutscene user to a random video and 404s everyone else. If
-   playback fails we show a graceful themed card instead of a black void.
+   404s everyone but the cutscene user. If playback fails we show a graceful
+   themed card instead of a black void.
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { stewardApiUrl } from './api.js';
 
 const VIDEO_SRC = '/api/cutscene/video';
-let _played = false;          // once per page load, even if render() runs again
+// Re-play guard: after we consume an arm, ignore `cutsceneReady` echoes from
+// status responses that were already in flight when we posted "seen".
+const REPLAY_GUARD_MS = 8000;
+let _lastPlayAt = 0;
 
 function injectStylesOnce() {
   if (document.getElementById('cutscene-style')) return;
@@ -168,7 +174,7 @@ function showCutscene() {
       <button type="button" class="cutscene-skip">Skip ▸</button>
     </div>
     <div class="cutscene-body"></div>
-    <div class="cutscene-footer">Another $500 cleared. The climb continues.</div>
+    <div class="cutscene-footer">Duly noted in the ledger. The climb continues.</div>
   `;
 
   const body = stage.querySelector('.cutscene-body');
@@ -272,13 +278,15 @@ function showCutscene() {
 }
 
 /**
- * Called from render() with the status payload. Plays one random cutscene when
- * the server has armed it (a $500+ debt drop, cutscene user only).
+ * Called from render() with the status payload. Plays one cutscene per server
+ * arm (an action by the cutscene user); a fresh arm later in the same page
+ * session plays again once the previous overlay is gone.
  */
 export function maybePlayCutscene(status) {
-  if (_played) return;
   if (!status || status.cutsceneReady !== true) return;
-  _played = true;
+  if (document.querySelector('.cutscene-overlay')) return; // never stack
+  if (Date.now() - _lastPlayAt < REPLAY_GUARD_MS) return;  // in-flight echo
+  _lastPlayAt = Date.now();
   _seenConfirmed = false;
   wireSeenBackup();   // arm the pagehide/visibility backup before playback
   void clearFlag();   // primary keepalive attempt

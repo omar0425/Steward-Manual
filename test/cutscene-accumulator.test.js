@@ -1,7 +1,9 @@
 'use strict';
 
-// Cutscene firing v2: cumulative-paydown accumulator with a debt-scaled
-// threshold, carry-over remainder, and no-repeat clip rotation.
+// Cutscene firing v3: every real action by the cutscene user arms one play
+// (saves, start-game, APRs/terms, commitment, verify, reclassify), with
+// no-repeat clip rotation. The v2 accumulator survives as pure math below —
+// still exported, still tested — but the routes no longer gate on it.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -91,30 +93,23 @@ test.beforeEach(() => {
   withUser(1, resetAllGameState);
 });
 
-test('route: accumulates across saves, fires once, rotates clips on seen', async () => {
+test('route: every save arms; seen clears; rotation advances per arm', async () => {
   // NOTE: assertions go through the API (cutsceneReady) wherever possible —
   // the shared-process test runner leaks other files' root hooks (e.g. the
   // cutscene-route suite overrides STEWARD_CUTSCENE_VIDEOS to a 1-clip pool),
   // so rotation expectations are computed from the RUNTIME pool length.
   const { cutsceneVideos } = require('../services/cutscene');
   await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+    // The very first setup save is already an action — it arms.
     await saveDebt(baseUrl, 10000);
-    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-
-    // $300 paydown at $9,700 remaining → threshold $500 → banked, no fire.
-    await saveDebt(baseUrl, 9700);
-    assert.equal(await cutsceneReady(baseUrl), false);
-
-    // Another $300 → crosses $500 → fires; first fire pins clip 0.
-    await saveDebt(baseUrl, 9400);
-    assert.equal(await cutsceneReady(baseUrl), true);
+    assert.equal(await cutsceneReady(baseUrl), true, 'a setup save arms the cutscene');
     assert.equal(withUser(1, () => getConfig('cutscene_next_index')), '0');
 
-    // Watching it clears the flag and rotates the pointer — but the PIN must
-    // survive: the client posts cutscene-seen the moment the player opens,
-    // and the <video> keeps issuing range requests afterward. Clearing the
-    // pin here made pause→resume resolve to a different clip mid-stream
-    // (broken playback). The stale pin is overwritten by the next fire.
+    // Watching it clears the flag — but the PIN must survive: the client
+    // posts cutscene-seen the moment the player opens, and the <video> keeps
+    // issuing range requests afterward. Clearing the pin here made
+    // pause→resume resolve to a different clip mid-stream (broken playback).
+    // The stale pin is overwritten by the next arm.
     await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
     assert.equal(await cutsceneReady(baseUrl), false);
     assert.equal(withUser(1, () => getConfig('cutscene_last_index')), '0');
@@ -123,15 +118,76 @@ test('route: accumulates across saves, fires once, rotates clips on seen', async
       'pinned clip index must survive cutscene-seen so mid-playback range requests stay on the same file',
     );
 
-    // Next fire advances the rotation (with a 2-clip pool that's clip 1; a
-    // 1-clip pool can only re-pick 0 — derive from whatever pool is active).
-    await saveDebt(baseUrl, 8900); // $500 drop + $100 banked → fires
-    assert.equal(await cutsceneReady(baseUrl), true);
+    // Starting the climb is an action → arms, and rotation advances (with a
+    // 2-clip pool that's clip 1; a 1-clip pool can only re-pick 0 — derive
+    // from whatever pool is active).
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(await cutsceneReady(baseUrl), true, 'start-game arms the cutscene');
     const poolLen = cutsceneVideos().length;
     assert.equal(
       withUser(1, () => getConfig('cutscene_next_index')),
       String(1 % poolLen),
     );
+    await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+
+    // A small paydown — under the old $500 threshold — still arms: the
+    // reward follows the action now, not the amount.
+    await saveDebt(baseUrl, 9900);
+    assert.equal(await cutsceneReady(baseUrl), true, 'any successful save arms, regardless of amount');
+  });
+});
+
+test('route: APRs, terms, commitment, reclassify, and verify all arm', async () => {
+  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+    await saveDebt(baseUrl, 10000);
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    const seen = () => fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+    await seen();
+
+    const post = (path, body) => fetch(`${baseUrl}/api${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const arms = [
+      ['/config/interest-rates', { rates: { visa: 24.99 } }],
+      ['/config/debt-terms', { terms: { visa: { minPayment: 35, dueDay: 12 } } }],
+      ['/config/promise', { text: 'Out of the pit this year.' }],
+      ['/debt-account/verify', { id: 'visa' }],
+    ];
+    for (const [path, body] of arms) {
+      const res = await post(path, body);
+      assert.equal(res.status, 200, `${path} succeeds`);
+      assert.equal(await cutsceneReady(baseUrl), true, `${path} arms the cutscene`);
+      await seen();
+    }
+
+    // Reclassify needs "new debt added" on the books: raise a balance as a
+    // purchase first (that save arms — consume it), then move it to interest.
+    const up = await post('/snapshot', {
+      totalDebt: 10200,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10200 }],
+      classifications: { visa: 'purchase' },
+    });
+    assert.equal(up.status, 200);
+    await seen();
+    const rec = await post('/climb/reclassify-added-debt', { amount: 200, kind: 'interest' });
+    assert.equal(rec.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), true, 'reclassify arms the cutscene');
+  });
+});
+
+test('route: passive reads and seen-acks never arm', async () => {
+  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+    await saveDebt(baseUrl, 10000);
+    await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+    // Reading status / config endpoints must not re-arm — otherwise the
+    // dashboard's own polling would loop the video forever.
+    await fetch(`${baseUrl}/api/status`);
+    await fetch(`${baseUrl}/api/config/interest-rates`);
+    await fetch(`${baseUrl}/api/config/promise`);
+    assert.equal(await cutsceneReady(baseUrl), false, 'reads must not arm');
   });
 });
 
@@ -190,37 +246,20 @@ test('route: pause→resume serves the SAME clip after cutscene-seen (byte-level
   }
 });
 
-test('route: never fires for other users, no matter the drop', async () => {
+test('route: never fires for other users, no matter what they do', async () => {
   await withApp('SomebodyElse', async (baseUrl) => {
     await saveDebt(baseUrl, 10000);
+    assert.equal(await cutsceneReady(baseUrl), false, 'saves never arm for other accounts');
     await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    await saveDebt(baseUrl, 4000); // $6,000 in one save
+    assert.equal(await cutsceneReady(baseUrl), false, 'start-game never arms for other accounts');
+    await saveDebt(baseUrl, 4000); // even a $6,000 paydown
     assert.equal(await cutsceneReady(baseUrl), false);
-    assert.equal(withUser(1, () => getConfig('cutscene_paydown_bucket')), null, 'no bucket is even created');
-  });
-});
-
-test('route: end-game taper — a $150 payment fires when only $1,200 is left', async () => {
-  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
-    await saveDebt(baseUrl, 1350);
-    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    // $150 drop, $1,200 remaining → threshold = max(100, 10%·1200) = $120 → fires.
-    await saveDebt(baseUrl, 1200);
-    assert.equal(await cutsceneReady(baseUrl), true);
-  });
-});
-
-test('route: undo takes back the banked credit', async () => {
-  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
-    await saveDebt(baseUrl, 10000);
-    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    await saveDebt(baseUrl, 9700); // banks $300 (no fire: threshold $500)
-    const res = await fetch(`${baseUrl}/api/climb/undo-last`, { method: 'POST' });
-    assert.equal(res.status, 200);
-    // Behavioral contract: with the $300 credit reverted, another $300 save
-    // stays under the threshold — no fire. (Were the bucket NOT reverted,
-    // this save would cross $500 and fire.)
-    await saveDebt(baseUrl, 9700);
-    assert.equal(await cutsceneReady(baseUrl), false, 'undo must revert banked cutscene credit');
+    const rates = await fetch(`${baseUrl}/api/config/interest-rates`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rates: { visa: 19.99 } }),
+    });
+    assert.equal(rates.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false, 'APR saves never arm for other accounts');
   });
 });

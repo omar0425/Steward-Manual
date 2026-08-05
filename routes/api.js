@@ -52,7 +52,6 @@ const {
   isCutsceneUser,
   selectCutsceneVideo,
   cutsceneVideos,
-  accumulateCutsceneProgress,
   nextCutsceneIndex,
 } = require('../services/cutscene');
 const { cachedPathIfReady, ensureCached } = require('../services/cutsceneCache');
@@ -215,6 +214,9 @@ router.get('/status', (req, res) => {
       lastError: null,
       aiAvailable: stewardAi.isConfigured(),
       aiEnabled: stewardAiEnabledForUser(),
+      // Setup saves arm the cutscene too (cutscene user only) — surface the
+      // flag here as well, or the reward never plays before start-game.
+      cutsceneReady: getConfig('pending_cutscene') === '1',
       stats: {
         debtRemaining: snap.debt_remaining,
         totalDebt: snap.total_debt,
@@ -691,6 +693,22 @@ function bad(error) {
 }
 
 /**
+ * Arm the one-shot cutscene for the cutscene user; a silent no-op for every
+ * other account. Sets the pending flag and pins the next clip in rotation
+ * (pinning at ARM time keeps every range request of one playback on the same
+ * file). Called from each "the player did a real thing" write path, so the
+ * reward follows the action itself. Must run inside withUser().
+ */
+function armCutscene(username) {
+  if (!isCutsceneUser(username)) return false;
+  setConfig('pending_cutscene', '1');
+  const last = parseInt(getConfig('cutscene_last_index') ?? '', 10);
+  const next = nextCutsceneIndex(last, cutsceneVideos().length);
+  if (next != null) setConfig('cutscene_next_index', String(next));
+  return true;
+}
+
+/**
  * The full snapshot write path — validation, financial-field preservation,
  * origin/classification bookkeeping, the atomic transaction, undo capture,
  * climb metrics, celebrations. Extracted from the route so the Steward AI's
@@ -937,16 +955,10 @@ function saveSnapshotForUser(rawBody, username) {
       safety_liquid:    safetyLiquid,
     });
 
-    // Previous total debt, captured before any mutation, so we can tell if this
-    // update cleared $500+ (the cutscene trigger).
-    let prevTotalDebtForCutscene = null;
-
     // Update per-account debt tracking. During setup this is inventory only;
     // climb metrics begin after POST /api/start-game locks the baseline.
     if (accountsProvided) {
       const prevBalances = getAllDebtAccountBalances();
-      prevTotalDebtForCutscene = 0;
-      for (const v of prevBalances.values()) prevTotalDebtForCutscene += Number(v) || 0;
 
       // Snapshot the pre-pull state so a wrong entry can be undone exactly.
       // Captured before any mutation, only while the climb is running.
@@ -982,14 +994,6 @@ function saveSnapshotForUser(rawBody, username) {
           setConfig('pending_account_cleared', JSON.stringify(clearedNow));
         }
 
-        // Removing an account means "stop tracking it", not "I paid it off".
-        // Reward only real balance reductions on accounts still in this pull.
-        let creditedDrop = 0;
-        for (const [id, bal] of debtBalanceMap) {
-          const prevBal = Number(prevBalances.get(id));
-          if (Number.isFinite(prevBal) && prevBal > bal) creditedDrop += prevBal - bal;
-        }
-        prevTotalDebtForCutscene = debtRemaining + roundMoney(creditedDrop);
       }
 
       // Build display rows for the debt sync debug
@@ -1013,7 +1017,6 @@ function saveSnapshotForUser(rawBody, username) {
       captureUndoState(snapshotId, getAllDebtAccountBalances());
       const climb = getClimbStatsFromConfig();
       const lastDebt = climb.lastAggregateDebt;
-      if (Number.isFinite(lastDebt)) prevTotalDebtForCutscene = lastDebt;
       if (Number.isFinite(lastDebt) && lastDebt > 0) {
         const delta = roundMoney(debtRemaining - lastDebt);
         if (delta < 0) {
@@ -1027,26 +1030,14 @@ function saveSnapshotForUser(rawBody, username) {
       setConfig('last_aggregate_debt_for_climb', String(debtRemaining));
     }
 
-    // Cutscene trigger (cutscene user only): cumulative paydown accumulates
-    // across saves and fires when it crosses a threshold scaled to the debt
-    // still owed ($500 early, tapering to $100 near the end) — so splitting a
-    // payment over several Quick Updates earns exactly the same reward, and
-    // the videos never go silent at the finish line. The remainder past the
-    // threshold carries toward the next fire. Clips rotate (never the same
-    // one twice in a row); the chosen index is pinned at arm time so every
-    // range request of one playback resolves to the same file.
-    if (gameActive && Number.isFinite(prevTotalDebtForCutscene) && isCutsceneUser(username)) {
-      const drop = roundMoney(prevTotalDebtForCutscene - debtRemaining);
-      const bucketBefore = Number(getConfig('cutscene_paydown_bucket'));
-      const result = accumulateCutsceneProgress(bucketBefore, drop, debtRemaining);
-      if (result.fire) {
-        setConfig('pending_cutscene', '1');
-        const last = parseInt(getConfig('cutscene_last_index') ?? '', 10);
-        const next = nextCutsceneIndex(last, cutsceneVideos().length);
-        if (next != null) setConfig('cutscene_next_index', String(next));
-      }
-      setConfig('cutscene_paydown_bucket', String(result.bucket));
-    }
+    // Cutscene trigger (cutscene user only): every successful save earns a
+    // moment — entering balances IS the habit the app exists to reward, so
+    // the reel follows the action itself rather than a paydown threshold.
+    // (The old $500-accumulator lives on as tested pure math in
+    // services/cutscene.js.) Clips rotate — never the same one twice in a
+    // row — and the chosen index is pinned at arm time so every range
+    // request of one playback resolves to the same file.
+    armCutscene(username);
     }); // end transaction — snapshot + balances + history + climb metrics commit together
 
     const response = {
@@ -1102,6 +1093,7 @@ router.post('/start-game', (req, res) => {
       });
     }
     initGameState(snap.debt_remaining, snap.pulled_at);
+    armCutscene(req.user && req.user.username); // starting the climb is the biggest action of all
     const { gameStartDebt, gameStartAt } = getGameStart();
     return res.json({ ok: true, gameStartDebt, gameStartAt });
   } catch (err) {
@@ -1158,6 +1150,7 @@ router.post('/config/interest-rates', express.json(), (req, res) => {
     clean[String(id)] = Math.round(n * 100) / 100;
   }
   setConfig(INTEREST_RATES_KEY, JSON.stringify(clean));
+  armCutscene(req.user && req.user.username);
   res.json({ ok: true, rates: clean });
 });
 
@@ -1207,6 +1200,7 @@ router.post('/config/debt-terms', express.json(), (req, res) => {
     if (Object.keys(out).length > 0) clean[String(id).slice(0, 100)] = out;
   }
   setConfig(DEBT_TERMS_KEY, JSON.stringify(clean));
+  armCutscene(req.user && req.user.username);
   res.json({ ok: true, terms: clean });
 });
 
@@ -1286,6 +1280,7 @@ router.post('/climb/reclassify-added-debt', express.json(), (req, res) => {
     // AI dialog/quote so the Steward re-reads the corrected figures next time.
     deleteConfigByPrefix('steward_ai_dialog_at:');
     deleteConfigByPrefix('steward_ai_quote_at:');
+    armCutscene(req.user && req.user.username);
     return res.json({ ok: true, moved: result.moved, kind: result.kind, stats: getClimbStatsFromConfig() });
   } catch (err) {
     console.error('[api] reclassify-added-debt', err);
@@ -1309,6 +1304,7 @@ router.post('/debt-account/verify', express.json(), (req, res) => {
     if (!verifiedAt) {
       return res.status(404).json({ ok: false, error: 'No tracked account with that id.' });
     }
+    armCutscene(req.user && req.user.username);
     return res.json({ ok: true, id, verifiedAt });
   } catch (err) {
     console.error('[api] debt-account/verify', err);
@@ -1367,6 +1363,7 @@ router.post('/config/promise', express.json(), (req, res) => {
   if (text != null) {
     setConfig(PROMISE_TEXT_KEY, text.trim().slice(0, PROMISE_TEXT_MAX));
   }
+  armCutscene(req.user && req.user.username);
   res.json({
     ok: true,
     made: true,
@@ -2205,11 +2202,86 @@ function readChatHistory() {
   const arr = parseJsonArray(getConfig(CHAT_HISTORY_KEY));
   return arr
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string')
-    .map((m) => ({ role: m.role, text: m.text.slice(0, 2000), at: typeof m.at === 'string' ? m.at : null }));
+    .map((m) => ({
+      role: m.role,
+      text: m.text.slice(0, 2000),
+      at: typeof m.at === 'string' ? m.at : null,
+      // Names only — the document bytes are never persisted, they ride along
+      // for the one turn they were attached to and are gone after the call.
+      ...(Array.isArray(m.attachments) && m.attachments.length
+        ? { attachments: m.attachments.filter((n) => typeof n === 'string').slice(0, 3).map((n) => n.slice(0, 120)) }
+        : {}),
+    }));
 }
 
 function writeChatHistory(history) {
   setConfig(CHAT_HISTORY_KEY, JSON.stringify(history.slice(-CHAT_MAX_TURNS)));
+}
+
+// ── Chat document attachments ─────────────────────────────────────────────────
+// The player can hand the Steward real documents — a card statement PDF, an
+// exported JSON/CSV, a photo of a bill — and it reads them and acts through
+// its normal tools. Hard-bounded: this is a chat sidecar, not a file store.
+// Bytes live only inside the one request that carried them; history keeps
+// names alone.
+const ATTACH_MAX_FILES = 3;
+const ATTACH_MAX_BYTES = 6 * 1024 * 1024;   // per file, decoded
+const ATTACH_MAX_TOTAL = 12 * 1024 * 1024;  // per message, decoded
+const ATTACH_TEXT_MAX_CHARS = 60000;        // inlined text/JSON/CSV cap per file
+const ATTACH_KINDS = {
+  'application/pdf': 'pdf',
+  'image/png': 'image',
+  'image/jpeg': 'image',
+  'image/webp': 'image',
+  'image/gif': 'image',
+  'application/json': 'text',
+  'text/plain': 'text',
+  'text/csv': 'text',
+  'text/markdown': 'text',
+};
+
+/**
+ * Validate + normalize the attachments array from a chat POST. Returns
+ * { ok: true, attachments } — kind 'pdf'/'image' keep base64 `data`, kind
+ * 'text' is decoded to a capped utf-8 `text` — or { ok: false, error }.
+ */
+function sanitizeChatAttachments(raw) {
+  if (raw === undefined || raw === null) return { ok: true, attachments: [] };
+  if (!Array.isArray(raw)) return { ok: false, error: 'attachments must be an array.' };
+  if (raw.length > ATTACH_MAX_FILES) {
+    return { ok: false, error: `At most ${ATTACH_MAX_FILES} files per message.` };
+  }
+  const attachments = [];
+  let totalBytes = 0;
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') return { ok: false, error: 'Malformed attachment.' };
+    const name = String(item.name || 'document').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 120) || 'document';
+    const kind = ATTACH_KINDS[item.mediaType];
+    if (!kind) {
+      return { ok: false, error: `"${name}": unsupported type. Send a PDF, an image, or a JSON/CSV/text file.` };
+    }
+    if (typeof item.data !== 'string' || !item.data) {
+      return { ok: false, error: `"${name}": missing file data.` };
+    }
+    let buf;
+    try { buf = Buffer.from(item.data, 'base64'); } catch { buf = null; }
+    if (!buf || buf.length === 0) return { ok: false, error: `"${name}": unreadable file data.` };
+    if (buf.length > ATTACH_MAX_BYTES) {
+      return { ok: false, error: `"${name}" is too big — keep each file under ${Math.round(ATTACH_MAX_BYTES / (1024 * 1024))} MB.` };
+    }
+    totalBytes += buf.length;
+    if (totalBytes > ATTACH_MAX_TOTAL) {
+      return { ok: false, error: 'The attachments together are too big for one message.' };
+    }
+    if (kind === 'text') {
+      attachments.push({ kind, name, text: buf.toString('utf8').slice(0, ATTACH_TEXT_MAX_CHARS) });
+    } else {
+      // Re-encode from the decoded bytes so whatever whitespace/URL-safe
+      // variants the client sent reach the model as clean standard base64.
+      attachments.push({ kind, name, mediaType: item.mediaType, data: buf.toString('base64') });
+    }
+  }
+  return { ok: true, attachments };
 }
 
 router.get('/steward-ai/chat', (req, res) => {
@@ -2225,7 +2297,9 @@ router.get('/steward-ai/chat', (req, res) => {
   });
 });
 
-router.post('/steward-ai/chat', express.json(), (req, res) => {
+// Body limit sized for attachments (base64-inflated PDFs/photos), not prose —
+// the message itself still caps at CHAT_MAX_MSG_CHARS below.
+router.post('/steward-ai/chat', express.json({ limit: '18mb' }), (req, res) => {
   (async () => {
     try {
       const { message } = req.body || {};
@@ -2234,6 +2308,10 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
       }
       if (message.length > CHAT_MAX_MSG_CHARS) {
         return res.status(400).json({ ok: false, error: `Keep it under ${CHAT_MAX_MSG_CHARS} characters.` });
+      }
+      const attach = sanitizeChatAttachments(req.body && req.body.attachments);
+      if (!attach.ok) {
+        return res.status(400).json({ ok: false, error: attach.error });
       }
       if (!stewardAi.isConfigured()) {
         return res.status(503).json({ ok: false, error: 'The Steward is asleep — no AI key is configured on the server.' });
@@ -2253,13 +2331,20 @@ router.post('/steward-ai/chat', express.json(), (req, res) => {
         });
       }
       const history = readChatHistory();
-      history.push({ role: 'user', text: message.trim(), at: new Date().toISOString() });
+      history.push({
+        role: 'user',
+        text: message.trim(),
+        at: new Date().toISOString(),
+        ...(attach.attachments.length ? { attachments: attach.attachments.map((a) => a.name) } : {}),
+      });
       const username = req.user && req.user.username;
       const result = await stewardAi.generateChatReplyWithTools({
         history: history.slice(-CHAT_MAX_TURNS),
         payload: ctx.payload,
         tools: STEWARD_AI_TOOLS,
         executeTool: (name, input) => executeStewardTool(name, input, username),
+        // Bytes for THIS turn only — history persists the names, never the data.
+        attachments: attach.attachments,
       });
       if (!result || !result.ok || !result.text) {
         return res.status(200).json({ ok: false, error: 'The Steward could not answer just now. Try again in a moment.' });
