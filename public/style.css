@@ -2591,6 +2591,13 @@ body[data-setup-mode="first"] .setup-welcome {
   justify-content: center;
   z-index: 9999;
   padding: 20px;
+  /* A tall card (e.g. the classify step with many accounts) must stay
+     reachable on a phone: let the overlay itself scroll instead of clipping
+     the card top and bottom, and keep the swipe from chaining to the page
+     behind the dim. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .paydown-confirm-card {
   background: var(--bg-2, #1a1a2e);
@@ -2599,6 +2606,10 @@ body[data-setup-mode="first"] .setup-welcome {
   padding: 24px 28px;
   max-width: 440px;
   width: 100%;
+  /* Auto margins beat align-items:center in flexbox: the card stays centered
+     when it fits, but pins to the top and scrolls when it's taller than the
+     screen — align-items:center alone would clip both ends unreachably. */
+  margin: auto;
 }
 .paydown-confirm-title {
   font-family: 'Cormorant Garamond', serif;
