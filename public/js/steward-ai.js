@@ -19,20 +19,24 @@ import { createModalController } from './dialog.js';
 
 const SEEN_KEY = 'steward-ai-seen-at';
 
-/* Compact holographic AI Steward badge for the dialog card — same rig as the
-   chat header, reskinned via data-skin="ai", mirroring the current tier. Purely
-   decorative (aria-hidden); the title + body carry the meaning. */
+/* Compact holographic AI Steward badge — same rig as the hero, reskinned via
+   data-skin="ai", mirroring the current tier. Purely decorative (aria-hidden);
+   the surrounding title/body carry the meaning. Fronts the AI dialog cards at
+   full size and the chat panel header at a reduced `size` (every dimension of
+   the framed crop scales together, so the portrait keeps its composition). */
 function currentStewardState() {
   const card = document.getElementById('hero-state-card');
   return (card && card.dataset && card.dataset.state) || 'building';
 }
 
-function buildAiStewardBadge() {
+export function buildAiStewardBadge({ size = 1, margin = '0 auto 12px' } = {}) {
+  const w = Math.round(76 * size);
+  const h = Math.round(92 * size);
   const badge = document.createElement('div');
   badge.className = 'steward-ai-badge';
   badge.setAttribute('aria-hidden', 'true');
-  badge.style.cssText = 'display:block;margin:0 auto 12px;width:76px;height:92px;position:relative;overflow:hidden;'
-    + 'border-radius:14px;background:radial-gradient(circle at 50% 30%,#0b2f6e,#04122e);'
+  badge.style.cssText = `display:block;margin:${margin};width:${w}px;height:${h}px;position:relative;overflow:hidden;`
+    + `border-radius:${Math.round(14 * size)}px;background:radial-gradient(circle at 50% 30%,#0b2f6e,#04122e);`
     + 'box-shadow:0 0 0 1px rgba(76,201,240,0.35),0 0 14px rgba(76,201,240,0.2);';
   const wrap = buildSteward(currentStewardState(), { skin: 'ai' });
   if (!wrap) return null;
@@ -40,7 +44,8 @@ function buildAiStewardBadge() {
   if (charEl) charEl.removeAttribute('aria-label');
   wrap.style.setProperty('--scene-shift-y', '60px');
   const inner = document.createElement('div');
-  inner.style.cssText = 'position:absolute;left:50%;top:5px;transform:translateX(-50%) scale(0.46);transform-origin:top center;';
+  inner.style.cssText = `position:absolute;left:50%;top:${(5 * size).toFixed(1)}px;`
+    + `transform:translateX(-50%) scale(${(0.46 * size).toFixed(3)});transform-origin:top center;`;
   inner.appendChild(wrap);
   badge.appendChild(inner);
   return badge;
