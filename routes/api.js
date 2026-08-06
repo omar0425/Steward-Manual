@@ -79,6 +79,7 @@ const {
   setLastDebtSyncDebug,
   persistLastDebtSyncDebugSnapshot,
   perAccountDebtDeltaDisplayRows,
+  splitIncreaseByClassification,
   buildCorrectedDebtSeries,
   recentCorrectedSnapshots,
   roundMoney,
@@ -860,7 +861,21 @@ function saveSnapshotForUser(rawBody, username) {
     const increaseClassifications = {};
     if (classifications && typeof classifications === 'object' && !Array.isArray(classifications)) {
       for (const [id, cat] of Object.entries(classifications)) {
-        if (typeof cat === 'string') increaseClassifications[String(id)] = cat;
+        if (typeof cat === 'string') {
+          increaseClassifications[String(id)] = cat;
+        } else if (cat && typeof cat === 'object' && !Array.isArray(cat)) {
+          // Split form: one rise can be part interest, part spending — e.g.
+          // { interest: 30, purchase: 50 }. Keep only known reasons with
+          // positive dollar parts; routing/scaling happens in climb metrics.
+          const split = {};
+          for (const [reason, raw] of Object.entries(cat)) {
+            const val = Number(raw);
+            if (CLASSIFICATION_REASONS.includes(reason) && Number.isFinite(val) && val > 0) {
+              split[reason] = Math.round(val * 100) / 100;
+            }
+          }
+          if (Object.keys(split).length > 0) increaseClassifications[String(id)] = split;
+        }
       }
     }
     for (const rawId of Array.isArray(preexistingAccountIds) ? preexistingAccountIds : []) {
@@ -1000,17 +1015,23 @@ function saveSnapshotForUser(rawBody, username) {
         }
 
         // Net this pull's credited movement: paydown on tracked accounts
-        // counts FOR, classified increases count AGAINST — except
-        // 'preexisting' (debt they always had, only now reported: that is
-        // bookkeeping, not backsliding). A removed account is "stop
+        // counts FOR, classified increases count AGAINST — except the
+        // 'preexisting' share (debt they always had, only now reported: that
+        // is bookkeeping, not backsliding). A rise may be a SPLIT (part
+        // interest, part spending, part preexisting) — only its
+        // non-preexisting shares count against. A removed account is "stop
         // tracking", neither. Unclassified rises and unflagged new accounts
         // count against, matching how the climb metrics read them.
         let credited = 0;
         for (const [id, bal] of debtBalanceMap) {
           const prevBal = Number(prevBalances.get(id));
           const delta = Number.isFinite(prevBal) ? roundMoney(prevBal - bal) : -bal;
-          if (delta < 0 && increaseClassifications[String(id)] === 'preexisting') continue;
-          credited = roundMoney(credited + delta);
+          if (delta < 0) {
+            const shares = splitIncreaseByClassification(increaseClassifications[String(id)], -delta);
+            credited = roundMoney(credited - shares.interest - shares.new);
+          } else {
+            credited = roundMoney(credited + delta);
+          }
         }
         cutsceneWorthy = credited >= 0;
       }
@@ -1866,7 +1887,9 @@ const STEWARD_AI_TOOLS = [
       'Record new balances for one or more EXISTING debt accounts (a payment, an interest hit, ' +
       'a purchase, or a corrected figure). Balances are the amount still owed. This creates a ' +
       'check-in entry exactly like the player updating balances themselves, and it is undoable. ' +
-      'For a balance that INCREASED, set reason so the rise is classified honestly.',
+      'For a balance that INCREASED, set reason so the rise is classified honestly — or, when ' +
+      'one rise has several causes at once (e.g. "$30 interest posted and I spent $50"), set ' +
+      'split with the dollar part of each cause instead.',
     input_schema: {
       type: 'object',
       properties: {
@@ -1881,7 +1904,18 @@ const STEWARD_AI_TOOLS = [
               reason: {
                 type: 'string',
                 enum: CLASSIFICATION_REASONS,
-                description: 'Only for increases: purchase (new spending), new_loan, interest (interest charged), or preexisting (debt that existed all along, just now reported).',
+                description: 'Only for increases with a single cause: purchase (new spending), new_loan, interest (interest charged), or preexisting (debt that existed all along, just now reported).',
+              },
+              split: {
+                type: 'object',
+                description: 'Only for increases with several causes at once: the dollar part of each. Keys are the reasons, values are dollars; the parts must add up to the rise. Example: { "interest": 30, "purchase": 50 } for an $80 rise. Use INSTEAD of reason, never both.',
+                properties: {
+                  purchase: { type: 'number' },
+                  new_loan: { type: 'number' },
+                  interest: { type: 'number' },
+                  preexisting: { type: 'number' },
+                },
+                additionalProperties: false,
               },
             },
             required: ['account', 'newBalance'],
@@ -2031,18 +2065,46 @@ function executeStewardTool(name, input, username) {
       const prev = acct.balance;
       acct.balance = Math.round(newBal);
       if (acct.balance > prev) {
+        const rise = acct.balance - prev;
         // An unclassified rise silently becomes "new debt added" and reads as
         // backsliding. The manual form disables save until every increase is
         // classified; hold the model to the same bar rather than guessing.
-        if (!CLASSIFICATION_REASONS.includes(ch.reason)) {
+        // A rise with several causes at once arrives as a split of dollar
+        // parts — validate the parts land on the actual rise before recording.
+        if (ch.split && typeof ch.split === 'object' && !Array.isArray(ch.split)) {
+          const split = {};
+          let partsSum = 0;
+          for (const [reason, raw] of Object.entries(ch.split)) {
+            const val = Number(raw);
+            if (!CLASSIFICATION_REASONS.includes(reason)) {
+              return { ok: false, error: `Unknown split reason "${reason}" on ${acct.name}. Use: ${CLASSIFICATION_REASONS.join(', ')}.` };
+            }
+            if (!Number.isFinite(val) || val <= 0) continue;
+            split[reason] = Math.round(val * 100) / 100;
+            partsSum += split[reason];
+          }
+          if (Object.keys(split).length === 0) {
+            return { ok: false, error: `The split on ${acct.name} has no positive dollar parts. Nothing was recorded.` };
+          }
+          if (Math.abs(partsSum - rise) > 1) {
+            return {
+              ok: false,
+              error: `The split on ${acct.name} adds to ${fmtUsd(partsSum)} but the balance rose ${fmtUsd(rise)}. `
+                + 'The parts must add up to the rise. Ask the player, then re-record. Nothing was recorded.',
+            };
+          }
+          classifications[acct.id] = split;
+        } else if (CLASSIFICATION_REASONS.includes(ch.reason)) {
+          classifications[acct.id] = ch.reason;
+        } else {
           return {
             ok: false,
-            error: `${acct.name} went UP by ${fmtUsd(acct.balance - prev)}. Ask the player what caused it, then `
+            error: `${acct.name} went UP by ${fmtUsd(rise)}. Ask the player what caused it, then `
               + 'set reason on that change: interest (interest or fees charged), purchase (new spending), '
-              + 'new_loan, or preexisting (debt they always had, only now reported). Nothing was recorded.',
+              + 'new_loan, or preexisting (debt they always had, only now reported) — or split when it was '
+              + 'several of those at once. Nothing was recorded.',
           };
         }
-        classifications[acct.id] = ch.reason;
       }
       const delta = Math.round(prev - acct.balance);
       const move = delta > 0 ? `paid down ${fmtUsd(delta)}` : delta < 0 ? `up ${fmtUsd(-delta)}` : 'unchanged';

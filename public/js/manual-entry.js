@@ -651,6 +651,16 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
             <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="interest"> Interest or fees</label>
             <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="new_loan"> A new loan I took on</label>
             <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="preexisting"> Debt I already had (forgot to log)</label>
+            <label><input type="radio" name="classify-${escHtml(String(a.id))}" value="split"> More than one of these — split it</label>
+          </div>
+          <div class="paydown-split-fields" data-split-for="${escHtml(String(a.id))}" data-split-total="${Math.round(a.amount)}" hidden>
+            ${[['interest', 'Interest or fees'], ['purchase', 'Purchase / spending'], ['new_loan', 'New loan'], ['preexisting', 'Already had it']].map(([val, label]) => `
+              <label class="paydown-split-field">
+                <span class="paydown-split-label">${label}</span>
+                <span class="paydown-split-input-wrap">$<input type="number" class="paydown-split-input" data-split-reason="${val}" min="0" step="1" inputmode="numeric" placeholder="0" aria-label="${label} portion of the increase, in dollars"></span>
+              </label>
+            `).join('')}
+            <p class="paydown-split-status" role="status" data-split-status></p>
           </div>
         </div>
       `).join('')}
@@ -673,22 +683,73 @@ function showPaydownConfirmation(summary, newAccounts, onConfirm) {
   document.body.appendChild(overlay);
   let modalController = null;
 
-  // Save stays disabled until every new account is classified.
+  // Save stays disabled until every increase is classified — and a "split it"
+  // choice additionally needs its dollar parts to add up to the increase.
   const saveBtnEl = overlay.querySelector('.paydown-confirm-save');
   const radios = Array.from(overlay.querySelectorAll('.paydown-classify-opts input[type="radio"]'));
+
+  function splitFieldsFor(id) {
+    return overlay.querySelector(`.paydown-split-fields[data-split-for="${CSS.escape(String(id))}"]`);
+  }
+  /** Read one account's split inputs → { parts, sum } (positive parts only). */
+  function readSplit(id) {
+    const wrap = splitFieldsFor(id);
+    const parts = {};
+    let sum = 0;
+    if (!wrap) return { parts, sum };
+    for (const input of wrap.querySelectorAll('.paydown-split-input')) {
+      const v = Math.round(parseFloat(input.value));
+      if (Number.isFinite(v) && v > 0) {
+        parts[input.dataset.splitReason] = v;
+        sum += v;
+      }
+    }
+    return { parts, sum };
+  }
+  /** A split selection is complete when its parts land on the exact increase. */
+  function splitOk(a) {
+    const { parts, sum } = readSplit(a.id);
+    return Object.keys(parts).length > 0 && sum === Math.round(a.amount);
+  }
+  function syncSplitUi(a) {
+    const wrap = splitFieldsFor(a.id);
+    if (!wrap) return;
+    const checked = overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`);
+    const isSplit = !!(checked && checked.value === 'split');
+    wrap.hidden = !isSplit;
+    if (!isSplit) return;
+    const { sum } = readSplit(a.id);
+    const total = Math.round(a.amount);
+    const status = wrap.querySelector('[data-split-status]');
+    if (status) {
+      const left = total - sum;
+      status.textContent =
+        left === 0 ? '✓ Adds up.' :
+        left > 0 ? `$${left.toLocaleString()} of the $${total.toLocaleString()} still unassigned.` :
+        `$${(-left).toLocaleString()} over — the parts must add up to $${total.toLocaleString()}.`;
+      status.classList.toggle('paydown-split-status--ok', left === 0);
+    }
+  }
   function allClassified() {
-    return toClassify.every(a => overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`));
+    return toClassify.every(a => {
+      const checked = overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`);
+      if (!checked) return false;
+      return checked.value === 'split' ? splitOk(a) : true;
+    });
   }
   function refreshSaveEnabled() {
     if (saveBtnEl) saveBtnEl.disabled = toClassify.length > 0 && !allClassified();
+    toClassify.forEach(syncSplitUi);
   }
   radios.forEach(r => r.addEventListener('change', refreshSaveEnabled));
+  overlay.querySelectorAll('.paydown-split-input').forEach(i => i.addEventListener('input', refreshSaveEnabled));
   refreshSaveEnabled();
   function collectClassifications() {
     const out = {};
     for (const a of toClassify) {
       const checked = overlay.querySelector(`input[name="classify-${CSS.escape(String(a.id))}"]:checked`);
-      if (checked && checked.value) out[String(a.id)] = checked.value;
+      if (!checked || !checked.value) continue;
+      out[String(a.id)] = checked.value === 'split' ? readSplit(a.id).parts : checked.value;
     }
     return out;
   }

@@ -131,6 +131,44 @@ test('update_debt_balances: increase classifications route to the climb buckets'
   });
 });
 
+test('update_debt_balances: a split rise routes each dollar part to its own bucket', async () => {
+  await withApp(async (baseUrl) => {
+    await seedClimb(baseUrl);
+    // "$30 interest posted AND I put $60 on it" — one rise, two causes.
+    const out = run(() => executeStewardTool('update_debt_balances', {
+      changes: [{ account: 'Visa', newBalance: 6090, split: { interest: 30, purchase: 60 } }],
+    }, 'ToolTester'));
+    assert.equal(out.ok, true, JSON.stringify(out));
+    const stats = run(() => getClimbStatsFromConfig());
+    assert.equal(stats.cumulativeInterestAccrued, 30, 'the interest part lands in interest');
+    assert.equal(stats.cumulativeNewDebtAdded, 60, 'the spending part lands in new debt');
+  });
+});
+
+test('update_debt_balances: a split that does not add up to the rise is refused', async () => {
+  await withApp(async (baseUrl) => {
+    await seedClimb(baseUrl);
+
+    const short = run(() => executeStewardTool('update_debt_balances', {
+      changes: [{ account: 'Visa', newBalance: 6090, split: { interest: 30, purchase: 20 } }],
+    }, 'ToolTester'));
+    assert.equal(short.ok, false);
+    assert.match(short.error, /adds to \$50.*rose \$90/s);
+    assert.equal(run(() => getAllDebtAccountBalances()).get('visa'), 6000, 'nothing recorded');
+
+    const junkReason = run(() => executeStewardTool('update_debt_balances', {
+      changes: [{ account: 'Visa', newBalance: 6090, split: { gambling: 90 } }],
+    }, 'ToolTester'));
+    assert.equal(junkReason.ok, false);
+    assert.match(junkReason.error, /Unknown split reason/);
+
+    const emptySplit = run(() => executeStewardTool('update_debt_balances', {
+      changes: [{ account: 'Visa', newBalance: 6090, split: {} }],
+    }, 'ToolTester'));
+    assert.equal(emptySplit.ok, false);
+  });
+});
+
 test('update_debt_balances: an unexplained increase is refused, not filed as new debt', async () => {
   await withApp(async (baseUrl) => {
     await seedClimb(baseUrl);

@@ -316,3 +316,49 @@ test('route: never fires for other users, no matter what they do', async () => {
     assert.equal(await cutsceneReady(baseUrl), false, 'APR saves never arm for other accounts');
   });
 });
+
+test('route: a split rise counts only its non-preexisting shares against the reel', async () => {
+  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+    const post = (path, body) => fetch(`${baseUrl}/api${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const seen = () => fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+
+    await saveDebt(baseUrl, 10000);
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    await seen();
+
+    // Up $80 = $30 interest + $50 spending → real backslide → no video.
+    let res = await post('/snapshot', {
+      totalDebt: 10080,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10080 }],
+      classifications: { visa: { interest: 30, purchase: 50 } },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false, 'an interest+purchase split must not arm');
+
+    // Up $200 = $190 forgot-to-log + $10 interest → the $10 is the only real
+    // movement against them, and nothing offsets it → still quiet.
+    res = await post('/snapshot', {
+      totalDebt: 10280,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10280 }],
+      classifications: { visa: { preexisting: 190, interest: 10 } },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false);
+
+    // A $100 payment while $20 of split interest posts elsewhere → net win → video.
+    res = await post('/snapshot', {
+      totalDebt: 10200,
+      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10200 }],
+      classifications: { visa: { interest: 20, preexisting: 20 } },
+    });
+    // 10280 → 10200 is a $80 net drop with a $40 classified rise inside it?
+    // No — one account: the balance FELL $80, so there is nothing to classify;
+    // classifications on a decrease are ignored and the drop arms.
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), true, 'a net paydown still arms');
+  });
+});

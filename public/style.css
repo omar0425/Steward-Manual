@@ -2718,6 +2718,49 @@ body[data-setup-mode="first"] .setup-welcome {
   cursor: pointer;
 }
 .paydown-classify-opts input[type="radio"] { accent-color: var(--gold); flex-shrink: 0; }
+/* "Split it" — one rise, several causes: dollar inputs per cause that must
+   add up to the increase before Save unlocks. */
+.paydown-split-fields {
+  margin: 8px 0 4px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.paydown-split-fields[hidden] { display: none; }
+.paydown-split-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.paydown-split-label { font-size: 12px; color: var(--text-2); }
+.paydown-split-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.paydown-split-input {
+  width: 84px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  padding: 5px 8px;
+  background: var(--surface-3, var(--surface));
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+  color: var(--text);
+  text-align: right;
+}
+.paydown-split-input:focus { border-color: var(--gold); outline: none; }
+.paydown-split-status {
+  margin: 2px 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.paydown-split-status--ok { color: var(--green, #4caf7d); }
 .paydown-confirm-save:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Ask the Steward */

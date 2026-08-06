@@ -501,6 +501,11 @@ const CHAT_TOOL_RULES =
   'reporting). If the player did not make the cause plain, ask before ' +
   'recording — an unexplained rise counts against their progress as new debt, ' +
   'and interest never should.\n' +
+  '- One rise can have SEVERAL causes at once ("$30 interest hit and I put ' +
+  '$50 on it"): record it as a split of dollar parts that add up to the rise, ' +
+  'instead of forcing the whole amount under one reason. When a statement ' +
+  'itemizes interest separately from purchases, split — that is the honest ' +
+  'entry.\n' +
   '- Every entry you record is reversible: if the player says you got it ' +
   'wrong, use undo_last_entry (only reverses the most recent entry) or ' +
   're-record the correct balance.\n' +

@@ -10,6 +10,7 @@ const {
   summarizePerAccountDebtDeltas,
   analyzePerAccountDebtDiff,
   perAccountDebtDeltaDisplayRows,
+  splitIncreaseByClassification,
 } = require('../services/climbMetrics');
 const { resetAllGameState, setConfig, withUser } = require('../db');
 
@@ -177,4 +178,42 @@ test('perAccountDebtDeltaDisplayRows: kind new vs removed', () => {
   const kinds = Object.fromEntries(rows.map((r) => [r.name, r.kind]));
   assert.equal(kinds['Fresh Card'], 'new');
   assert.equal(kinds['Account (no longer tracked)'], 'removed');
+});
+
+// ── splitIncreaseByClassification: one rise, several causes ──────────────────
+
+test('splitIncrease: a plain reason string routes the whole amount (unchanged behavior)', () => {
+  assert.deepEqual(splitIncreaseByClassification('interest', 90), { interest: 90, preexisting: 0, new: 0 });
+  assert.deepEqual(splitIncreaseByClassification('preexisting', 90), { interest: 0, preexisting: 90, new: 0 });
+  assert.deepEqual(splitIncreaseByClassification('purchase', 90), { interest: 0, preexisting: 0, new: 90 });
+  assert.deepEqual(splitIncreaseByClassification(undefined, 90), { interest: 0, preexisting: 0, new: 90 });
+});
+
+test('splitIncrease: exact split routes each part to its bucket', () => {
+  assert.deepEqual(
+    splitIncreaseByClassification({ interest: 30, purchase: 50 }, 80),
+    { interest: 30, preexisting: 0, new: 50 },
+  );
+  // purchase + new_loan both land in the new-debt bucket
+  assert.deepEqual(
+    splitIncreaseByClassification({ interest: 10, purchase: 20, new_loan: 30, preexisting: 40 }, 100),
+    { interest: 10, preexisting: 40, new: 50 },
+  );
+});
+
+test('splitIncrease: parts that drift from the actual rise are scaled to reconcile', () => {
+  // Client said 30+50 but the rise was 40 → halve each part.
+  assert.deepEqual(
+    splitIncreaseByClassification({ interest: 30, purchase: 50 }, 40),
+    { interest: 15, preexisting: 0, new: 25 },
+  );
+  // Rounding drift: the last part takes the remainder so the total is exact.
+  const shares = splitIncreaseByClassification({ interest: 1, purchase: 1, new_loan: 1 }, 100);
+  assert.equal(roundMoney(shares.interest + shares.preexisting + shares.new), 100);
+});
+
+test('splitIncrease: junk parts fall back to all-new-debt (the unclassified default)', () => {
+  assert.deepEqual(splitIncreaseByClassification({}, 90), { interest: 0, preexisting: 0, new: 90 });
+  assert.deepEqual(splitIncreaseByClassification({ interest: -5, purchase: 'x' }, 90), { interest: 0, preexisting: 0, new: 90 });
+  assert.deepEqual(splitIncreaseByClassification({ interest: 30 }, 0), { interest: 0, preexisting: 0, new: 0 });
 });

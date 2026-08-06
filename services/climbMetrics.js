@@ -388,6 +388,55 @@ function classifyBucket(category) {
 }
 
 /**
+ * One increase can honestly be several things at once — $50 of spending AND
+ * $30 of interest posted on the same card in the same pull. A classification
+ * value may therefore be either a single reason string or a SPLIT object of
+ * dollar parts, e.g. { interest: 30, purchase: 50 }.
+ *
+ * Resolve either form into per-bucket dollars for an increase of `amt`:
+ * - string → the whole amount in that reason's bucket (unchanged behavior);
+ * - split  → each positive finite part routed by its key's bucket, the whole
+ *   scaled proportionally so the parts always sum to the ACTUAL increase
+ *   (client-side rounding or a stale balance can drift a dollar — the ledger
+ *   must still reconcile);
+ * - anything else (or an all-invalid split) → all new debt, the conservative
+ *   default an unclassified rise has always had.
+ *
+ * @returns {{ interest: number, preexisting: number, new: number }}
+ */
+function splitIncreaseByClassification(clsValue, amt) {
+  const out = { interest: 0, preexisting: 0, new: 0 };
+  const amount = roundMoney(amt);
+  if (!(amount > 0)) return out;
+  if (clsValue && typeof clsValue === 'object' && !Array.isArray(clsValue)) {
+    const parts = [];
+    let partsSum = 0;
+    for (const [reason, raw] of Object.entries(clsValue)) {
+      const val = Number(raw);
+      if (!Number.isFinite(val) || val <= 0) continue;
+      parts.push([classifyBucket(reason), val]);
+      partsSum += val;
+    }
+    if (partsSum > 0) {
+      const f = amount / partsSum;
+      let assigned = 0;
+      for (let i = 0; i < parts.length; i++) {
+        const [bucket, val] = parts[i];
+        // Last part takes the exact remainder so rounding never leaks a cent.
+        const share = i === parts.length - 1 ? roundMoney(amount - assigned) : roundMoney(val * f);
+        assigned = roundMoney(assigned + share);
+        out[bucket] = roundMoney(out[bucket] + share);
+      }
+      return out;
+    }
+    out.new = amount;
+    return out;
+  }
+  out[classifyBucket(clsValue)] = amount;
+  return out;
+}
+
+/**
  * Split this pull's positive deltas (existing-account increases + new accounts)
  * into buckets by the per-account classifications the client supplied. Decreases
  * are always paydown; removals never count. Returns dollar sums.
@@ -406,10 +455,10 @@ function routeDeltasByClassification(prev, curr, classifications) {
   let baselineBump = 0;
 
   const routeIncrease = (id, amt) => {
-    const bucket = classifyBucket(cls[String(id)]);
-    if (bucket === 'interest') interestSum = roundMoney(interestSum + amt);
-    else if (bucket === 'preexisting') baselineBump = roundMoney(baselineBump + amt);
-    else newDebtSum = roundMoney(newDebtSum + amt);
+    const shares = splitIncreaseByClassification(cls[String(id)], amt);
+    interestSum = roundMoney(interestSum + shares.interest);
+    baselineBump = roundMoney(baselineBump + shares.preexisting);
+    newDebtSum = roundMoney(newDebtSum + shares.new);
   };
 
   for (const [id, prevBal] of p) {
@@ -1033,6 +1082,7 @@ module.exports = {
   KEY_UNDO,
   KEY_MAP_SEEDED,
   applyClimbMetricsOnPull,
+  splitIncreaseByClassification,
   getClimbStatsFromConfig,
   reclassifyAddedDebt,
   recomputeTotalsFromHistory,

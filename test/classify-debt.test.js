@@ -62,3 +62,26 @@ test('routeDeltasByClassification: removed account never counts', () => {
   assert.equal(r.paydownSum, 0);
   assert.equal(r.newDebtSum, 0);
 });
+
+test('routeDeltasByClassification: a SPLIT rise lands each dollar part in its own bucket', () => {
+  // One card: $30 interest posted AND $50 of new spending in the same pull.
+  const prev = new Map([['card', 1000]]);
+  const curr = new Map([['card', 1080]]);
+  const r = routeDeltasByClassification(prev, curr, {
+    card: { interest: 30, purchase: 50 },
+  });
+  assert.equal(r.interestSum, 30);
+  assert.equal(r.newDebtSum, 50);
+  assert.equal(r.baselineBump, 0);
+  assert.equal(r.paydownSum, 0);
+});
+
+test('routeDeltasByClassification: a split on a NEW account works too', () => {
+  const prev = new Map();
+  const curr = new Map([['newcard', 600]]);
+  const r = routeDeltasByClassification(prev, curr, {
+    newcard: { preexisting: 500, purchase: 100 },
+  });
+  assert.equal(r.baselineBump, 500);
+  assert.equal(r.newDebtSum, 100);
+});
