@@ -50,6 +50,7 @@ const {
 const {
   CUTSCENE_USERNAME,
   isCutsceneUser,
+  paydownTriggersCutscene,
   selectCutsceneVideo,
   cutsceneVideos,
   nextCutsceneIndex,
@@ -215,9 +216,6 @@ router.get('/status', (req, res) => {
       lastError: null,
       aiAvailable: stewardAi.isConfigured(),
       aiEnabled: stewardAiEnabledForUser(),
-      // Setup saves arm the cutscene too (cutscene user only) — surface the
-      // flag here as well, or the reward never plays before start-game.
-      cutsceneReady: getConfig('pending_cutscene') === '1',
       stats: {
         debtRemaining: snap.debt_remaining,
         totalDebt: snap.total_debt,
@@ -697,8 +695,8 @@ function bad(error) {
  * Arm the one-shot cutscene for the cutscene user; a silent no-op for every
  * other account. Sets the pending flag and pins the next clip in rotation
  * (pinning at ARM time keeps every range request of one playback on the same
- * file). Called from each "the player did a real thing" write path, so the
- * reward follows the action itself. Must run inside withUser().
+ * file). Called from the snapshot route when one check-in pays down $500+
+ * net. Must run inside withUser().
  */
 function armCutscene(username) {
   if (!isCutsceneUser(username)) return false;
@@ -955,11 +953,11 @@ function saveSnapshotForUser(rawBody, username) {
     // All writes for this pull are atomic: a crash mid-pull can't leave half-written
     // climb state (snapshot without balances, balances without metrics, etc.).
     transaction(() => {
-    // The cutscene is a REWARD: a save whose real movement is against the
-    // player — interest posted, new spending, a new loan — must not play one.
-    // Computed per-branch below; setup saves and flat check-ins stay worthy
-    // (entering and confirming balances is the habit the reel exists for).
-    let cutsceneWorthy = true;
+    // This pull's NET credited paydown, for the cutscene gate below: real
+    // payments count FOR, classified rises (interest, spending, new loans)
+    // count AGAINST, forgot-to-log is neutral. Null until the climb is
+    // running — setup saves never fire the reel.
+    let cutsceneNetPaydown = null;
     const snapshotId = insertSnapshot({
       source:           'manual',
       pulled_at:        now,
@@ -1033,7 +1031,7 @@ function saveSnapshotForUser(rawBody, username) {
             credited = roundMoney(credited + delta);
           }
         }
-        cutsceneWorthy = credited >= 0;
+        cutsceneNetPaydown = credited;
       }
 
       // Build display rows for the debt sync debug
@@ -1057,7 +1055,7 @@ function saveSnapshotForUser(rawBody, username) {
       captureUndoState(snapshotId, getAllDebtAccountBalances());
       const climb = getClimbStatsFromConfig();
       const lastDebt = climb.lastAggregateDebt;
-      if (Number.isFinite(lastDebt)) cutsceneWorthy = debtRemaining <= lastDebt;
+      if (Number.isFinite(lastDebt)) cutsceneNetPaydown = roundMoney(lastDebt - debtRemaining);
       if (Number.isFinite(lastDebt) && lastDebt > 0) {
         const delta = roundMoney(debtRemaining - lastDebt);
         if (delta < 0) {
@@ -1071,14 +1069,14 @@ function saveSnapshotForUser(rawBody, username) {
       setConfig('last_aggregate_debt_for_climb', String(debtRemaining));
     }
 
-    // Cutscene trigger (cutscene user only): a successful save earns a
-    // moment — unless this pull's movement went AGAINST the player (interest,
-    // spending, a new loan), in which case the reel stays quiet; celebrating
-    // a backslide reads as mockery. (The old $500-accumulator lives on as
-    // tested pure math in services/cutscene.js.) Clips rotate — never the
-    // same one twice in a row — and the chosen index is pinned at arm time
-    // so every range request of one playback resolves to the same file.
-    if (cutsceneWorthy) armCutscene(username);
+    // Cutscene trigger (cutscene user only) — the ORIGINAL contract, restored:
+    // one check-in that pays down $500+ earns one video. Measured on the NET
+    // credited movement above, so interest, spending, or one account's drop
+    // amid overall growth can never sneak a fire (the flaw that made the reel
+    // feel like it played "for most things"). Clips rotate — never the same
+    // one twice in a row — and the chosen index is pinned at arm time so
+    // every range request of one playback resolves to the same file.
+    if (paydownTriggersCutscene(username, cutsceneNetPaydown)) armCutscene(username);
     }); // end transaction — snapshot + balances + history + climb metrics commit together
 
     const response = {
@@ -1134,7 +1132,6 @@ router.post('/start-game', (req, res) => {
       });
     }
     initGameState(snap.debt_remaining, snap.pulled_at);
-    armCutscene(req.user && req.user.username); // starting the climb is the biggest action of all
     const { gameStartDebt, gameStartAt } = getGameStart();
     return res.json({ ok: true, gameStartDebt, gameStartAt });
   } catch (err) {
@@ -1191,7 +1188,6 @@ router.post('/config/interest-rates', express.json(), (req, res) => {
     clean[String(id)] = Math.round(n * 100) / 100;
   }
   setConfig(INTEREST_RATES_KEY, JSON.stringify(clean));
-  armCutscene(req.user && req.user.username);
   res.json({ ok: true, rates: clean });
 });
 
@@ -1241,7 +1237,6 @@ router.post('/config/debt-terms', express.json(), (req, res) => {
     if (Object.keys(out).length > 0) clean[String(id).slice(0, 100)] = out;
   }
   setConfig(DEBT_TERMS_KEY, JSON.stringify(clean));
-  armCutscene(req.user && req.user.username);
   res.json({ ok: true, terms: clean });
 });
 
@@ -1321,7 +1316,6 @@ router.post('/climb/reclassify-added-debt', express.json(), (req, res) => {
     // AI dialog/quote so the Steward re-reads the corrected figures next time.
     deleteConfigByPrefix('steward_ai_dialog_at:');
     deleteConfigByPrefix('steward_ai_quote_at:');
-    armCutscene(req.user && req.user.username);
     return res.json({ ok: true, moved: result.moved, kind: result.kind, stats: getClimbStatsFromConfig() });
   } catch (err) {
     console.error('[api] reclassify-added-debt', err);
@@ -1345,7 +1339,6 @@ router.post('/debt-account/verify', express.json(), (req, res) => {
     if (!verifiedAt) {
       return res.status(404).json({ ok: false, error: 'No tracked account with that id.' });
     }
-    armCutscene(req.user && req.user.username);
     return res.json({ ok: true, id, verifiedAt });
   } catch (err) {
     console.error('[api] debt-account/verify', err);
@@ -1404,7 +1397,6 @@ router.post('/config/promise', express.json(), (req, res) => {
   if (text != null) {
     setConfig(PROMISE_TEXT_KEY, text.trim().slice(0, PROMISE_TEXT_MAX));
   }
-  armCutscene(req.user && req.user.username);
   res.json({
     ok: true,
     made: true,

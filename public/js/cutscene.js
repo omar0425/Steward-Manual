@@ -2,12 +2,12 @@
 
 /* ── Milestone cutscene ─────────────────────────────────────────────────────
    A personal easter egg for LoudFlipFlopz: the server arms a `cutsceneReady`
-   flag (status payload) after each real action — a saved check-in, starting
-   the climb, APRs & terms, the commitment, a reconcile tick. On the next
+   flag (status payload) when ONE check-in pays down $500+ — net of interest,
+   spending, and new loans, so backsliding never celebrates. On the next
    dashboard render we play ONE clip fullscreen, wrapped in Steward chrome,
    then tell the server to clear the flag so each arm plays exactly once.
-   A later action re-arms, so one page session can play several — but never
-   two at once, and never a replay of a consumed arm.
+   A later qualifying check-in re-arms, so one page session can play several
+   — but never two at once, and never a replay of a consumed arm.
 
    The clip is served by the auth-gated route GET /api/cutscene/video, which
    404s everyone but the cutscene user. If playback fails we show a graceful
@@ -174,7 +174,7 @@ function showCutscene() {
       <button type="button" class="cutscene-skip">Skip ▸</button>
     </div>
     <div class="cutscene-body"></div>
-    <div class="cutscene-footer">Duly noted in the ledger. The climb continues.</div>
+    <div class="cutscene-footer">Another $500 cleared. The climb continues.</div>
   `;
 
   const body = stage.querySelector('.cutscene-body');
@@ -279,8 +279,8 @@ function showCutscene() {
 
 /**
  * Called from render() with the status payload. Plays one cutscene per server
- * arm (an action by the cutscene user); a fresh arm later in the same page
- * session plays again once the previous overlay is gone.
+ * arm (a $500+ net-paydown check-in by the cutscene user); a fresh arm later
+ * in the same page session plays again once the previous overlay is gone.
  */
 export function maybePlayCutscene(status) {
   if (!status || status.cutsceneReady !== true) return;

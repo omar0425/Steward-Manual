@@ -27,9 +27,8 @@ export { refreshDebtPanelData, setDebtSortMode, toggleAprForm };
 let lastRenderedCumulativePaidDown = null;
 
 export function render(status, snapshots) {
-  // Personal easter egg (cutscene user only): the server arms it after each
-  // real action — saves, climb start, APRs & terms, the commitment. Checked
-  // BEFORE the ready gate so setup-mode saves get their moment too.
+  // Personal easter egg (cutscene user only): the server arms it when one
+  // check-in pays down $500+ net; plays once per arm, then cutscene-seen.
   maybePlayCutscene(status);
 
   if (!status.ready) return;

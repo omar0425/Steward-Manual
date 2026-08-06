@@ -1,9 +1,11 @@
 'use strict';
 
-// Cutscene firing v3: every real action by the cutscene user arms one play
-// (saves, start-game, APRs/terms, commitment, verify, reclassify), with
-// no-repeat clip rotation. The v2 accumulator survives as pure math below —
-// still exported, still tested — but the routes no longer gate on it.
+// Cutscene firing v4 — the original contract, restored and corrected: ONE
+// check-in that pays down $500+ NET (interest/spending in the same pull count
+// against; forgot-to-log is neutral) arms one play, with no-repeat clip
+// rotation. Nothing else arms — not setup saves, not start-game, not config
+// writes. The v2 accumulator survives as pure math below — still exported,
+// still tested — but the routes no longer gate on it.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -93,16 +95,25 @@ test.beforeEach(() => {
   withUser(1, resetAllGameState);
 });
 
-test('route: every save arms; seen clears; rotation advances per arm', async () => {
+test('route: one check-in paying down $500+ arms; $499 does not; seen clears and rotation advances', async () => {
   // NOTE: assertions go through the API (cutsceneReady) wherever possible —
   // the shared-process test runner leaks other files' root hooks (e.g. the
   // cutscene-route suite overrides STEWARD_CUTSCENE_VIDEOS to a 1-clip pool),
   // so rotation expectations are computed from the RUNTIME pool length.
   const { cutsceneVideos } = require('../services/cutscene');
   await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
-    // The very first setup save is already an action — it arms.
     await saveDebt(baseUrl, 10000);
-    assert.equal(await cutsceneReady(baseUrl), true, 'a setup save arms the cutscene');
+    assert.equal(await cutsceneReady(baseUrl), false, 'setup saves never arm');
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+    assert.equal(await cutsceneReady(baseUrl), false, 'start-game never arms');
+
+    // $499 in one check-in → under the line → quiet.
+    await saveDebt(baseUrl, 9501);
+    assert.equal(await cutsceneReady(baseUrl), false, 'a $499 paydown stays quiet');
+
+    // $501 in ONE check-in → the reward. First fire pins clip 0.
+    await saveDebt(baseUrl, 9000);
+    assert.equal(await cutsceneReady(baseUrl), true, 'a $500+ paydown arms');
     assert.equal(withUser(1, () => getConfig('cutscene_next_index')), '0');
 
     // Watching it clears the flag — but the PIN must survive: the client
@@ -118,134 +129,115 @@ test('route: every save arms; seen clears; rotation advances per arm', async () 
       'pinned clip index must survive cutscene-seen so mid-playback range requests stay on the same file',
     );
 
-    // Starting the climb is an action → arms, and rotation advances (with a
-    // 2-clip pool that's clip 1; a 1-clip pool can only re-pick 0 — derive
-    // from whatever pool is active).
-    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    assert.equal(await cutsceneReady(baseUrl), true, 'start-game arms the cutscene');
+    // The next $500+ check-in advances the rotation (with a 2-clip pool that
+    // is clip 1; a 1-clip pool can only re-pick 0 — derive from the pool).
+    await saveDebt(baseUrl, 8400);
+    assert.equal(await cutsceneReady(baseUrl), true);
     const poolLen = cutsceneVideos().length;
     assert.equal(
       withUser(1, () => getConfig('cutscene_next_index')),
       String(1 % poolLen),
     );
-    await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
-
-    // A small paydown — under the old $500 threshold — still arms: the
-    // reward follows the action now, not the amount.
-    await saveDebt(baseUrl, 9900);
-    assert.equal(await cutsceneReady(baseUrl), true, 'any successful save arms, regardless of amount');
   });
 });
 
-test('route: APRs, terms, commitment, reclassify, and verify all arm', async () => {
+test('route: split payments under $500 each never fire — the reward is per check-in, not cumulative', async () => {
   await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
     await saveDebt(baseUrl, 10000);
     await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    const seen = () => fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
-    await seen();
+    // Three $300 check-ins: $900 total, but never $500 at a time → quiet.
+    for (const bal of [9700, 9400, 9100]) {
+      await saveDebt(baseUrl, bal);
+      assert.equal(await cutsceneReady(baseUrl), false, `paying to ${bal} must not arm`);
+    }
+  });
+});
 
+test('route: the $500 is NET — interest and spending in the same pull count against it', async () => {
+  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
     const post = (path, body) => fetch(`${baseUrl}/api${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
+    const save = (accounts, classifications) => post('/snapshot', {
+      totalDebt: accounts.reduce((s, a) => s + a.balance, 0),
+      debtAccounts: accounts,
+      ...(classifications ? { classifications } : {}),
+    });
 
-    const arms = [
+    await save([{ id: 'visa', name: 'Visa', balance: 6000 }, { id: 'mc', name: 'MC', balance: 4000 }]);
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+
+    // Paid $600 on the Visa while $150 of interest hit the MC → net $450 → quiet.
+    let res = await save(
+      [{ id: 'visa', name: 'Visa', balance: 5400 }, { id: 'mc', name: 'MC', balance: 4150 }],
+      { mc: 'interest' },
+    );
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false, 'net $450 must not arm');
+
+    // Paid $560 while $50 of interest posted → net $510 → the reward.
+    res = await save(
+      [{ id: 'visa', name: 'Visa', balance: 4840 }, { id: 'mc', name: 'MC', balance: 4200 }],
+      { mc: 'interest' },
+    );
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), true, 'net $510 arms');
+    await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+
+    // Pure backslide — interest and spending only — must never arm, and one
+    // account dropping while the total grows must not either (the old
+    // credited-drop flaw that made the reel fire on growth turns).
+    res = await save(
+      [{ id: 'visa', name: 'Visa', balance: 4772 }, { id: 'mc', name: 'MC', balance: 4369 }],
+      { mc: { interest: 84, purchase: 85 } },
+    );
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), false, 'a net-growth turn must not arm even when one account fell');
+
+    // Forgot-to-log debt is neutral: a $500 payment alongside a $2,000
+    // preexisting correction still earns the moment.
+    res = await save(
+      [{ id: 'visa', name: 'Visa', balance: 4272 }, { id: 'mc', name: 'MC', balance: 6369 }],
+      { mc: 'preexisting' },
+    );
+    assert.equal(res.status, 200);
+    assert.equal(await cutsceneReady(baseUrl), true, 'preexisting corrections do not eat the reward');
+  });
+});
+
+test('route: config saves, verify, reclassify, and reads never arm', async () => {
+  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
+    const post = (path, body) => fetch(`${baseUrl}/api${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    await saveDebt(baseUrl, 10000);
+    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
+
+    const nonArms = [
       ['/config/interest-rates', { rates: { visa: 24.99 } }],
       ['/config/debt-terms', { terms: { visa: { minPayment: 35, dueDay: 12 } } }],
       ['/config/promise', { text: 'Out of the pit this year.' }],
       ['/debt-account/verify', { id: 'visa' }],
     ];
-    for (const [path, body] of arms) {
+    for (const [path, body] of nonArms) {
       const res = await post(path, body);
       assert.equal(res.status, 200, `${path} succeeds`);
-      assert.equal(await cutsceneReady(baseUrl), true, `${path} arms the cutscene`);
-      await seen();
+      assert.equal(await cutsceneReady(baseUrl), false, `${path} must not arm`);
     }
 
-    // Reclassify needs "new debt added" on the books: raise a balance as a
-    // purchase first — a backslide, so that save must NOT arm — then the
-    // correction (moving it to interest) does.
-    const up = await post('/snapshot', {
-      totalDebt: 10200,
-      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10200 }],
-      classifications: { visa: 'purchase' },
-    });
-    assert.equal(up.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), false, 'a spending increase must not arm');
-    const rec = await post('/climb/reclassify-added-debt', { amount: 200, kind: 'interest' });
-    assert.equal(rec.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), true, 'reclassify arms the cutscene');
-  });
-});
-
-test('route: backsliding saves never arm — the reel is a reward, not a laugh track', async () => {
-  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
-    const post = (path, body) => fetch(`${baseUrl}/api${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const seen = () => fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
-    const save = (balance, classifications) => post('/snapshot', {
-      totalDebt: balance,
-      debtAccounts: [{ id: 'visa', name: 'Visa', balance }],
-      ...(classifications ? { classifications } : {}),
-    });
-
-    await save(10000);
-    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    await seen();
-
-    // Interest posted → balance up → no video.
-    let res = await save(10040, { visa: 'interest' });
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), false, 'an interest increase must not arm');
-
-    // A new loan → up → no video.
-    res = await save(10240, { visa: 'new_loan' });
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), false, 'a new-loan increase must not arm');
-
-    // Forgot-to-log debt is bookkeeping, not backsliding → still worthy.
-    res = await save(10440, { visa: 'preexisting' });
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), true, 'a preexisting correction still arms');
-    await seen();
-
-    // A flat confirm check-in is the habit itself → worthy.
-    res = await save(10440);
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), true, 'a flat check-in still arms');
-    await seen();
-
-    // Net movement decides a mixed pull: a real payment that outweighs the
-    // interest that posted alongside it still earns the moment.
-    res = await post('/snapshot', {
-      totalDebt: 9975,
-      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 9975 }],
-      classifications: {},
-    });
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), true, 'a net paydown arms');
-  });
-});
-
-test('route: passive reads and seen-acks never arm', async () => {
-  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
-    await saveDebt(baseUrl, 10000);
-    await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
-    // Reading status / config endpoints must not re-arm — otherwise the
-    // dashboard's own polling would loop the video forever.
+    // Reads and seen-acks are inert too.
     await fetch(`${baseUrl}/api/status`);
-    await fetch(`${baseUrl}/api/config/interest-rates`);
-    await fetch(`${baseUrl}/api/config/promise`);
-    assert.equal(await cutsceneReady(baseUrl), false, 'reads must not arm');
+    await fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
+    assert.equal(await cutsceneReady(baseUrl), false);
   });
 });
 
 test('route: cutscene-seen is idempotent — double delivery clears once and stays clear', async () => {
-  // The client now sends "seen" via a keepalive POST AND a pagehide sendBeacon
+  // The client sends "seen" via a keepalive POST AND a pagehide sendBeacon
   // backup, so on a backgrounded phone BOTH can land. Two deliveries must be
   // harmless and leave the flag cleared (this is what stops the replay).
   await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
@@ -299,66 +291,11 @@ test('route: pause→resume serves the SAME clip after cutscene-seen (byte-level
   }
 });
 
-test('route: never fires for other users, no matter what they do', async () => {
+test('route: never fires for other users, no matter the drop', async () => {
   await withApp('SomebodyElse', async (baseUrl) => {
     await saveDebt(baseUrl, 10000);
-    assert.equal(await cutsceneReady(baseUrl), false, 'saves never arm for other accounts');
     await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    assert.equal(await cutsceneReady(baseUrl), false, 'start-game never arms for other accounts');
-    await saveDebt(baseUrl, 4000); // even a $6,000 paydown
+    await saveDebt(baseUrl, 4000); // $6,000 in one save
     assert.equal(await cutsceneReady(baseUrl), false);
-    const rates = await fetch(`${baseUrl}/api/config/interest-rates`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ rates: { visa: 19.99 } }),
-    });
-    assert.equal(rates.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), false, 'APR saves never arm for other accounts');
-  });
-});
-
-test('route: a split rise counts only its non-preexisting shares against the reel', async () => {
-  await withApp(CUTSCENE_USERNAME, async (baseUrl) => {
-    const post = (path, body) => fetch(`${baseUrl}/api${path}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const seen = () => fetch(`${baseUrl}/api/config/cutscene-seen`, { method: 'POST' });
-
-    await saveDebt(baseUrl, 10000);
-    await fetch(`${baseUrl}/api/start-game`, { method: 'POST' });
-    await seen();
-
-    // Up $80 = $30 interest + $50 spending → real backslide → no video.
-    let res = await post('/snapshot', {
-      totalDebt: 10080,
-      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10080 }],
-      classifications: { visa: { interest: 30, purchase: 50 } },
-    });
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), false, 'an interest+purchase split must not arm');
-
-    // Up $200 = $190 forgot-to-log + $10 interest → the $10 is the only real
-    // movement against them, and nothing offsets it → still quiet.
-    res = await post('/snapshot', {
-      totalDebt: 10280,
-      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10280 }],
-      classifications: { visa: { preexisting: 190, interest: 10 } },
-    });
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), false);
-
-    // A $100 payment while $20 of split interest posts elsewhere → net win → video.
-    res = await post('/snapshot', {
-      totalDebt: 10200,
-      debtAccounts: [{ id: 'visa', name: 'Visa', balance: 10200 }],
-      classifications: { visa: { interest: 20, preexisting: 20 } },
-    });
-    // 10280 → 10200 is a $80 net drop with a $40 classified rise inside it?
-    // No — one account: the balance FELL $80, so there is nothing to classify;
-    // classifications on a decrease are ignored and the drop arms.
-    assert.equal(res.status, 200);
-    assert.equal(await cutsceneReady(baseUrl), true, 'a net paydown still arms');
   });
 });
