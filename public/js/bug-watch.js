@@ -16,6 +16,24 @@
   let sent = 0;
   const seen = new Set();
 
+  /* Errors born inside a browser extension (or any script injected from a
+     foreign origin) are not Steward bugs — a media extension throwing
+     `EmptyRanges` files a report the admin can do nothing about, and every
+     one burns a slot of the per-session cap that a real bug might need.
+     Skip them at the source. Conservative signals only: an extension://
+     scheme in the filename or stack, or a script file served from another
+     origin (Steward loads all of its own JS same-origin). */
+  const EXTENSION_URL = /(?:chrome-extension|moz-extension|safari-extension|safari-web-extension|ms-browser-extension):\/\//i;
+
+  function isForeignScript(filename, stack) {
+    try {
+      if (EXTENSION_URL.test(String(stack || '')) || EXTENSION_URL.test(String(filename || ''))) return true;
+      const f = String(filename || '');
+      if (/^https?:\/\//i.test(f) && f.indexOf(location.origin + '/') !== 0) return true;
+      return false;
+    } catch { return false; }
+  }
+
   function report(source, message, stack) {
     try {
       const msg = String(message || '').trim().slice(0, 500);
@@ -43,6 +61,11 @@
     try {
       // Resource-load failures (dead <img>/<script>) fire here with no message.
       if (!e || !e.message) return;
+      // Cross-origin scripts get masked down to a bare "Script error." — no
+      // stack, no file, nothing actionable. Steward has no cross-origin
+      // scripts of its own, so these are injected-code noise too.
+      if (/^Script error\.?$/.test(String(e.message).trim())) return;
+      if (isForeignScript(e.filename, e.error && e.error.stack)) return;
       report('error', e.message, e.error && e.error.stack);
     } catch { /* never throw */ }
   });
@@ -50,6 +73,7 @@
   window.addEventListener('unhandledrejection', (e) => {
     try {
       const r = e && e.reason;
+      if (isForeignScript('', r && r.stack)) return;
       report(
         'unhandledrejection',
         (r && r.message) || (typeof r === 'string' ? r : 'Unhandled rejection'),

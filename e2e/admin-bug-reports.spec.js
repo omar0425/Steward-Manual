@@ -73,6 +73,46 @@ test.describe('Admin bug reports', () => {
     await expect(page.locator('.admin-bug-row', { hasText: keep })).toHaveCount(1);
   });
 
+  test('extension-origin errors are filtered out; real app errors still report', async ({ page }) => {
+    await suppressOnboarding(page);
+    await register(page);
+    await passGates(page);
+
+    // Watch what bug-watch actually posts.
+    const posts = [];
+    page.on('request', (req) => {
+      if (req.url().includes('/api/bug-report') && req.method() === 'POST') {
+        try { posts.push(JSON.parse(req.postData() || '{}')); } catch (_) { posts.push({}); }
+      }
+    });
+
+    await page.evaluate(() => {
+      // The real-world case that motivated the filter: a media extension's
+      // content script throwing on the dashboard.
+      const ext = new ReferenceError('EmptyRanges is not defined');
+      ext.stack = 'ReferenceError: EmptyRanges is not defined\n'
+        + '    at played (chrome-extension://abcdefghijklmnop/content.js:10:5)\n'
+        + '    at syncControl (chrome-extension://abcdefghijklmnop/content.js:22:9)';
+      window.dispatchEvent(new ErrorEvent('error', {
+        message: ext.message, filename: 'chrome-extension://abcdefghijklmnop/content.js', error: ext,
+      }));
+      // Masked cross-origin noise carries no information at all.
+      window.dispatchEvent(new ErrorEvent('error', { message: 'Script error.' }));
+      // A same-origin app error MUST still get through.
+      const real = new TypeError('boom from the app');
+      real.stack = 'TypeError: boom from the app\n    at renderDashboard (' + location.origin + '/js/render.js:5:5)';
+      window.dispatchEvent(new ErrorEvent('error', {
+        message: real.message, filename: location.origin + '/js/render.js', error: real,
+      }));
+    });
+
+    // The reporter fires synchronously from the event; give the requests a beat.
+    await expect.poll(() => posts.length, { timeout: 5000 }).toBeGreaterThanOrEqual(1);
+    expect(posts.filter((p) => /EmptyRanges/.test(p.message || ''))).toHaveLength(0);
+    expect(posts.filter((p) => /Script error/.test(p.message || ''))).toHaveLength(0);
+    expect(posts.filter((p) => /boom from the app/.test(p.message || ''))).toHaveLength(1);
+  });
+
   test('a regular user never sees the panel and cannot delete', async ({ page }) => {
     await suppressOnboarding(page);
     await register(page);
