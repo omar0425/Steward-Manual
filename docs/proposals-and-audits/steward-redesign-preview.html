@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Steward — Financial Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ═══════════════════════════════════════════════
+   STEWARD v2 — DESIGN TOKENS
+═══════════════════════════════════════════════ */
+:root {
+  --bg:        #090c14;
+  --bg-2:      #0e1220;
+  --surface:   #131829;
+  --surface-2: #1b2138;
+  --surface-3: #222844;
+  --border:    rgba(255,255,255,0.055);
+  --border-2:  rgba(255,255,255,0.10);
+  --gold:      #c8a84c;
+  --gold-2:    #dfc070;
+  --gold-soft: rgba(200,168,76,0.10);
+  --gold-glow: rgba(200,168,76,0.20);
+  --emerald:   #14a469;
+  --emerald-soft: rgba(20,164,105,0.12);
+  --rose:      #d94f6e;
+  --rose-soft: rgba(217,79,110,0.12);
+  --sky:       #4f8fd4;
+  --sky-soft:  rgba(79,143,212,0.12);
+  --text:      #ece8dc;
+  --text-2:    #8e9ab8;
+  --text-3:    #4e5a75;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Figtree', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* Grain overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 9999;
+}
+
+h1, h2, h3 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════
+   SCREEN SWITCHER (demo only)
+═══════════════════════════════════════════════ */
+.demo-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 20px;
+  background: rgba(9,12,20,0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+
+.demo-btn {
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--text-2);
+  font-family: 'Figtree', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: all 140ms ease;
+}
+.demo-btn:hover { background: var(--surface); color: var(--text); }
+.demo-btn.active {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--gold-2);
+}
+
+.screen { display: none; padding-top: 44px; }
+.screen.active { display: block; }
+
+/* ═══════════════════════════════════════════════
+   TOP NAV
+═══════════════════════════════════════════════ */
+.top-nav {
+  position: sticky;
+  top: 44px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 56px;
+  background: rgba(9,12,20,0.85);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.nav-brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--gold-soft);
+  border: 1px solid var(--gold);
+  display: grid;
+  place-items: center;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold-2);
+  flex-shrink: 0;
+}
+
+.nav-brand-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.nav-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  transition: color 140ms;
+}
+.nav-link:hover, .nav-link.active { color: var(--text); }
+.nav-link.active {
+  position: relative;
+}
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--gold);
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(200,168,76,0.25);
+  background: var(--gold-soft);
+}
+
+/* ═══════════════════════════════════════════════
+   START GAME SCREEN
+═══════════════════════════════════════════════ */
+.start-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 60px 24px 40px;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 0%, rgba(200,168,76,0.06), transparent),
+    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(20,164,105,0.04), transparent),
+    var(--bg);
+}
+
+.start-inner {
+  text-align: center;
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.start-brand {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 20px;
+}
+
+.start-character-frame {
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.start-character-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 30%, rgba(200,168,76,0.12), transparent 70%);
+}
+
+/* Simplified Steward character for standalone demo */
+.steward-mini {
+  width: 80px;
+  height: 110px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.steward-mini .hat {
+  width: 52px;
+  height: 14px;
+  background: #1a2a1e;
+  border-radius: 3px 3px 0 0;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.steward-mini .hat::before {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: -6px;
+  right: -6px;
+  height: 6px;
+  background: #0d1c11;
+  border-radius: 2px;
+}
+.steward-mini .hat::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: rgba(200,168,76,0.5);
+  border-radius: 2px;
+}
+.steward-mini .head {
+  width: 44px;
+  height: 40px;
+  background: #f5d4a8;
+  border-radius: 50% 50% 48% 48%;
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.steward-mini .eye-l, .steward-mini .eye-r {
+  width: 7px;
+  height: 8px;
+  background: #1a1008;
+  border-radius: 50%;
+  position: absolute;
+  top: 14px;
+}
+.steward-mini .eye-l { left: 10px; }
+.steward-mini .eye-r { right: 10px; }
+.steward-mini .eye-l::after, .steward-mini .eye-r::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 3px;
+  height: 3px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 50%;
+}
+.steward-mini .mustache {
+  width: 24px;
+  height: 6px;
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.steward-mini .mustache::before, .steward-mini .mustache::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 5px;
+  background: #2a1808;
+  border-radius: 50%;
+}
+.steward-mini .mustache::before { left: 0; }
+.steward-mini .mustache::after { right: 0; }
+.steward-mini .body {
+  width: 52px;
+  height: 46px;
+  background: #1a2a1e;
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 8px 8px 4px 4px;
+}
+.steward-mini .body::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 28px;
+  background: #c8a84c;
+  border-radius: 3px;
+}
+.steward-mini .legs {
+  width: 40px;
+  height: 20px;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+.steward-mini .leg {
+  flex: 1;
+  background: #1a2a1e;
+  border-radius: 0 0 4px 4px;
+}
+
+@keyframes startFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.start-character-frame .steward-mini {
+  animation: startFloat 3.5s ease-in-out infinite;
+  position: relative;
+  z-index: 1;
+}
+
+.start-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+  margin-bottom: 10px;
+  letter-spacing: -0.02em;
+}
+
+.start-subtitle {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-2);
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+
+.start-clock {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+  margin-bottom: 20px;
+}
+
+.start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 40px;
+  background: var(--gold);
+  color: #0a0c14;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Figtree', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 140ms ease;
+  text-transform: uppercase;
+}
+.start-btn:hover {
+  background: var(--gold-2);
+  transform: translateY(-1px);
+}
+
+.start-footer {
+  margin-top: 32px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.start-footer a { color: var(--text-2); text-decoration: none; }
+.start-footer a:hover { color: var(--gold); }
+
+/* ═══════════════════════════════════════════════
+   LOADING SCREEN
+═══════════════════════════════════════════════ */
+@keyframes spinRing {
+  to { transform: rotate(360deg); }
+}
+
+.loading-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+
+.loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.loading-ring {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--border-2);
+  border-top-color: var(--gold);
+  animation: spinRing 0.9s linear infinite;
+}
+
+.loading-text {
+  font-size: 13px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+}
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════ */
+.dashboard {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Hero Section */
+.hero-section {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 32px;
+  align-items: start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  left: -60px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(200,168,76,0.07), transparent 70%);
+  pointer-events: none;
+}
+
+/* Tier card */
+.tier-card {
+  width: 260px;
+  height: 380px;
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg);
+  border: 1px solid var(--border-2);
+}
+
+.tier-card[data-tier="rock_bottom"] {
+  background: linear-gradient(160deg, #2a1020 0%, #150a10 60%, #0f0a14 100%);
+  --tier-accent: #d06b86;
+  --tier-start: #ffb09a;
+  --tier-end: #c4475c;
+}
+
+.tier-card-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 12;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 5px 12px 4px;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  letter-spacing: 0.02em;
+}
+
+.tier-card-character-mount {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 52px;
+}
+
+/* Steward character inside card */
+.steward-card {
+  width: 100px;
+  height: 140px;
+  position: relative;
+}
+
+/* Reuse the mini character but scaled up slightly */
+.steward-card .hat { width: 68px; height: 18px; background: #1a2a1e; border-radius: 4px 4px 0 0; position: absolute; top: 0; left: 50%; transform: translateX(-50%); }
+.steward-card .hat::before { content: ''; position: absolute; bottom: -5px; left: -8px; right: -8px; height: 8px; background: #0d1c11; border-radius: 3px; }
+.steward-card .hat::after { content: ''; position: absolute; top: 4px; left: 5px; right: 5px; height: 4px; background: rgba(200,168,76,0.6); border-radius: 2px; }
+.steward-card .head { width: 56px; height: 50px; background: #f5d4a8; border-radius: 50% 50% 48% 48%; position: absolute; top: 22px; left: 50%; transform: translateX(-50%); }
+.steward-card .eye-l, .steward-card .eye-r { width: 9px; height: 10px; background: #1a1008; border-radius: 50%; position: absolute; top: 16px; }
+.steward-card .eye-l { left: 12px; }
+.steward-card .eye-r { right: 12px; }
+.steward-card .eye-l::after, .steward-card .eye-r::after { content: ''; position: absolute; top: 1px; left: 1px; width: 4px; height: 4px; background: rgba(255,255,255,0.9); border-radius: 50%; }
+.steward-card .mustache { width: 30px; height: 8px; position: absolute; top: 32px; left: 50%; transform: translateX(-50%); }
+.steward-card .mustache::before, .steward-card .mustache::after { content: ''; position: absolute; width: 13px; height: 7px; background: #2a1808; border-radius: 50%; }
+.steward-card .mustache::before { left: 0; }
+.steward-card .mustache::after { right: 0; }
+.steward-card .body { width: 66px; height: 58px; background: #1a2a1e; position: absolute; top: 70px; left: 50%; transform: translateX(-50%); border-radius: 10px 10px 4px 4px; }
+.steward-card .body::before { content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 22px; height: 36px; background: #c8a84c; border-radius: 4px; }
+.steward-card .legs { width: 52px; height: 26px; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+.steward-card .leg { flex: 1; background: #1a2a1e; border-radius: 0 0 4px 4px; }
+
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.steward-card { animation: cardFloat 3s ease-in-out infinite; }
+
+/* Tier card footer */
+.tier-card-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 11;
+  padding: 40px 18px 18px;
+  background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.72) 50%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tier-card-gap {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.02em;
+}
+
+.tier-card-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.97);
+  line-height: 1.1;
+}
+
+.tier-card-bar-track {
+  height: 2px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.tier-card-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--tier-start, #ffb09a), var(--tier-end, #c4475c));
+  width: 24%;
+}
+
+.tier-card-debt {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.40);
+  letter-spacing: 0.03em;
+}
+
+/* Hero story */
+.hero-story {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 4px;
+}
+
+.hero-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.hero-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.hero-phase-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(217,79,110,0.12);
+  border: 1px solid rgba(217,79,110,0.25);
+  color: #e5708a;
+}
+
+.hero-behavior {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.hero-copy {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.6;
+  border-left: 2px solid var(--border-2);
+  padding-left: 16px;
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.stat-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.stat-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1;
+}
+
+.stat-value.positive { color: var(--emerald); }
+.stat-value.negative { color: var(--rose); }
+
+.hero-links {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.hero-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-decoration: none;
+  letter-spacing: 0.03em;
+  transition: color 140ms;
+}
+.hero-link:hover { color: var(--gold); }
+.hero-link-dot { color: var(--text-3); }
+
+/* ═══════════════════════════════════════════════
+   PROGRESS SECTION
+═══════════════════════════════════════════════ */
+.section-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 26px 28px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.section-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.section-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 4px;
+  margin-bottom: 16px;
+}
+
+/* Tier lane */
+.tier-lane {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.tier-pill {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  color: var(--text);
+}
+
+.tier-pill-current {
+  background: rgba(208,107,134,0.12);
+  border-color: rgba(208,107,134,0.30);
+  color: #e5708a;
+}
+
+.tier-pill-target {
+  background: rgba(200,168,76,0.10);
+  border-color: rgba(200,168,76,0.25);
+  color: var(--gold-2);
+}
+
+.tier-arrow {
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+.tier-gap-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.tier-gap-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.tier-gap-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.progress-bar {
+  height: 3px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ffb09a, #c4475c);
+  width: 24%;
+  transition: width 800ms ease;
+}
+
+.progress-story {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-line {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.progress-line strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.progress-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════
+   HEALTH GRID
+═══════════════════════════════════════════════ */
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.health-cell {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.health-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.health-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.health-in { color: var(--emerald); }
+.health-out { color: var(--rose); }
+
+/* ═══════════════════════════════════════════════
+   DATA SYNC STRIP
+═══════════════════════════════════════════════ */
+.data-strip {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 22px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.data-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.data-chip-k {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.data-chip-v {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.freshness-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.freshness-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--emerald);
+  flex-shrink: 0;
+}
+
+.data-chip-v.fresh { color: var(--emerald); }
+
+.data-strip-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.refresh-btn {
+  padding: 7px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-family: 'Figtree', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: all 140ms ease;
+}
+.refresh-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold-2);
+}
+
+.data-strip-foot {
+  width: 100%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* ═══════════════════════════════════════════════
+   SHOWCASE SCREEN
+═══════════════════════════════════════════════ */
+.showcase-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+.showcase-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 42px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1;
+}
+
+.showcase-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-family: 'Figtree', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: all 140ms ease;
+}
+.back-btn:hover { border-color: var(--gold); color: var(--gold-2); }
+
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+  padding-bottom: 60px;
+}
+
+/* Individual showcase cards */
+.sc-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.sc-card {
+  width: 100%;
+  aspect-ratio: 9/14;
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  transition: transform 220ms ease;
+  cursor: pointer;
+}
+.sc-card:hover { transform: translateY(-6px) scale(1.02); }
+
+/* Tier backgrounds */
+.sc-card[data-tier="rock_bottom"]  { background: linear-gradient(160deg, #2a1020 0%, #0f0a14 100%); }
+.sc-card[data-tier="broke"]        { background: linear-gradient(160deg, #201808 0%, #12100a 100%); }
+.sc-card[data-tier="struggling"]   { background: linear-gradient(160deg, #201410 0%, #120e0c 100%); }
+.sc-card[data-tier="surviving"]    { background: linear-gradient(160deg, #1c1608 0%, #12100a 100%); }
+.sc-card[data-tier="stabilizing"]  { background: linear-gradient(160deg, #101a0c 0%, #0c1009 100%); }
+.sc-card[data-tier="stable"]       { background: linear-gradient(160deg, #0c1c10 0%, #091209 100%); }
+.sc-card[data-tier="building"]     { background: linear-gradient(160deg, #0e1420 0%, #090d18 100%); }
+.sc-card[data-tier="thriving"]     { background: linear-gradient(160deg, #18102a 0%, #100c1c 100%); }
+.sc-card[data-tier="winning"]      { background: linear-gradient(160deg, #1c1608 0%, #12100a 100%); }
+.sc-card[data-tier="wealthy"]      { background: linear-gradient(160deg, #1c1808 0%, #141208 100%); }
+
+.sc-card.is-active {
+  border-color: rgba(200,168,76,0.4);
+  box-shadow: 0 0 0 1px rgba(200,168,76,0.2), 0 0 20px rgba(200,168,76,0.08);
+}
+
+.sc-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 12;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 7px;
+  padding: 3px 9px;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+}
+
+.sc-active-chip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 12;
+  background: rgba(200,168,76,0.20);
+  border: 1px solid rgba(200,168,76,0.35);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-2);
+}
+
+.sc-char-mount {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 36px;
+}
+
+.sc-char-mini {
+  transform: scale(0.65);
+  transform-origin: center bottom;
+}
+
+.sc-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 36px 14px 14px;
+  background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.70) 50%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sc-tier-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.97);
+  line-height: 1.1;
+}
+
+.sc-bar-track {
+  height: 2px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 1px;
+  overflow: hidden;
+  position: relative;
+}
+
+.sc-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 1px;
+}
+
+.sc-card[data-tier="rock_bottom"]  .sc-bar-fill { background: linear-gradient(90deg, #ffb09a, #c4475c); }
+.sc-card[data-tier="broke"]        .sc-bar-fill { background: linear-gradient(90deg, #f3c59b, #b87442); }
+.sc-card[data-tier="struggling"]   .sc-bar-fill { background: linear-gradient(90deg, #f6c3a8, #cc7d61); }
+.sc-card[data-tier="surviving"]    .sc-bar-fill { background: linear-gradient(90deg, #f8d48d, #c79a3a); }
+.sc-card[data-tier="stabilizing"]  .sc-bar-fill { background: linear-gradient(90deg, #cbe7a8, #79b557); }
+.sc-card[data-tier="stable"]       .sc-bar-fill { background: linear-gradient(90deg, #9be2ad, #38b76d); }
+.sc-card[data-tier="building"]     .sc-bar-fill { background: linear-gradient(90deg, #93c7ff, #3b86e4); }
+.sc-card[data-tier="thriving"]     .sc-bar-fill { background: linear-gradient(90deg, #bea5ff, #8858ef); }
+.sc-card[data-tier="winning"]      .sc-bar-fill { background: linear-gradient(90deg, #ffe38f, #d6ad34); }
+.sc-card[data-tier="wealthy"]      .sc-bar-fill { background: linear-gradient(90deg, #ffe991, #f2c230); }
+
+.sc-meta {
+  text-align: center;
+}
+
+.sc-meta-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sc-meta-phase {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════
+   COMMITMENT SCREEN
+═══════════════════════════════════════════════ */
+.commitment-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  padding: 24px;
+}
+
+.commitment-inner {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-xl);
+  padding: 36px 32px 32px;
+  text-align: center;
+  position: relative;
+}
+
+.commitment-inner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,168,76,0.4), transparent);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.commitment-headline {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 14px;
+  letter-spacing: -0.02em;
+}
+
+.commitment-debt-line {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-bottom: 22px;
+  line-height: 1.5;
+}
+
+.commitment-debt-line span {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--rose);
+  display: block;
+  margin-top: 4px;
+}
+
+.commitment-body p {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.6;
+  text-align: left;
+  margin-bottom: 10px;
+}
+
+.commitment-pledge {
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-left: 2px solid var(--gold);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 14px 16px;
+  margin: 18px 0;
+  text-align: left;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.commitment-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--gold);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #0a0c14;
+  font-family: 'Figtree', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all 140ms ease;
+}
+.commitment-btn:hover {
+  background: var(--gold-2);
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .hero-section {
+    grid-template-columns: 1fr;
+  }
+  .tier-card {
+    width: 220px;
+    height: 320px;
+    margin: 0 auto;
+  }
+  .health-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .showcase-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .showcase-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Demo nav -->
+<nav class="demo-nav">
+  <button class="demo-btn active" onclick="showScreen('start')">Start</button>
+  <button class="demo-btn" onclick="showScreen('dashboard')">Dashboard</button>
+  <button class="demo-btn" onclick="showScreen('gallery')">Tier Gallery</button>
+  <button class="demo-btn" onclick="showScreen('commitment')">Commitment</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: START GAME
+═══════════════════════════════════════════════ -->
+<div id="screen-start" class="screen active">
+  <div class="start-screen">
+    <div class="start-inner">
+      <p class="start-brand">Steward</p>
+      <div class="start-character-frame" aria-hidden="true">
+        <div class="steward-mini">
+          <div class="hat"></div>
+          <div class="head">
+            <div class="eye-l"></div>
+            <div class="eye-r"></div>
+            <div class="mustache"></div>
+          </div>
+          <div class="body"></div>
+          <div class="legs"><div class="leg"></div><div class="leg"></div></div>
+        </div>
+      </div>
+      <h1 class="start-title">Begin the Climb</h1>
+      <p class="start-subtitle">Track your financial journey. Every session moves the needle.</p>
+      <p class="start-clock" id="start-game-clock">MON · 11:42 PM</p>
+      <button class="start-btn" id="start-game-btn">Start Session ↗</button>
+      <p class="start-footer">
+        <a href="#">View all 10 stages</a>
+        &nbsp;·&nbsp;
+        <a href="#">Your progress</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: DASHBOARD
+═══════════════════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+  <nav class="top-nav">
+    <a href="#" class="nav-brand">
+      <div class="nav-brand-icon">S</div>
+      <span class="nav-brand-text">Steward</span>
+    </a>
+    <div class="nav-links">
+      <a href="#" class="nav-link active">Dashboard</a>
+      <a href="#" class="nav-link">The Climb</a>
+      <a href="#" class="nav-link">Stage Gallery</a>
+    </div>
+    <div class="nav-right">
+      <span class="nav-badge">Classic</span>
+    </div>
+  </nav>
+
+  <main class="dashboard">
+
+    <!-- Hero -->
+    <section class="hero-section" id="hero-section">
+      <!-- Card -->
+      <div class="tier-card" data-tier="rock_bottom" id="hero-state-card">
+        <div class="tier-card-badge" id="card-badge-chip">01</div>
+        <div class="tier-card-character-mount">
+          <div class="steward-card" id="hero-steward-mount">
+            <div class="hat"></div>
+            <div class="head">
+              <div class="eye-l"></div>
+              <div class="eye-r"></div>
+              <div class="mustache"></div>
+            </div>
+            <div class="body"></div>
+            <div class="legs"><div class="leg"></div><div class="leg"></div></div>
+          </div>
+        </div>
+        <div class="tier-card-footer">
+          <div class="tier-card-gap" id="card-tier-gap-headline">→ $4,200 to escape</div>
+          <div class="tier-card-name" id="card-tier-name">Rock Bottom</div>
+          <div class="tier-card-bar-track">
+            <div class="tier-card-bar-fill" id="card-bar-fill"></div>
+          </div>
+          <div class="tier-card-debt" id="card-footer-debt">$22,840 remaining</div>
+        </div>
+      </div>
+
+      <!-- Story -->
+      <div class="hero-story">
+        <p class="hero-eyebrow" id="hero-badge">01 — Rock Bottom</p>
+        <h1 class="hero-title" id="hero-tier-label">Rock<br/>Bottom</h1>
+        <div>
+          <span class="hero-phase-badge">Pressure Phase</span>
+        </div>
+        <p class="hero-behavior" id="hero-tier-behavior">Cut the balance. Guard cash.</p>
+        <p class="hero-copy" id="hero-tier-copy">
+          In the hole. The meter is running. Survival comes first — reduce debt and protect every dollar of cash flow you have.
+        </p>
+
+        <!-- Quick stats -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Debt remaining</span>
+            <span class="stat-value negative" id="stat-debt-remaining">$22,840</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Net worth</span>
+            <span class="stat-value negative" id="stat-net-worth">−$18,200</span>
+          </div>
+        </div>
+
+        <div class="hero-links">
+          <a href="#" class="hero-link">View all 10 stages</a>
+          <span class="hero-link-dot">·</span>
+          <a href="#" class="hero-link">The Climb (vNext)</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Progress -->
+    <section class="section-panel">
+      <p class="section-label">Stage progress</p>
+      <div class="section-header" style="margin-bottom: 0;">
+        <div style="flex:1;">
+          <div class="tier-lane">
+            <span class="tier-pill tier-pill-current" id="next-tier-current">Rock Bottom</span>
+            <span class="tier-arrow">→</span>
+            <span class="tier-pill tier-pill-target" id="next-tier-target">Broke</span>
+          </div>
+          <div class="tier-gap-row">
+            <span class="tier-gap-label" id="board-tier-gap-label">Stage gap</span>
+            <span class="tier-gap-value" id="board-tier-gap-headline">$4,200</span>
+          </div>
+        </div>
+      </div>
+      <div class="progress-bar" id="command-progress-widget">
+        <div class="progress-fill" id="command-progress-bar-fill" style="width: 24%;"></div>
+      </div>
+      <div class="progress-story">
+        <p class="progress-line" id="progress-story-lead"><strong>24% through Rock Bottom.</strong> You need to drop $4,200 to reach Broke.</p>
+        <p class="progress-line" id="progress-lifetime-climb">Lifetime climb: <strong>$1,340 paid down</strong> across all sessions.</p>
+        <p class="progress-line" id="progress-story-delta">This month: <strong>−$420 net</strong> on the balance.</p>
+        <p class="progress-hint" id="progress-story-hint">At this pace, you clear this stage in roughly 10 months.</p>
+      </div>
+    </section>
+
+    <!-- Health grid -->
+    <section class="section-panel">
+      <p class="section-label" style="margin-bottom:16px;">Breathing room & cash flow</p>
+      <div class="health-grid" id="board-health-grid">
+        <div class="health-cell">
+          <span class="health-label">Monthly income</span>
+          <span class="health-value health-in" id="stat-income">$5,800</span>
+        </div>
+        <div class="health-cell">
+          <span class="health-label">Monthly expenses</span>
+          <span class="health-value health-out" id="stat-expenses">$4,960</span>
+        </div>
+        <div class="health-cell">
+          <span class="health-label">Cash / assets</span>
+          <span class="health-value" id="stat-assets">$4,640</span>
+        </div>
+        <div class="health-cell">
+          <span class="health-label">Asset runway</span>
+          <span class="health-value" id="stat-months-ahead">0.9 mo</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data sync strip -->
+    <section class="data-strip" aria-label="Data sync">
+      <div class="data-chip">
+        <span class="data-chip-k">YNAB last pull</span>
+        <span class="data-chip-v" id="data-ynab-pulled">Today, 6:02 AM</span>
+      </div>
+      <div class="data-chip">
+        <span class="data-chip-k">Brokerage</span>
+        <span class="data-chip-v" id="data-brok-pulled">Today, 6:04 AM</span>
+      </div>
+      <div class="data-chip">
+        <span class="data-chip-k">Next auto-pull</span>
+        <span class="data-chip-v" id="data-next-pull">15th · 6:00 AM</span>
+      </div>
+      <div class="data-chip">
+        <span class="data-chip-k">Freshness</span>
+        <span class="data-chip-v fresh freshness-dot" id="freshness-badge">Live</span>
+      </div>
+      <div class="data-strip-actions">
+        <button class="refresh-btn" id="refresh-ynab-btn">↻ YNAB</button>
+        <button class="refresh-btn" id="refresh-brok-btn">↻ Brokerage</button>
+      </div>
+      <p class="data-strip-foot">Auto-pulls: 1st · 15th · last of month (6 AM) · Manual refresh up to 3/hour per source</p>
+    </section>
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: TIER GALLERY
+═══════════════════════════════════════════════ -->
+<div id="screen-gallery" class="screen">
+  <nav class="top-nav">
+    <a href="#" class="nav-brand">
+      <div class="nav-brand-icon">S</div>
+      <span class="nav-brand-text">Steward</span>
+    </a>
+    <div class="nav-links">
+      <a href="#" class="nav-link">Dashboard</a>
+      <a href="#" class="nav-link active">Stage Gallery</a>
+    </div>
+    <div class="nav-right">
+      <span class="nav-badge">10 Stages</span>
+    </div>
+  </nav>
+
+  <main class="dashboard">
+    <div class="showcase-header">
+      <div>
+        <h1 class="showcase-title">The Ladder</h1>
+        <p class="showcase-sub">10 stages from rock bottom to wealthy</p>
+      </div>
+      <a href="#" class="back-btn">← Dashboard</a>
+    </div>
+
+    <div class="showcase-grid">
+
+      <!-- 01 Rock Bottom -->
+      <div class="sc-wrap">
+        <div class="sc-card is-active" data-tier="rock_bottom">
+          <div class="sc-badge">01</div>
+          <div class="sc-active-chip">You are here</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini">
+              <div class="steward-mini">
+                <div class="hat"></div>
+                <div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div>
+                <div class="body"></div>
+                <div class="legs"><div class="leg"></div><div class="leg"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Rock Bottom</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:24%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta">
+          <div class="sc-meta-name">Rock Bottom</div>
+          <div class="sc-meta-phase">Pressure</div>
+        </div>
+      </div>
+
+      <!-- 02 Broke -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="broke">
+          <div class="sc-badge">02</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Broke</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Broke</div><div class="sc-meta-phase">Pressure</div></div>
+      </div>
+
+      <!-- 03 Struggling -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="struggling">
+          <div class="sc-badge">03</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Struggling</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Struggling</div><div class="sc-meta-phase">Pressure</div></div>
+      </div>
+
+      <!-- 04 Surviving -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="surviving">
+          <div class="sc-badge">04</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Surviving</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Surviving</div><div class="sc-meta-phase">Momentum</div></div>
+      </div>
+
+      <!-- 05 Stabilizing -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="stabilizing">
+          <div class="sc-badge">05</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Stabilizing</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Stabilizing</div><div class="sc-meta-phase">Momentum</div></div>
+      </div>
+
+      <!-- 06 Stable -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="stable">
+          <div class="sc-badge">06</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Stable</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Stable</div><div class="sc-meta-phase">Momentum</div></div>
+      </div>
+
+      <!-- 07 Building -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="building">
+          <div class="sc-badge">07</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Building</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Building</div><div class="sc-meta-phase">Momentum</div></div>
+      </div>
+
+      <!-- 08 Thriving -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="thriving">
+          <div class="sc-badge">08</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Thriving</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Thriving</div><div class="sc-meta-phase">Reward</div></div>
+      </div>
+
+      <!-- 09 Winning -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="winning">
+          <div class="sc-badge">09</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Winning</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Winning</div><div class="sc-meta-phase">Reward</div></div>
+      </div>
+
+      <!-- 10 Wealthy -->
+      <div class="sc-wrap">
+        <div class="sc-card" data-tier="wealthy">
+          <div class="sc-badge">10</div>
+          <div class="sc-char-mount">
+            <div class="sc-char-mini"><div class="steward-mini"><div class="hat"></div><div class="head"><div class="eye-l"></div><div class="eye-r"></div><div class="mustache"></div></div><div class="body"></div><div class="legs"><div class="leg"></div><div class="leg"></div></div></div></div>
+          </div>
+          <div class="sc-footer">
+            <div class="sc-tier-name">Wealthy</div>
+            <div class="sc-bar-track"><div class="sc-bar-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="sc-meta"><div class="sc-meta-name">Wealthy</div><div class="sc-meta-phase">Reward</div></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: COMMITMENT
+═══════════════════════════════════════════════ -->
+<div id="screen-commitment" class="screen">
+  <div class="start-screen" style="padding-top: 80px;">
+    <div class="commitment-overlay" style="position:relative; inset:auto; display:block; background:transparent; backdrop-filter:none; padding:0; width:min(460px,100%); margin:0 auto;">
+      <div class="commitment-inner">
+        <h2 class="commitment-headline">Before you begin</h2>
+        <div class="commitment-debt-line">
+          You're carrying
+          <span>$22,840</span>
+          in debt. This is what you're climbing out of.
+        </div>
+        <div class="commitment-body">
+          <p>This isn't a budgeting app. It's a commitment tool. Every session you open this, you're choosing to face the number — not avoid it.</p>
+          <p>No tricks. Just discipline, data, and forward motion.</p>
+        </div>
+        <blockquote class="commitment-pledge">
+          "I will not spend money I don't have. I will reduce this balance every month. I will not look away."
+        </blockquote>
+        <button class="commitment-btn">I commit. Start the session.</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Live clock on start screen
+function updateClock() {
+  const el = document.getElementById('start-game-clock');
+  if (!el) return;
+  const now = new Date();
+  const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const d = days[now.getDay()];
+  let h = now.getHours();
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  el.textContent = `${d} · ${h}:${m} ${ampm}`;
+}
+updateClock();
+setInterval(updateClock, 10000);
+</script>
+</body>
+</html>

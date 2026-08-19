@@ -1,0 +1,2356 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Steward — State Ladder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+/* ═══════════════════════════════════════════════════════════════════
+   ROOT TOKENS
+═══════════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #f0e6d0;
+  --panel: rgba(255,250,242,0.94);
+  --panel-strong: rgba(255,252,246,0.97);
+  --line: rgba(22,49,37,0.10);
+  --line-strong: rgba(22,49,37,0.20);
+  --forest-950: #102920;
+  --forest-900: #143729;
+  --forest-800: #1d4a3c;
+  --forest-700: #2d5a3d;
+  --ink-700: #4f645b;
+  --ink-500: #75877e;
+  --gold-500: #cf993f;
+  --gold-300: #f5d189;
+  --shadow: 0 24px 80px rgba(16,41,32,0.12);
+  --card-shadow: 0 16px 40px rgba(16,41,32,0.10);
+  --radius-xl: 30px;
+  --radius-lg: 22px;
+  --radius-md: 18px;
+  --radius-sm: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════════════════════════════ */
+*{box-sizing:border-box;}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Inter', 'Aptos', 'Trebuchet MS', sans-serif;
+  color: var(--forest-950);
+  background:
+    radial-gradient(circle at top left, rgba(245,209,137,0.22), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(20,55,41,0.12), transparent 34%),
+    linear-gradient(135deg, #e8d4b0 0%, #f5ede0 48%, #e6dcc8 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════════════════════════ */
+.lab-shell {
+  width: min(1440px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 44px;
+}
+
+.hero-panel,.gallery-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hero-panel {
+  display: grid;
+  grid-template-columns: minmax(320px,1.1fr) minmax(280px,0.9fr);
+  gap: 24px;
+  padding: 28px;
+}
+
+.hero-copy { display:flex; flex-direction:column; gap:14px; }
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+h1,h2 {
+  margin: 0;
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.02em;
+}
+h1 { font-size: clamp(2rem,3vw,3rem); line-height: 0.98; }
+h2 { font-size: 1.55rem; }
+
+.hero-text,.gallery-copy,.state-copy,#hero-copy {
+  margin: 0; line-height: 1.6; color: var(--ink-700);
+}
+.hero-text { max-width: 52ch; font-size: 0.95rem; }
+
+.state-pills { display:flex; flex-wrap:wrap; gap:10px; }
+
+.state-pill {
+  border: 1px solid var(--line-strong);
+  background: rgba(255,255,255,0.84);
+  color: var(--forest-800);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+.state-pill:hover { transform: translateY(-1px); background: rgba(255,255,255,0.98); }
+.state-pill.is-active {
+  background: rgba(45,90,61,0.14);
+  border-color: rgba(45,90,61,0.36);
+  color: var(--forest-900);
+}
+
+.hero-meta {
+  display:grid; gap:6px; padding:18px;
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,0.7);
+  border: 1px solid var(--line);
+}
+.hero-meta strong {
+  font-size: 1.15rem;
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.hero-stage { display:flex; align-items:stretch; }
+
+.hero-card {
+  width: 100%;
+  min-height: 480px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(circle at top, rgba(255,247,219,0.96), rgba(255,247,219,0) 44%),
+    linear-gradient(180deg, rgba(253,249,242,0.94), rgba(244,235,220,0.88));
+  border: 1px solid rgba(20,55,41,0.08);
+  overflow: hidden;
+}
+.hero-figure {
+  transform: translateY(12px) scale(1.32);
+  transform-origin: center bottom;
+}
+
+.gallery-panel { margin-top:24px; padding:26px; }
+
+.gallery-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+.gallery-copy { max-width:360px; text-align:right; }
+
+.states-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, auto);
+  gap: 18px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE CARDS — BACKGROUNDS
+   Dark maroon → grey → dusty rose → tan → sage →
+   light green → medium green → bright green → mint → gold
+═══════════════════════════════════════════════════════════════════ */
+.state-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 18px 16px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(20,55,41,0.08);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+.state-card::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 50%);
+  pointer-events:none;
+  z-index:0;
+}
+
+/* 01 – Rock Bottom: rich deep maroon (visible!) */
+.state-card[data-state="rock_bottom"] {
+  background: linear-gradient(160deg, #3e1020, #641a2c 60%, #4c1422);
+  border-color: rgba(172,72,100,0.72);
+}
+.state-card[data-state="rock_bottom"]::before {
+  background: linear-gradient(180deg, rgba(130,42,68,0.40) 0%, rgba(40,10,20,0.12) 100%);
+}
+.state-card[data-state="rock_bottom"] .state-name { color: #f5ccd8; }
+.state-card[data-state="rock_bottom"] .state-copy { color: #d898b0; }
+.state-card[data-state="rock_bottom"] .state-num  { color: rgba(242,180,200,0.42); }
+
+/* 02 – Broke: dark grey */
+.state-card[data-state="broke"] {
+  background: linear-gradient(160deg, #626268, #7a7a80);
+  border-color: rgba(130,128,132,0.6);
+}
+.state-card[data-state="broke"] .state-name { color: #f0edea; }
+.state-card[data-state="broke"] .state-copy { color: #c8c6c2; }
+.state-card[data-state="broke"] .state-num { color: rgba(240,236,230,0.52); }
+
+/* 03 – Struggling: dusty rose */
+.state-card[data-state="struggling"] {
+  background: linear-gradient(160deg, #c09898, #d4b0ae);
+  border-color: rgba(160,100,96,0.45);
+}
+.state-card[data-state="struggling"] .state-name { color: #4a1e1c; }
+.state-card[data-state="struggling"] .state-copy { color: #7a3e3a; }
+
+/* 04 – Surviving: warm tan */
+.state-card[data-state="surviving"] {
+  background: linear-gradient(160deg, #bcaa84, #d0bf9a);
+  border-color: rgba(148,128,80,0.45);
+}
+.state-card[data-state="surviving"] .state-name { color: #362410; }
+.state-card[data-state="surviving"] .state-copy { color: #5a3e20; }
+
+/* 05 – Stabilizing: sage green */
+.state-card[data-state="stabilizing"] {
+  background: linear-gradient(160deg, #7aaa74, #92c08a);
+  border-color: rgba(80,140,72,0.45);
+}
+.state-card[data-state="stabilizing"] .state-name { color: #1a3a18; }
+.state-card[data-state="stabilizing"] .state-copy { color: #2e5228; }
+
+/* 06 – Stable: light green */
+.state-card[data-state="stable"] {
+  background: linear-gradient(160deg, #64b86c, #7acc7a);
+  border-color: rgba(70,148,72,0.45);
+}
+.state-card[data-state="stable"] .state-name { color: #133218; }
+.state-card[data-state="stable"] .state-copy { color: #234a26; }
+
+/* 07 – Building: deep navy blue — signals a new league */
+.state-card[data-state="building"] {
+  background: linear-gradient(160deg, #1a2e52, #243d6e 60%, #1c3460);
+  border-color: rgba(80,120,200,0.50);
+}
+.state-card[data-state="building"] .state-name { color: #eaf2ff; }
+.state-card[data-state="building"] .state-copy { color: #b8d4f8; font-weight: 500; }
+
+/* 08 – Thriving: rich indigo-purple */
+.state-card[data-state="thriving"] {
+  background: linear-gradient(160deg, #2e1e5c, #3e2878 60%, #341e6a);
+  border-color: rgba(130,90,220,0.50);
+}
+.state-card[data-state="thriving"] .state-name { color: #f0eaff; }
+.state-card[data-state="thriving"] .state-copy { color: #d0b8f8; font-weight: 500; }
+
+/* 09 – Winning: deep teal — distinct from both green and gold */
+.state-card[data-state="winning"] {
+  background: linear-gradient(160deg, #0d3a4a, #144e62 60%, #0f4258);
+  border-color: rgba(40,160,190,0.50);
+}
+.state-card[data-state="winning"] .state-name { color: #e8f8ff; }
+.state-card[data-state="winning"] .state-copy { color: #a8e4f4; font-weight: 500; }
+
+/* 10 – Wealthy: deep saturated gold — unmistakably apex */
+.state-card[data-state="wealthy"] {
+  background: linear-gradient(155deg, #a87800, #d4a010 35%, #f0c030 60%, #c08800);
+  border-color: rgba(240,192,48,0.80);
+  box-shadow: 0 16px 48px rgba(180,130,0,0.38), 0 0 0 1.5px rgba(240,200,60,0.55);
+}
+.state-card[data-state="wealthy"] .state-name {
+  color: #1a0e00;
+  font-size: 1.18rem;
+  text-shadow: 0 1px 0 rgba(255,220,80,0.35);
+}
+.state-card[data-state="wealthy"] .state-copy {
+  color: #3a2200;
+  font-weight: 600;
+}
+.state-card[data-state="wealthy"] .state-num { color: rgba(26,14,0,0.40); }
+/* give wealthy extra bottom padding so footer text never clips */
+.state-card[data-state="wealthy"] { padding-bottom: 22px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   BADGE PILLS — dark/muted 1-3, green 4-8, gold 9-10
+═══════════════════════════════════════════════════════════════════ */
+.card-badge {
+  position: absolute; top:14px; left:14px;
+  padding: 4px 11px;
+  font-size: 0.64rem; font-weight: 800;
+  letter-spacing: 0.09em; text-transform: uppercase;
+  border-radius: 999px;
+  background: rgba(22,49,37,0.82);
+  color: rgba(255,255,255,0.92);
+  z-index: 2;
+}
+.state-card[data-state="rock_bottom"] .card-badge { background:#2a0a18; color:#f0bece; }
+.state-card[data-state="broke"]       .card-badge { background:#3c3c40; color:#d8d4d0; }
+.state-card[data-state="struggling"]  .card-badge { background:#7a3c38; color:#f2d8d6; }
+.state-card[data-state="surviving"]   .card-badge { background:#5c4a1e; color:#f0e0c0; }
+.state-card[data-state="stabilizing"] .card-badge { background:#1e5a30; color:#b8ecd0; }
+.state-card[data-state="stable"]      .card-badge { background:#185038; color:#a8ecc8; }
+.state-card[data-state="building"]    .card-badge { background:#0e1e40; color:#a0c0f0; }
+.state-card[data-state="thriving"]    .card-badge { background:#1e1040; color:#c0a0f0; }
+.state-card[data-state="winning"]     .card-badge { background:#062030; color:#80d8f0; }
+.state-card[data-state="wealthy"]     .card-badge { background:#8a6010; color:#ffeaa0; }
+
+.state-num {
+  position:absolute; top:15px; right:16px;
+  font-size:0.70rem; font-weight:700;
+  letter-spacing:0.10em; color:rgba(16,41,32,0.30);
+  font-family: 'Inter', sans-serif;
+}
+.state-card[data-state="broke"]     .state-num { color:rgba(240,236,230,0.45); }
+.state-card[data-state="rock_bottom"] .state-num { color:rgba(242,180,200,0.42); }
+.state-card[data-state="building"]  .state-num { color:rgba(180,210,255,0.38); }
+.state-card[data-state="thriving"]  .state-num { color:rgba(210,185,255,0.38); }
+.state-card[data-state="winning"]   .state-num { color:rgba(160,230,250,0.38); }
+
+.state-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.015em;
+  color: var(--forest-900);
+}
+.state-copy {
+  font-size: 0.83rem;
+  font-weight: 400;
+  margin: 0;
+  line-height: 1.58;
+  color: var(--ink-700);
+  letter-spacing: 0.005em;
+}
+
+.card-stage {
+  min-height: 285px;
+  display: grid;
+  place-items: end center;
+  position: relative;
+  overflow: visible;
+}
+.state-card[data-state="building"]  .card-stage { min-height: 306px; }
+.state-card[data-state="thriving"]  .card-stage { min-height: 326px; }
+.state-card[data-state="winning"]   .card-stage { min-height: 352px; }
+.state-card[data-state="wealthy"]   .card-stage { min-height: 380px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   STEWARD WRAP — CSS-variable defaults
+═══════════════════════════════════════════════════════════════════ */
+.steward-wrap {
+  --coat:#214839; --coat-deep:#143025;
+  --vest:#d1a14a; --shirt:#f7f3ec;
+  --skin:#f4dfbe; --hat:#163326; --hat-band:#d0a14c;
+  --ink:#143126;
+  --money-opacity:0.14; --money-scale:0.82; --money-tilt:-4deg;
+  --sparkle-opacity:0.14; --sign-opacity:0; --coin-opacity:0.2;
+  --car-opacity:0; --car-shift-x:56px; --car-shift-y:20px;
+  --car-scale:0.66; --ring-opacity:0; --coin-shower-opacity:0;
+  --dog-opacity:0; --ornament-opacity:0;
+  --car-body:#113829; --car-body-deep:#0b251b;
+  --car-accent:#d4a643; --car-window:rgba(208,231,238,0.92);
+  --car-wheel:#23282d;
+  --pose-rotate:-1.5deg; --pose-y:0px; --pose-scale:0.98;
+  --stance:17px; --hat-tilt:-2deg;
+  --arm-l:17deg; --arm-r:-18deg;
+  --leg-l:1deg; --leg-r:-1deg;
+  --shoe-lift-l:0px; --shoe-lift-r:0px;
+  --mono-opacity:0.88; --mono-chain-opacity:0.72; --mono-tilt:0deg;
+  --wear-vignette:0.22; --coat-shred:0.25; --lapel-gloss:0.34;
+  --stache-l:5deg; --stache-r:-5deg;
+  --cane-opacity:0.38; --cane-angle:7deg; --cane-x:0px;
+  --cheek-opacity:0.18; --idle-ms:3.15s; --tail-flare:0.68;
+  --coat-sheen:0.14; --mouth-w:17px; --mouth-y:1px;
+  --mouth-scale-y:0.85; --mouth-rotate:0deg;
+  --eye-open:0.88; --brow-l:6deg; --brow-r:-6deg;
+  --glow:rgba(245,209,137,0.2);
+  --upper-drop:0px; --chest-tilt:0deg; --head-tilt:0deg;
+  --thigh-l:0deg; --thigh-r:0deg; --calf-l:0deg; --calf-r:0deg;
+  --foot-l:0deg; --foot-r:0deg; --forearm-l:0deg; --forearm-r:0deg;
+  --cane-y-nudge:0px; --torso-shift-x:0px;
+  position:relative; width:158px; height:268px; overflow:visible;
+}
+
+.steward-wrap::before {
+  content:"";
+  position:absolute;
+  inset:6px 10px 0;
+  border-radius:40px;
+  background:
+    radial-gradient(circle at top, var(--glow), rgba(255,255,255,0) 58%),
+    radial-gradient(circle at 50% 100%, rgba(16,41,32,0.12), rgba(16,41,32,0) 52%);
+  z-index:0;
+  pointer-events:none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ABSOLUTE-POSITION EVERYTHING
+═══════════════════════════════════════════════════════════════════ */
+.steward-sparkles,.steward-money,.sw-racecar,.steward-sign,
+.steward-coin,.steward-coinfall { position:absolute; }
+
+.sw-pose,.sw-ground,.sw-rig,.sw-upper-stack,.sw-pelvis,
+.sw-hat,.sw-hat-shadow,.sw-hat-crown,.sw-hat-band,.sw-hat-brim,
+.sw-hat-ding,.sw-head,.sw-cheek,.sw-eyebrow,.sw-eye,.sw-pupil,
+.sw-eye-shine,.sw-lid,.sw-monocle,.sw-mono-rim,.sw-mono-glass,
+.sw-mono-chain,.sw-mono-glint,.sw-nose,.sw-mustache,.sw-stache,
+.sw-mouth,.sw-neck,.sw-collar,.sw-bowtie,.sw-bow-knot,
+.sw-body,.sw-shoulder,.sw-coat-back,.sw-coat,.sw-lapel,.sw-vest,
+.sw-btn,.sw-pocket,.sw-arm,.sw-upper-arm,.sw-forearm,
+.sw-forearm-wrap,.sw-cuff,.sw-hand,.sw-thumb,.sw-cane,
+.sw-cane-knob,.sw-cane-shaft,.sw-tails,.sw-tail,.sw-legs,
+.sw-leg,.sw-thigh,.sw-calf,.sw-foot,.sw-shoe,.sw-sole-shadow,
+.sm-c,.sm-b,.sm-d,.rc-body,.rc-cabin,.rc-win-driver,
+.rc-win-passenger,.rc-windshield,.rc-rear-win,.rc-spoiler,
+.rc-stripe,.rc-headlight,.rc-taillight,.rc-grille,.rc-ornament,
+.rc-orn-base,.rc-orn-post,.rc-orn-figure,.rc-orn-head,.rc-orn-body,
+.rc-orn-wing-l,.rc-orn-wing-r,.rc-wheel,.rc-puff,.rc-coin,
+.rc-ring,.rc-dollar,.rc-dog,.rc-dog-head,.rc-dog-head-wrap,
+.rc-dog-body,.rc-dog-ear,.rc-dog-eye,.rc-dog-pupil,.rc-dog-shine,
+.rc-dog-cheek,.rc-dog-snout,.rc-dog-nose,.rc-dog-tongue,
+.rc-dog-hat-wrap,.rc-dog-hat-brim,.rc-dog-hat-body,.rc-dog-hat-band {
+  position:absolute;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CHARACTER CONTAINER
+═══════════════════════════════════════════════════════════════════ */
+.steward-character {
+  position:absolute;
+  left:50%; bottom:18px;
+  width:108px; height:236px;
+  transform: translateX(-50%) scale(var(--character-scale,1));
+  transform-origin: center bottom;
+  z-index:3;
+  transition: transform 0.28s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   POSE + RIG
+═══════════════════════════════════════════════════════════════════ */
+.sw-pose {
+  inset:0;
+  transform-origin:50% 100%;
+  transform: translateY(var(--pose-y)) rotate(var(--pose-rotate)) scale(var(--pose-scale));
+  will-change:transform;
+}
+.sw-ground {
+  left:50%; bottom:0; width:92px; height:12px;
+  margin-left:-46px; border-radius:50%;
+  background: radial-gradient(ellipse at 50% 40%, rgba(16,41,32,0.22), rgba(16,41,32,0) 72%);
+  z-index:0; pointer-events:none;
+}
+.sw-rig {
+  left:50%; bottom:4px; width:108px; height:228px;
+  margin-left:-54px; z-index:2;
+}
+.sw-upper-stack {
+  left:0; right:0; top:0; height:176px;
+  transform-origin:50% 100%;
+  transform: translateY(var(--upper-drop)) rotate(var(--chest-tilt));
+  z-index:4; overflow:visible;
+}
+.sw-pelvis {
+  left:50%; top:159px; width:56px; height:19px;
+  margin-left:-28px; border-radius:999px;
+  background: linear-gradient(180deg,#1e3c30,#0f221a);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.07), inset 0 -4px 8px rgba(0,0,0,0.28);
+  z-index:3;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOTION ANIMATIONS — base tier dispatch
+═══════════════════════════════════════════════════════════════════ */
+.steward-wrap[data-motion="rock"]      .sw-pose { animation: swMotionRock var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="broke"]     .sw-pose { animation: swMotionBroke var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="struggle"]  .sw-pose { animation: swMotionStruggle var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="survive"]   .sw-pose { animation: swMotionSurvive var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="stabilize"] .sw-pose { animation: swMotionStabilize var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="stable"]    .sw-pose { animation: swMotionStable var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="build"]     .sw-pose { animation: swMotionBuild var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="thrive"]    .sw-pose { animation: swMotionThrive var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="win"]       .sw-pose { animation: swMotionWin var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-motion="luxury"]    .sw-pose { animation: swMotionLuxury var(--idle-ms) ease-in-out infinite; }
+
+@keyframes swMotionRock {
+  0%,100% { transform:translateY(var(--pose-y)) rotate(calc(var(--pose-rotate)+0.4deg)) translateX(-0.7px) scale(var(--pose-scale)); }
+  40%      { transform:translateY(calc(var(--pose-y)+2px)) rotate(calc(var(--pose-rotate)-0.6deg)) translateX(0.9px) scale(calc(var(--pose-scale)*0.993)); }
+  72%      { transform:translateY(calc(var(--pose-y)+1px)) rotate(calc(var(--pose-rotate)+0.3deg)) translateX(-0.9px) scale(var(--pose-scale)); }
+}
+@keyframes swMotionBroke {
+  0%,100% { transform:translateY(var(--pose-y)) rotate(calc(var(--pose-rotate)+0.2deg)) translateX(-0.4px) scale(var(--pose-scale)); }
+  50%     { transform:translateY(calc(var(--pose-y)+1px)) rotate(calc(var(--pose-rotate)-0.25deg)) translateX(0.4px) scale(var(--pose-scale)); }
+}
+@keyframes swMotionStruggle {
+  0%,100% { transform:translateY(var(--pose-y)) rotate(calc(var(--pose-rotate)+0.25deg)) translateX(-0.4px) scale(var(--pose-scale)); }
+  33%     { transform:translateY(calc(var(--pose-y)+0.8px)) rotate(calc(var(--pose-rotate)-0.28deg)) translateX(0.5px) scale(var(--pose-scale)); }
+  66%     { transform:translateY(calc(var(--pose-y)+0.2px)) rotate(calc(var(--pose-rotate)+0.12deg)) translateX(-0.3px) scale(var(--pose-scale)); }
+}
+@keyframes swMotionSurvive {
+  0%,100% { transform:translateY(var(--pose-y)) rotate(var(--pose-rotate)) scale(var(--pose-scale)); }
+  50%     { transform:translateY(calc(var(--pose-y)-0.8px)) rotate(calc(var(--pose-rotate)+0.1deg)) scale(var(--pose-scale)); }
+}
+@keyframes swMotionStabilize {
+  0%,100% { transform:translateY(var(--pose-y)) rotate(var(--pose-rotate)) scale(var(--pose-scale)); }
+  50%     { transform:translateY(calc(var(--pose-y)-1.1px)) rotate(calc(var(--pose-rotate)+0.07deg)) scale(var(--pose-scale)); }
+}
+@keyframes swMotionStable {
+  0%,100% { transform:translateY(var(--pose-y)) rotate(var(--pose-rotate)) scale(var(--pose-scale)); }
+  50%     { transform:translateY(calc(var(--pose-y)-1.3px)) rotate(calc(var(--pose-rotate)+0.05deg)) scale(var(--pose-scale)); }
+}
+@keyframes swMotionBuild {
+  0%,100% { transform:translateY(0) rotate(var(--pose-rotate)) scale(var(--pose-scale)); }
+  25%     { transform:translateY(-4px) rotate(calc(var(--pose-rotate)+0.22deg)) scale(calc(var(--pose-scale)*1.004)); }
+  60%     { transform:translateY(-1.5px) rotate(calc(var(--pose-rotate)-0.06deg)) scale(var(--pose-scale)); }
+}
+@keyframes swMotionThrive {
+  0%,100% { transform:translateY(0) rotate(var(--pose-rotate)) scale(var(--pose-scale)); }
+  20%     { transform:translateY(-6px) rotate(calc(var(--pose-rotate)+0.32deg)) scale(calc(var(--pose-scale)*1.007)); }
+  55%     { transform:translateY(-3px) rotate(calc(var(--pose-rotate)-0.10deg)) scale(var(--pose-scale)); }
+}
+@keyframes swMotionWin {
+  0%,100% { transform:translateY(0) rotate(var(--pose-rotate)) scale(var(--pose-scale)); }
+  50%     { transform:translateY(-2.5px) rotate(calc(var(--pose-rotate)+0.06deg)) scale(calc(var(--pose-scale)*1.003)); }
+}
+@keyframes swMotionLuxury {
+  0%,100% { transform:translateY(0) rotate(var(--pose-rotate)) scale(var(--pose-scale)); }
+  50%     { transform:translateY(-2px) rotate(calc(var(--pose-rotate)+0.04deg)) scale(calc(var(--pose-scale)*1.002)); }
+}
+
+/* ─── TIER ANIMATION OVERRIDES (state-specific, come AFTER motion rules) ─── */
+/* States 1-3: heavy tremble */
+@keyframes swTremble1 {
+  0%,100% { transform:translateY(var(--pose-y)) rotate(calc(var(--pose-rotate)+0.4deg)) scale(var(--pose-scale)); }
+  11% { transform:translateY(calc(var(--pose-y)+1.8px)) rotate(calc(var(--pose-rotate)-1.7deg)) translateX(-1.8px) scale(var(--pose-scale)); }
+  23% { transform:translateY(calc(var(--pose-y)+0.7px)) rotate(calc(var(--pose-rotate)+1.4deg)) translateX(1.6px) scale(calc(var(--pose-scale)*0.993)); }
+  36% { transform:translateY(calc(var(--pose-y)+2.5px)) rotate(calc(var(--pose-rotate)-1.0deg)) translateX(-1.2px) scale(var(--pose-scale)); }
+  48% { transform:translateY(calc(var(--pose-y)+1.3px)) rotate(calc(var(--pose-rotate)+0.7deg)) translateX(1.9px) scale(var(--pose-scale)); }
+  61% { transform:translateY(calc(var(--pose-y)+2.2px)) rotate(calc(var(--pose-rotate)-1.5deg)) translateX(-1.4px) scale(calc(var(--pose-scale)*0.995)); }
+  74% { transform:translateY(calc(var(--pose-y)+0.6px)) rotate(calc(var(--pose-rotate)+1.1deg)) translateX(1.1px) scale(var(--pose-scale)); }
+  87% { transform:translateY(calc(var(--pose-y)+1.7px)) rotate(calc(var(--pose-rotate)-0.5deg)) translateX(-0.8px) scale(var(--pose-scale)); }
+}
+.steward-wrap[data-state="rock_bottom"] .sw-pose { animation: swTremble1 2.1s ease-in-out infinite; }
+.steward-wrap[data-state="broke"]       .sw-pose { animation: swTremble1 2.7s ease-in-out infinite; }
+.steward-wrap[data-state="struggling"]  .sw-pose { animation: swTremble1 3.5s ease-in-out infinite; }
+
+/* States 7-8: energetic coin-bounce (overrides motion build/thrive) */
+.steward-wrap[data-state="building"] .sw-pose { animation: swMotionBuild var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-state="thriving"] .sw-pose { animation: swMotionThrive var(--idle-ms) ease-in-out infinite; }
+
+/* States 9-10: radiant float */
+.steward-wrap[data-state="winning"] .sw-pose { animation: swMotionWin var(--idle-ms) ease-in-out infinite; }
+.steward-wrap[data-state="wealthy"] .sw-pose { animation: swMotionLuxury var(--idle-ms) ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   HAT
+═══════════════════════════════════════════════════════════════════ */
+.sw-hat {
+  top:-14px; left:50%; width:58px; height:56px;
+  transform: translateX(-50%) rotate(var(--hat-tilt));
+  transform-origin:50% 80%; z-index:5;
+  animation: swHatSettle var(--idle-ms) ease-in-out infinite;
+}
+@keyframes swHatSettle {
+  0%,100% { transform:translateX(-50%) rotate(calc(var(--hat-tilt)+0deg)); }
+  50%     { transform:translateX(-50%) rotate(calc(var(--hat-tilt)+0.22deg)); }
+}
+.sw-hat-shadow { inset:4px 12px 10px; border-radius:14px 14px 8px 8px;
+  background:linear-gradient(180deg,rgba(0,0,0,0.22),transparent 55%);
+  mix-blend-mode:multiply; opacity:0.55; pointer-events:none; }
+.sw-hat-crown {
+  inset:0 6px 12px;
+  background: linear-gradient(120deg,rgba(255,255,255,0.12),transparent 42%),
+              linear-gradient(180deg, color-mix(in srgb,var(--hat) 86%,#000), var(--hat));
+  border-radius:10px 10px 6px 6px;
+  box-shadow: inset 0 -10px 14px rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.08);
+}
+.sw-hat-band { left:8px; right:8px; top:36px; height:9px;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--hat-band) 88%,#fff),var(--hat-band));
+  border-radius:3px; box-shadow:0 1px 0 rgba(0,0,0,0.18); }
+.sw-hat-brim { left:-4px; right:-4px; bottom:0; height:12px;
+  background:linear-gradient(180deg,#0f231b,#050c09);
+  border-radius:999px; box-shadow:0 4px 8px rgba(0,0,0,0.28); }
+.sw-hat-ding { top:8px; left:12px; width:16px; height:8px; border-radius:999px;
+  background:radial-gradient(circle at 30% 30%,rgba(255,255,255,0.35),rgba(255,255,255,0) 62%);
+  opacity:0.55; pointer-events:none; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   HEAD + FACE
+═══════════════════════════════════════════════════════════════════ */
+.sw-head {
+  top:34px; left:50%; width:56px; height:62px;
+  transform: translateX(-50%) rotate(var(--head-tilt));
+  background:linear-gradient(180deg, color-mix(in srgb,var(--skin) 88%,#fff),var(--skin));
+  border-radius:24px 24px 20px 20px;
+  box-shadow: inset 0 -10px 16px rgba(180,120,70,0.12), 0 10px 14px rgba(16,41,32,0.12);
+  z-index:4;
+}
+.sw-head::after {
+  content:""; position:absolute; inset:0; border-radius:inherit;
+  background:radial-gradient(circle at 50% 18%,rgba(0,0,0,0),rgba(20,10,8,calc(var(--wear-vignette)*0.55)) 72%,rgba(10,6,6,calc(var(--wear-vignette)*0.75)) 100%);
+  mix-blend-mode:multiply; pointer-events:none;
+}
+.sw-cheek { top:38px; width:10px; height:7px; border-radius:50%;
+  background:radial-gradient(circle,rgba(230,120,110,0.35),rgba(230,120,110,0));
+  opacity:var(--cheek-opacity); filter:blur(0.2px); }
+.sw-cheek-l{left:6px;} .sw-cheek-r{right:6px;}
+
+.sw-eyebrow { top:18px; width:13px; height:3px; background:var(--ink); border-radius:999px; opacity:0.92; }
+.sw-eyebrow-l{left:9px; transform:rotate(var(--brow-l)); transform-origin:80% 50%;}
+.sw-eyebrow-r{right:9px; transform:rotate(var(--brow-r)); transform-origin:20% 50%;}
+
+.sw-eye { top:28px; width:9px; height:11px; background:rgba(250,248,242,0.96);
+  border-radius:50%; overflow:hidden; box-shadow:inset 0 -2px 0 rgba(0,0,0,0.08); }
+.sw-eye-l{left:11px;} .sw-eye-r{right:11px;}
+.sw-pupil { left:50%; top:50%; width:6px; height:8px;
+  transform:translate(-50%,-50%) scaleY(var(--eye-open));
+  transform-origin:50% 40%;
+  background:radial-gradient(circle at 35% 28%,#2a2a2a,var(--ink)); border-radius:50%; }
+.sw-eye-shine { left:3px; top:3px; width:3px; height:2px; border-radius:50%;
+  background:rgba(255,255,255,0.85); opacity:0.85; }
+.sw-lid { left:-1px; right:-1px; top:-1px; z-index:3; height:120%;
+  background:linear-gradient(180deg,var(--skin) 0 52%,rgba(244,223,190,0) 53%);
+  transform-origin:top center; transform:scaleY(0);
+  animation:swBlink 5.4s ease-in-out infinite; pointer-events:none; }
+.sw-eye-r .sw-lid { animation-delay:0.14s; }
+@keyframes swBlink { 0%,90%,100%{transform:scaleY(0);} 92%,96%{transform:scaleY(1);} }
+
+.sw-monocle { top:24px; right:5px; width:21px; height:21px;
+  transform:rotate(var(--mono-tilt)); opacity:var(--mono-opacity);
+  filter:drop-shadow(0 2px 2px rgba(0,0,0,0.18)); }
+.sw-mono-rim { inset:0; border-radius:50%;
+  border:2.2px solid color-mix(in srgb,#e8c46a 70%,#7a5520);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 -3px 6px rgba(0,0,0,0.18); }
+.sw-mono-glass { inset:4px; border-radius:50%;
+  background:radial-gradient(circle at 28% 28%,rgba(255,255,255,0.55),rgba(255,255,255,0) 42%),
+    linear-gradient(160deg,rgba(190,220,230,0.35),rgba(255,255,255,0.08)); opacity:0.9; }
+.sw-mono-chain { right:-2px; top:19px; width:2px; height:18px; border-radius:999px;
+  background:repeating-linear-gradient(180deg,rgba(212,170,80,0.95) 0 3px,rgba(120,90,40,0.55) 3px 4px);
+  transform:rotate(-22deg); transform-origin:top center; opacity:var(--mono-chain-opacity); }
+.sw-mono-glint { top:6px; left:7px; width:10px; height:3px; border-radius:999px;
+  background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.75),rgba(255,255,255,0));
+  opacity:0; animation:swMonoGlint 4.2s ease-in-out infinite; }
+.steward-wrap[data-motion="rock"] .sw-mono-glint,
+.steward-wrap[data-motion="broke"] .sw-mono-glint { animation:none; opacity:0; }
+@keyframes swMonoGlint {
+  0%,70%,100%{opacity:0;transform:translateX(-2px);}
+  78%{opacity:0.85;transform:translateX(3px);}
+}
+
+.sw-nose { top:38px; left:50%; width:8px; height:10px; transform:translateX(-50%);
+  background:linear-gradient(180deg,rgba(236,200,160,0.95),rgba(210,170,130,0.85));
+  border-radius:999px; box-shadow:0 2px 3px rgba(0,0,0,0.12); }
+
+.sw-mustache { top:46px; left:50%; width:30px; height:11px; transform:translateX(-50%); }
+.sw-stache { top:0; width:15px; height:10px; background:var(--ink); }
+.sw-stache-l { left:0; border-radius:5px 18px 14px 18px; transform:rotate(var(--stache-l)); transform-origin:100% 50%; }
+.sw-stache-r { right:0; border-radius:18px 5px 18px 14px; transform:rotate(var(--stache-r)); transform-origin:0% 50%; }
+.sw-mouth { top:56px; left:50%; width:var(--mouth-w); height:7px;
+  transform:translate(-50%,var(--mouth-y)) rotate(var(--mouth-rotate)) scaleY(var(--mouth-scale-y));
+  transform-origin:50% 0;
+  border-bottom:2.5px solid rgba(95,49,42,0.88); border-radius:0 0 999px 999px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   NECK + COLLAR + BOWTIE
+═══════════════════════════════════════════════════════════════════ */
+.sw-neck { top:92px; left:50%; width:30px; height:20px; transform:translateX(-50%); z-index:3; }
+.sw-collar { top:0; width:16px; height:18px;
+  background:linear-gradient(180deg,var(--shirt), color-mix(in srgb,var(--shirt) 70%,#cfc8bd));
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,0.06); }
+.sw-collar-l { left:0; clip-path:polygon(0 0,100% 0,100% 100%,14% 58%); }
+.sw-collar-r { right:0; clip-path:polygon(0 0,100% 0,86% 58%,0 100%); }
+.sw-bowtie { top:7px; left:50%; width:26px; height:12px; transform:translateX(-50%); }
+.sw-bowtie::before,.sw-bowtie::after { content:""; position:absolute; top:0;
+  width:11px; height:12px; background:linear-gradient(180deg,#e8c97a,#a66f22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.35); }
+.sw-bowtie::before { left:0; clip-path:polygon(0 50%,100% 0,100% 100%); }
+.sw-bowtie::after  { right:0; clip-path:polygon(0 0,100% 50%,0 100%); }
+.sw-bow-knot { left:50%; top:2px; width:8px; height:8px;
+  transform:translateX(-50%) rotate(45deg);
+  background:linear-gradient(135deg,#f0d48c,#b27a24); border-radius:2px;
+  box-shadow:0 1px 2px rgba(0,0,0,0.2); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   BODY + COAT + VEST + ARMS
+═══════════════════════════════════════════════════════════════════ */
+.sw-body { top:110px; left:50%; width:84px; height:70px;
+  transform:translateX(calc(-50% + var(--torso-shift-x))); z-index:2; }
+.sw-shoulder { top:1px; width:18px; height:13px; border-radius:50% 50% 38% 38%;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--coat) 75%,#000),var(--coat));
+  box-shadow:inset 0 2px 0 rgba(255,255,255,0.08), inset 0 -3px 4px rgba(0,0,0,0.2); z-index:1; }
+.sw-shoulder-l{left:2px;transform:rotate(8deg);}
+.sw-shoulder-r{right:2px;transform:rotate(-8deg);}
+.sw-coat-back { left:50%; top:6px; width:58px; height:48px; transform:translateX(-50%);
+  background:radial-gradient(ellipse at 50% 0,var(--coat-deep),transparent 70%);
+  opacity:0.55; filter:blur(0.2px); }
+.sw-coat { top:0; width:35px; height:68px;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--coat) 88%,#fff),var(--coat));
+  box-shadow:inset 6px 0 10px rgba(255,255,255,calc(var(--coat-sheen)*0.08)), inset -8px 0 14px rgba(0,0,0,0.18); }
+.sw-coat-l { left:0; border-radius:14px 8px 12px 12px; clip-path:polygon(0 0,100% 0,88% 100%,0 100%); }
+.sw-coat-r { right:0; border-radius:8px 14px 12px 12px; clip-path:polygon(0 0,100% 0,100% 100%,12% 100%); }
+.sw-lapel { top:4px; width:14px; height:44px;
+  background:linear-gradient(95deg,rgba(255,255,255,calc(var(--lapel-gloss)*0.06)),rgba(0,0,0,0) 46%,rgba(0,0,0,0.12));
+  mix-blend-mode:soft-light; opacity:0.85; }
+.sw-lapel-l { left:18px; clip-path:polygon(0 0,100% 8%,70% 100%,0 86%); }
+.sw-lapel-r { right:18px; clip-path:polygon(0 8%,100% 0,100% 86%,30% 100%); }
+.sw-vest { top:4px; left:50%; width:26px; height:58px; transform:translateX(-50%);
+  background:linear-gradient(180deg, color-mix(in srgb,var(--vest) 82%,#fff),var(--vest));
+  border-radius:9px 9px 14px 14px;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08), inset 0 -10px 16px rgba(0,0,0,0.12); z-index:2; }
+.sw-btn { left:50%; width:5px; height:5px; transform:translateX(-50%);
+  background:radial-gradient(circle at 30% 25%,rgba(255,255,255,0.35),#6a4610);
+  border-radius:50%; box-shadow:0 1px 1px rgba(0,0,0,0.25); }
+.sw-btn:nth-of-type(1){top:18px;} .sw-btn:nth-of-type(2){top:30px;} .sw-btn:nth-of-type(3){top:42px;}
+.sw-pocket { top:34px; right:10px; width:16px; height:12px;
+  border-radius:4px 4px 8px 8px; border:1px solid rgba(255,255,255,0.12);
+  background:linear-gradient(180deg,rgba(0,0,0,0.12),rgba(255,255,255,0.04)); opacity:0.55; }
+
+.sw-arm { top:8px; width:18px; height:58px; transform-origin:50% 6px; z-index:4; }
+.sw-arm-l { left:-6px; transform:rotate(var(--arm-l)); }
+.sw-arm-r { right:-6px; transform:rotate(var(--arm-r)); }
+.sw-upper-arm { top:0; left:50%; width:15px; height:28px; margin-left:-7.5px;
+  border-radius:999px;
+  background:linear-gradient(90deg,rgba(255,255,255,0.06),rgba(0,0,0,0.12)),var(--coat);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08); }
+.sw-forearm { top:24px; left:50%; width:13px; height:26px; margin-left:-6.5px;
+  border-radius:10px 10px 12px 12px; transform-origin:top center;
+  background:linear-gradient(90deg,rgba(255,255,255,0.05),rgba(0,0,0,0.10)),var(--coat);
+  box-shadow:inset 0 -2px 3px rgba(0,0,0,0.15); }
+.sw-forearm-l { transform:rotate(var(--forearm-l)); }
+.sw-forearm-wrap { top:24px; left:50%; width:20px; height:32px; margin-left:-10px;
+  transform-origin:top center; transform:rotate(var(--forearm-r)); }
+.sw-cuff { top:17px; left:50%; width:16px; height:7px; margin-left:-8px;
+  background:linear-gradient(180deg,var(--shirt), color-mix(in srgb,var(--shirt) 70%,#c8c2b8));
+  border-radius:999px; box-shadow:0 1px 0 rgba(0,0,0,0.12); }
+.sw-forearm-wrap .sw-cuff { top:15px; }
+.sw-hand { bottom:-1px; left:50%; width:17px; height:15px; margin-left:-8.5px;
+  border-radius:46% 46% 42% 42%;
+  background:radial-gradient(circle at 32% 22%,#fffdf7,#ead9c4 55%,#c9b59a);
+  box-shadow:inset 0 -2px 2px rgba(0,0,0,0.12),0 2px 3px rgba(0,0,0,0.14); z-index:6; }
+.sw-thumb { bottom:4px; left:0; width:6px; height:10px;
+  border-radius:40% 60% 50% 45%;
+  background:linear-gradient(120deg,#f3e6d4,#d2bc9f);
+  box-shadow:0 1px 1px rgba(0,0,0,0.12); z-index:7; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CANE
+═══════════════════════════════════════════════════════════════════ */
+.sw-cane { left:50%; top:calc(14px + var(--cane-y-nudge)); width:10px; height:84px; margin-left:-5px;
+  opacity:var(--cane-opacity); transform:rotate(var(--cane-angle)) translateX(var(--cane-x));
+  transform-origin:50% 10px; z-index:3; pointer-events:none; }
+.sw-cane-shaft { left:50%; top:12px; bottom:0; width:4px; margin-left:-2px; border-radius:999px;
+  background:linear-gradient(90deg,#6b4a1c,#c4933f 45%,#4a3312);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12),1px 0 2px rgba(0,0,0,0.15); }
+.sw-cane-knob { left:50%; top:0; width:13px; height:13px; margin-left:-6.5px;
+  border-radius:50%; border:2.5px solid #a56f24;
+  background:radial-gradient(circle at 32% 25%,#fff0d0,#c8923a 55%,#5c4014);
+  box-shadow:0 2px 4px rgba(0,0,0,0.22); }
+.sw-forearm-wrap .sw-forearm { top:4px; left:50%; margin-left:-6.5px; z-index:4; }
+.sw-hand-r { bottom:-1px; z-index:8; }
+
+@keyframes swCaneSettle {
+  0%,100%{transform:rotate(var(--cane-angle)) translateX(var(--cane-x));}
+  50%{transform:rotate(calc(var(--cane-angle)+0.5deg)) translateX(calc(var(--cane-x)-0.4px));}
+}
+.steward-wrap[data-motion="stable"] .sw-cane,
+.steward-wrap[data-motion="build"]  .sw-cane,
+.steward-wrap[data-motion="thrive"] .sw-cane,
+.steward-wrap[data-motion="win"]    .sw-cane,
+.steward-wrap[data-motion="luxury"] .sw-cane { animation:swCaneSettle var(--idle-ms) ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   COAT TAILS + LEGS + FEET
+═══════════════════════════════════════════════════════════════════ */
+.sw-tails { top:155px; left:50%; width:86px; height:26px; transform:translateX(-50%); z-index:1;
+  animation:swTailSway var(--idle-ms) ease-in-out infinite; }
+@keyframes swTailSway {
+  0%,100%{transform:translateX(-50%) skewX(0deg);}
+  50%{transform:translateX(-50%) skewX(calc(var(--tail-flare)*0.7deg));}
+}
+.sw-tail { bottom:0; width:22px; height:22px;
+  background:linear-gradient(180deg,var(--coat),var(--coat-deep));
+  border-radius:10px 10px 4px 4px; opacity:0.92; box-shadow:0 6px 8px rgba(0,0,0,0.14); }
+.sw-tail-l { left:8px; transform:rotate(calc(-12deg - var(--tail-flare)*6deg)); transform-origin:top center; }
+.sw-tail-r { right:8px; transform:rotate(calc(12deg + var(--tail-flare)*6deg)); transform-origin:top center; }
+
+.sw-legs { position:absolute; left:50%; top:168px; width:calc(58px + var(--stance)); height:76px;
+  transform:translateX(-50%); display:flex; justify-content:space-between; align-items:flex-start; z-index:3; }
+.sw-leg { position:relative; width:30px; height:72px; transform-origin:50% 6px; z-index:2; }
+.sw-leg-l{transform:rotate(var(--leg-l));}
+.sw-leg-r{transform:rotate(var(--leg-r));}
+.sw-thigh { position:relative; left:50%; width:22px; height:34px; margin-left:-11px;
+  border-radius:12px 12px 9px 9px; transform-origin:50% 4px;
+  background:linear-gradient(90deg,#2a4538,#152a22);
+  box-shadow:inset 2px 0 4px rgba(255,255,255,0.04), inset -3px 0 6px rgba(0,0,0,0.28); }
+.sw-thigh-l{transform:rotate(var(--thigh-l));}
+.sw-thigh-r{transform:rotate(var(--thigh-r));}
+.sw-calf { position:absolute; top:26px; left:50%; width:18px; height:28px; margin-left:-9px;
+  border-radius:8px 8px 12px 12px; transform-origin:50% 0;
+  background:linear-gradient(90deg,#24362c,#101c17); box-shadow:inset -2px 0 4px rgba(0,0,0,0.25); }
+.sw-calf-l{transform:rotate(var(--calf-l));}
+.sw-calf-r{transform:rotate(var(--calf-r));}
+.sw-foot { position:absolute; left:50%; bottom:-3px; width:34px; height:19px;
+  margin-left:-17px; transform-origin:50% 6px; }
+.sw-foot-l{transform:rotate(var(--foot-l)) translateY(var(--shoe-lift-l));}
+.sw-foot-r{transform:rotate(var(--foot-r)) translateY(var(--shoe-lift-r));}
+.sw-shoe { bottom:0; left:50%; width:34px; height:17px; margin-left:-17px;
+  border-radius:13px 16px 11px 12px;
+  background:linear-gradient(175deg,#5a4232 0%,#2e1f14 55%,#1a100c 100%);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,0.10),0 5px 8px rgba(0,0,0,0.42); }
+.sw-shoe::after { content:""; position:absolute; left:5px; right:5px; top:4px; height:4px;
+  border-radius:999px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent); }
+.sw-sole-shadow { bottom:-5px; left:50%; width:42px; height:9px; margin-left:-21px;
+  border-radius:50%; background:radial-gradient(ellipse at 50%,rgba(0,0,0,0.32),transparent 72%); z-index:0; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SPARKLES + COIN + SIGN
+═══════════════════════════════════════════════════════════════════ */
+.steward-sparkles { inset:2px 8px auto 8px; height:64px; opacity:var(--sparkle-opacity); z-index:1; }
+.sparkle { position:absolute; color:rgba(255,216,129,0.95); font-size:20px;
+  text-shadow:0 0 10px rgba(255,220,140,0.45); animation:sparkleFloat 2.8s ease-in-out infinite; }
+.sparkle.s1{left:12px;top:8px;animation-delay:0s;}
+.sparkle.s2{right:18px;top:0;font-size:16px;animation-delay:0.5s;}
+.sparkle.s3{left:48%;top:20px;font-size:13px;animation-delay:0.9s;}
+@keyframes sparkleFloat {
+  0%,100%{transform:translateY(0) scale(1);opacity:0.72;}
+  50%{transform:translateY(-8px) scale(1.12);opacity:1;}
+}
+
+.steward-coin { right:16px; top:22px; width:22px; height:22px; opacity:var(--coin-opacity);
+  border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff8dc,#f1cb75 38%,#ca9132 72%,#8d6119 100%);
+  box-shadow:inset 0 0 0 2px rgba(255,246,216,0.26); z-index:1; }
+.steward-coin::after { content:"$"; position:absolute; inset:0; display:grid;
+  place-items:center; font-size:13px; font-weight:800; color:rgba(123,86,19,0.96); }
+
+.steward-sign { left:-18px; bottom:76px; padding:9px 11px; max-width:80px;
+  font-size:0.62rem; font-weight:700; line-height:1.3; color:#5a3626;
+  background:linear-gradient(160deg,#f7e8c4,#e2c090);
+  border:1.5px solid rgba(110,72,38,0.3); border-radius:6px 8px 8px 6px;
+  box-shadow:0 3px 0 rgba(110,72,38,0.18),0 6px 18px rgba(79,45,26,0.18);
+  transform:rotate(-9deg); opacity:var(--sign-opacity); z-index:4; }
+.steward-sign::before { content:""; position:absolute; top:-6px; left:50%;
+  width:2px; height:8px; margin-left:-1px; background:#b07840; border-radius:1px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   MONEY PARTICLES
+═══════════════════════════════════════════════════════════════════ */
+.steward-money { inset:0; opacity:var(--money-opacity); transform:scale(var(--money-scale)); z-index:2; }
+
+.steward-wrap[data-money-tier="sparse"] .steward-money .sm-d,
+.steward-wrap[data-money-tier="sparse"] .steward-money .sm-b { opacity:0!important;visibility:hidden; }
+.steward-wrap[data-money-tier="sparse"] .steward-money .sm-c3,
+.steward-wrap[data-money-tier="sparse"] .steward-money .sm-c4,
+.steward-wrap[data-money-tier="sparse"] .steward-money .sm-c5 { opacity:0!important;visibility:hidden; }
+.steward-wrap[data-money-tier="medium"] .steward-money .sm-d5,
+.steward-wrap[data-money-tier="medium"] .steward-money .sm-d6,
+.steward-wrap[data-money-tier="medium"] .steward-money .sm-d7,
+.steward-wrap[data-money-tier="medium"] .steward-money .sm-d8,
+.steward-wrap[data-money-tier="medium"] .steward-money .sm-b3,
+.steward-wrap[data-money-tier="medium"] .steward-money .sm-c5 { opacity:0!important;visibility:hidden; }
+
+.sm-c,.rc-coin { width:16px; height:16px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff8dc,#f2cf7b 38%,#d39a35 72%,#9a6818 100%); }
+.sm-b { width:22px; height:12px; border-radius:4px;
+  background:linear-gradient(180deg,#dff7d9,#85c78a); border:1px solid rgba(33,109,52,0.18); }
+.sm-b::after { content:"$"; position:absolute; inset:0; display:grid;
+  place-items:center; font-size:9px; font-weight:800; color:#245536; }
+.sm-d { position:absolute; font-size:16px; font-weight:900;
+  color:rgba(212,166,70,0.92); text-shadow:0 3px 10px rgba(156,113,25,0.16);
+  animation:moneyFloat 3.2s ease-in-out infinite; }
+.sm-c1{left:14px;top:148px;animation:moneyFloat 3.1s ease-in-out infinite;}
+.sm-c2{right:12px;top:138px;animation:moneyFloat 3.4s ease-in-out infinite 0.3s;}
+.sm-c3{left:50%;top:36px;margin-left:18px;animation:moneyFloat 2.9s ease-in-out infinite 0.6s;}
+.sm-c4{left:50%;top:160px;margin-left:-34px;animation:moneyFloat 3.3s ease-in-out infinite 0.4s;}
+.sm-c5{left:8px;top:72px;animation:moneyFloat 3s ease-in-out infinite 0.8s;}
+.sm-b1{left:10px;top:106px;transform:rotate(-6deg);}
+.sm-b2{right:10px;top:120px;transform:rotate(4deg);}
+.sm-b3{left:50%;top:90px;margin-left:16px;transform:rotate(7deg);}
+.sm-d1{left:6px;top:52px;animation-delay:0.1s;}
+.sm-d2{right:6px;top:60px;animation-delay:0.5s;}
+.sm-d3{left:50%;top:20px;margin-left:-10px;animation-delay:0.9s;}
+.sm-d4{left:8px;top:176px;animation-delay:0.2s;}
+.sm-d5{right:8px;top:172px;animation-delay:0.7s;}
+.sm-d6{left:50%;top:152px;margin-left:26px;animation-delay:1.1s;}
+.sm-d7{left:50%;top:26px;margin-left:26px;animation-delay:0.4s;}
+.sm-d8{right:2px;top:92px;animation-delay:0.8s;}
+@keyframes moneyFloat {
+  0%,100%{transform:translateY(0) rotate(var(--money-tilt));}
+  50%{transform:translateY(-7px) rotate(calc(var(--money-tilt)*-1));}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   COIN FALL SHOWER (states 9-10)
+═══════════════════════════════════════════════════════════════════ */
+.steward-coinfall { inset:0; pointer-events:none; z-index:2; opacity:0; }
+.steward-wrap[data-state="winning"] .steward-coinfall  { opacity:0.92; }
+.steward-wrap[data-state="wealthy"] .steward-coinfall  { opacity:1; }
+
+.scf-c { position:absolute; width:15px; height:15px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff8dc,#f2cf7b 38%,#d39a35 72%,#9a6818 100%);
+  animation:scfCoinFall 2.2s linear infinite; }
+.scf-d { position:absolute; font-size:19px; font-weight:900;
+  color:rgba(218,180,58,0.96);
+  text-shadow:0 0 8px rgba(200,160,40,0.4);
+  animation:scfDollarFall 2.7s linear infinite; }
+.scf-c1{left:6px;  top:0;animation-delay:0.0s;}
+.scf-c2{left:26px; top:0;animation-delay:0.45s;}
+.scf-c3{left:50%;  top:0;animation-delay:0.8s;}
+.scf-c4{left:72%;  top:0;animation-delay:1.2s;}
+.scf-c5{left:90%;  top:0;animation-delay:1.65s;}
+.scf-c6{left:38%;  top:0;animation-delay:2.0s;}
+.scf-d1{left:16%;  top:-4px;animation-delay:0.25s;}
+.scf-d2{right:14%; top:-4px;animation-delay:0.9s;}
+.scf-d3{left:55%;  top:-4px;animation-delay:1.5s;}
+.scf-d4{left:34%;  top:-4px;animation-delay:2.1s;}
+@keyframes scfCoinFall {
+  0%  {transform:translateY(-20px) rotate(0deg) scale(0.6);opacity:0;}
+  8%  {opacity:1;}
+  88% {opacity:1;}
+  100%{transform:translateY(280px) rotate(420deg) scale(1.05);opacity:0;}
+}
+@keyframes scfDollarFall {
+  0%  {transform:translateY(-28px) rotate(-6deg);opacity:0;}
+  10% {opacity:0.92;}
+  90% {opacity:0.92;}
+  100%{transform:translateY(275px) rotate(9deg);opacity:0;}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RACE CAR
+═══════════════════════════════════════════════════════════════════ */
+.sw-racecar { left:50%; bottom:10px; width:150px; height:84px;
+  opacity:var(--car-opacity);
+  transform:translate(calc(-50% + var(--car-shift-x)),var(--car-shift-y)) scale(var(--car-scale));
+  transform-origin:center bottom; z-index:1; }
+.rc-body { left:18px; right:12px; bottom:18px; height:34px;
+  background:linear-gradient(180deg,var(--car-body),var(--car-body-deep) 62%,var(--car-body-deep));
+  border-radius:18px 28px 12px 12px; }
+.rc-body::before { content:""; position:absolute; left:-8px; bottom:0; width:54px; height:24px;
+  background:inherit; border-radius:18px 0 12px 10px; }
+.rc-gold-trim { left:10px; right:14px; top:4px; height:2px;
+  background:linear-gradient(90deg,rgba(245,215,139,0.2),var(--car-accent),rgba(245,215,139,0.2)); }
+.rc-cabin { left:56px; bottom:26px; width:46px; height:24px; background:var(--car-body); border-radius:18px 18px 6px 6px; }
+.rc-win-driver,.rc-win-passenger,.rc-windshield,.rc-rear-win { background:var(--car-window); }
+.rc-win-driver  { left:62px;bottom:31px;width:15px;height:14px;border-radius:5px 5px 3px 3px; }
+.rc-win-passenger{left:80px;bottom:31px;width:15px;height:14px;border-radius:5px 5px 3px 3px; }
+.rc-windshield  { left:54px;bottom:28px;width:8px;height:16px;transform:skew(-18deg);border-radius:4px 0 0 3px; }
+.rc-rear-win    { right:54px;bottom:30px;width:10px;height:14px;transform:skew(16deg);border-radius:0 4px 3px 0; }
+.rc-spoiler     { right:14px;bottom:38px;width:18px;height:7px;background:var(--car-body-deep);border-radius:5px 8px 2px 2px; }
+.rc-stripe      { left:42px;right:38px;bottom:30px;height:3px;background:linear-gradient(90deg,transparent,var(--car-accent),transparent); }
+.rc-headlight   { left:-4px;bottom:14px;width:10px;height:10px;background:radial-gradient(circle,#fff8d5,#ffd46d 64%,#c18a2c 100%);border-radius:50%; }
+.rc-taillight   { right:0;bottom:18px;width:8px;height:8px;background:radial-gradient(circle,#ffd7d7,#e66d61 58%,#8f2c26 100%);border-radius:50%; }
+.rc-grille      { left:-10px;bottom:9px;width:18px;height:12px;background:linear-gradient(180deg,#9fabb3,#68747d);border-radius:4px 10px 4px 6px; }
+.rc-grille::before { content:""; position:absolute; inset:2px 3px;
+  background:repeating-linear-gradient(90deg,rgba(40,48,53,0.95) 0 2px,rgba(150,164,171,0.2) 2px 4px);
+  border-radius:2px 8px 2px 4px; }
+.rc-ornament    { left:18px;bottom:33px;width:22px;height:18px;opacity:var(--ornament-opacity); }
+.rc-orn-base    { left:8px;bottom:0;width:7px;height:4px;background:#c6d0d5;border-radius:999px; }
+.rc-orn-post    { left:11px;bottom:3px;width:1.5px;height:8px;background:#dfe7eb; }
+.rc-orn-figure  { left:4px;bottom:9px;width:14px;height:8px; }
+.rc-orn-head    { left:5px;top:0;width:4px;height:4px;background:#edf4f6;border-radius:50%; }
+.rc-orn-body    { left:6px;top:3px;width:2px;height:4px;background:#edf4f6; }
+.rc-orn-wing-l,.rc-orn-wing-r{top:3px;width:6px;height:2px;background:#edf4f6;}
+.rc-orn-wing-l{left:0;transform:rotate(-26deg);}
+.rc-orn-wing-r{right:0;transform:rotate(26deg);}
+.rc-wheel { bottom:2px;width:23px;height:23px;
+  background:radial-gradient(circle,#8a98a0 0 22%,var(--car-wheel) 24% 52%,#090d10 53% 100%);
+  border-radius:50%; box-shadow:inset 0 0 0 3px rgba(157,173,182,0.16); }
+.rc-wheel::after{content:"";position:absolute;inset:6px;border:2px solid rgba(210,220,225,0.26);border-radius:50%;}
+.rc-wf{left:26px;} .rc-wr{right:22px;}
+.rc-exhaust{position:absolute;left:5px;bottom:22px;width:34px;height:22px;}
+.rc-puff { background:radial-gradient(circle,rgba(235,239,241,0.95),rgba(235,239,241,0));
+  border-radius:50%; animation:puffDrift 2.4s ease-out infinite; }
+.rp1{left:0;bottom:0;width:14px;height:14px;}
+.rp2{left:10px;bottom:8px;width:11px;height:11px;animation-delay:0.4s;}
+.rp3{left:20px;bottom:14px;width:8px;height:8px;animation-delay:0.8s;}
+.rc-dollar{position:absolute;font-size:15px;font-weight:900;color:rgba(223,187,93,0.92);animation:dollarBounce 2.8s ease-in-out infinite;}
+.rc-d1{left:18px;top:6px;animation-delay:0.2s;}
+.rc-d2{left:44px;top:-4px;animation-delay:0.7s;}
+.rc-d3{right:34px;top:2px;animation-delay:0.5s;}
+.rc-d4{right:10px;top:14px;animation-delay:0.9s;}
+.rc-coin-shower{position:absolute;inset:-14px 16px auto auto;width:56px;height:48px;opacity:var(--coin-shower-opacity);}
+.rc-coin{animation:coinFall 3.1s linear infinite;}
+.rcc1{left:0;top:0;}.rcc2{left:18px;top:6px;animation-delay:0.3s;}
+.rcc3{left:36px;top:2px;animation-delay:0.5s;}.rcc4{left:54px;top:8px;animation-delay:0.8s;}
+.rcc5{left:8px;top:20px;animation-delay:1.1s;}.rcc6{left:28px;top:22px;animation-delay:1.4s;}
+.rcc7{left:46px;top:18px;animation-delay:1.7s;}.rcc8{left:16px;top:38px;animation-delay:2.0s;}
+.rc-ring{bottom:-1px;width:56px;height:16px;border:1.8px solid rgba(242,208,112,0.72);border-radius:50%;opacity:var(--ring-opacity);}
+.rc-ring-1{left:20px;}.rc-ring-2{left:44px;}.rc-ring-3{left:68px;}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DOG (old CSS-based, inside racecar)
+═══════════════════════════════════════════════════════════════════ */
+.rc-dog{left:92px;bottom:34px;width:42px;height:42px;opacity:var(--dog-opacity);}
+.rc-dog-body{left:8px;bottom:0;width:26px;height:18px;background:linear-gradient(180deg,#dfbf85,#b8874c);border-radius:14px 14px 10px 10px;}
+.rc-dog-head-wrap{left:4px;top:6px;width:34px;height:26px;}
+.rc-dog-head{inset:0;background:linear-gradient(180deg,#edd0a2,#c39158);border-radius:14px 14px 12px 12px;}
+.rc-dog-ear{top:2px;width:8px;height:15px;background:linear-gradient(180deg,#a16634,#6f4621);border-radius:8px;}
+.rc-dog-ear-l{left:2px;transform:rotate(-18deg);}
+.rc-dog-ear-r{right:2px;transform:rotate(18deg);}
+.rc-dog-eye{top:11px;width:5px;height:6px;background:#231812;border-radius:50%;}
+.rc-dog-eye-l{left:9px;}.rc-dog-eye-r{right:9px;}
+.rc-dog-pupil,.rc-dog-shine{display:none;}
+.rc-dog-cheek{top:16px;width:5px;height:4px;background:rgba(243,197,166,0.56);border-radius:50%;}
+.rc-dog-cheek-l{left:6px;}.rc-dog-cheek-r{right:6px;}
+.rc-dog-snout{left:50%;top:16px;width:14px;height:8px;transform:translateX(-50%);background:linear-gradient(180deg,#f6e0bc,#e9ca98);border-radius:7px 7px 9px 9px;}
+.rc-dog-nose{left:50%;top:1px;width:5px;height:4px;transform:translateX(-50%);background:#3a2620;border-radius:50%;}
+.rc-dog-tongue{left:50%;bottom:-4px;width:5px;height:6px;transform:translateX(-50%);background:#dd7c88;border-radius:999px;}
+.rc-dog-hat-wrap{left:9px;top:0;width:18px;height:12px;}
+.rc-dog-hat-body{left:4px;top:0;width:10px;height:8px;background:linear-gradient(180deg,#174033,#0f271e);border-radius:3px 3px 2px 2px;}
+.rc-dog-hat-band{left:0;right:0;bottom:1px;height:2px;background:#d9ac53;}
+.rc-dog-hat-brim{left:0;right:0;bottom:0;height:4px;background:#0d2019;border-radius:999px;}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SVG DOG (inline, beside Steward — state 10 only)
+═══════════════════════════════════════════════════════════════════ */
+.steward-dog-svg {
+  position:absolute;
+  left:-8px; bottom:32px;
+  width:62px; height:72px;
+  opacity:0; z-index:4; pointer-events:none;
+  transition:opacity 0.3s ease;
+}
+.steward-wrap[data-state="wealthy"] .steward-dog-svg { opacity:1; }
+
+.dog-tail { transform-origin:0px 0px; }
+.steward-wrap[data-state="wealthy"] .dog-tail {
+  animation:wagTail 0.5s ease-in-out infinite;
+}
+@keyframes wagTail {
+  0%,100% { transform: rotate(-15deg); }
+  50%      { transform: rotate(15deg); }
+}
+
+.dog-paw-wave { transform-origin:0px 0px; }
+.steward-wrap[data-state="wealthy"] .dog-paw-wave {
+  animation:svgDogPawWave 1.1s ease-in-out infinite;
+}
+@keyframes svgDogPawWave {
+  0%,60%,100%{transform:rotate(0deg);}
+  25%{transform:rotate(56deg);}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE CHARACTER FILTERS (saturation / brightness)
+═══════════════════════════════════════════════════════════════════ */
+.steward-wrap[data-state="rock_bottom"] .steward-character { filter:saturate(0.04) brightness(0.62); }
+.steward-wrap[data-state="broke"]       .steward-character { filter:saturate(0.16) brightness(0.80); }
+.steward-wrap[data-state="struggling"]  .steward-character { filter:saturate(0.56) brightness(0.93); }
+
+/* Hat/coat shred for low states */
+.steward-wrap[data-state="rock_bottom"] .sw-hat-crown,
+.steward-wrap[data-state="broke"]       .sw-hat-crown {
+  clip-path:polygon(0 0,88% 0,100% 22%,100% 100%,74% 96%,65% 80%,58% 100%,48% 76%,38% 98%,28% 82%,18% 100%,0 100%);
+}
+.steward-wrap[data-state="rock_bottom"] .sw-coat-l,.steward-wrap[data-state="rock_bottom"] .sw-coat-r,
+.steward-wrap[data-state="broke"]       .sw-coat-l,.steward-wrap[data-state="broke"]       .sw-coat-r {
+  clip-path:polygon(0 0,100% 0,100% 78%,86% 100%,66% 84%,50% 100%,34% 84%,18% 100%,0 78%);
+}
+/* State 1 X-eyes */
+.steward-wrap[data-state="rock_bottom"] .sw-pupil { background:transparent; }
+.steward-wrap[data-state="rock_bottom"] .sw-eye   { overflow:visible; }
+.steward-wrap[data-state="rock_bottom"] .sw-eye-l::before,
+.steward-wrap[data-state="rock_bottom"] .sw-eye-r::before { content:""; position:absolute; inset:-2px; z-index:2; border-top:2px solid #1a1818; transform:rotate(40deg); }
+.steward-wrap[data-state="rock_bottom"] .sw-eye-l::after,
+.steward-wrap[data-state="rock_bottom"] .sw-eye-r::after  { content:""; position:absolute; inset:-2px; z-index:2; border-top:2px solid #1a1818; transform:rotate(-40deg); }
+/* State 1-2 frown */
+.steward-wrap[data-state="rock_bottom"] .sw-mouth,
+.steward-wrap[data-state="broke"]       .sw-mouth { height:10px; border-bottom-width:3px; border-radius:0 0 5px 5px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   DUST SPARKLES — grey for states 1-3
+═══════════════════════════════════════════════════════════════════ */
+.steward-wrap[data-state="rock_bottom"] .sparkle,
+.steward-wrap[data-state="broke"]       .sparkle,
+.steward-wrap[data-state="struggling"]  .sparkle {
+  color:rgba(155,148,142,0.7); text-shadow:none;
+  animation:dustFloat 3.8s ease-in-out infinite;
+}
+.steward-wrap[data-state="rock_bottom"] .sparkle { font-size:7px; }
+.steward-wrap[data-state="broke"]       .sparkle { font-size:9px; }
+.steward-wrap[data-state="struggling"]  .sparkle { font-size:12px; }
+.steward-wrap[data-state="rock_bottom"] .steward-sparkles { opacity:0.6; }
+.steward-wrap[data-state="broke"]       .steward-sparkles { opacity:0.4; }
+.steward-wrap[data-state="struggling"]  .steward-sparkles { opacity:0.25; }
+@keyframes dustFloat {
+  0%,100%{transform:translateY(0) rotate(0deg);opacity:0.38;}
+  50%{transform:translateY(-5px) rotate(12deg);opacity:0.06;}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE-SPECIFIC AURA / GLOW — ::before overrides + ::after halos
+   (These come LAST to win specificity over defaults)
+═══════════════════════════════════════════════════════════════════ */
+
+/* 1-3: muted / dark aura */
+.steward-wrap[data-state="rock_bottom"]::before {
+  background:radial-gradient(circle at 50% 40%,rgba(88,38,50,0.32),transparent 55%),
+    radial-gradient(circle at 50% 100%,rgba(14,6,10,0.18),transparent 52%);
+}
+.steward-wrap[data-state="broke"]::before {
+  background:radial-gradient(circle at 50% 42%,rgba(105,105,108,0.28),transparent 55%),
+    radial-gradient(circle at 50% 100%,rgba(14,14,14,0.16),transparent 52%);
+}
+
+/* 7 – Building: visible green glow, no halo yet */
+.steward-wrap[data-state="building"]::before {
+  background:radial-gradient(circle at 50% 40%,rgba(65,190,108,0.44),transparent 62%),
+    radial-gradient(circle at 50% 100%,rgba(16,41,32,0.14),transparent 52%);
+}
+
+/* 8 – Thriving: pulsing green aura + thin ring */
+@keyframes thriveAuraPulse {
+  0%,100%{opacity:0.82;transform:scale(1);}
+  50%{opacity:1;transform:scale(1.05);}
+}
+.steward-wrap[data-state="thriving"]::before {
+  background:radial-gradient(circle at 50% 38%,rgba(42,210,128,0.58),transparent 62%),
+    radial-gradient(circle at 50% 100%,rgba(16,41,32,0.14),transparent 52%);
+  animation:thriveAuraPulse 1.9s ease-in-out infinite;
+}
+.steward-wrap[data-state="thriving"]::after {
+  content:""; position:absolute; left:5px; right:5px; top:-5px; bottom:-2px;
+  border-radius:44px; border:1.5px solid rgba(72,218,142,0.40);
+  pointer-events:none; z-index:0;
+  animation:thriveHalo 1.9s ease-in-out infinite;
+}
+@keyframes thriveHalo {
+  0%,100%{opacity:0.42;} 50%{opacity:0.88;}
+}
+
+/* 9 – Winning: gold radiance + crisp ring */
+@keyframes winAuraPulse {
+  0%,100%{opacity:0.78;transform:scale(1);}
+  50%{opacity:1;transform:scale(1.07);}
+}
+.steward-wrap[data-state="winning"]::before {
+  background:radial-gradient(circle at 50% 36%,rgba(228,200,52,0.70),transparent 58%),
+    radial-gradient(circle at 50% 100%,rgba(16,28,10,0.14),transparent 52%);
+  animation:winAuraPulse 1.65s ease-in-out infinite;
+}
+.steward-wrap[data-state="winning"]::after {
+  content:""; position:absolute; left:3px; right:3px; top:-8px; bottom:-3px;
+  border-radius:48px; border:2px solid rgba(235,200,58,0.54);
+  pointer-events:none; z-index:0;
+  animation:winHalo 1.65s ease-in-out infinite;
+}
+@keyframes winHalo {
+  0%,100%{opacity:0.55;transform:scale(1);}
+  50%{opacity:0.94;transform:scale(1.025);}
+}
+
+/* 10 – Wealthy: maximum gold radiance + double ring */
+@keyframes wealthAuraPulse {
+  0%,100%{opacity:0.86;transform:scale(1);}
+  50%{opacity:1;transform:scale(1.08);}
+}
+.steward-wrap[data-state="wealthy"]::before {
+  /* gradient behind character (right side) once wrap fills stage */
+  inset: 0;
+  background:
+    radial-gradient(circle at 72% 55%,rgba(255,218,55,0.90),transparent 40%),
+    radial-gradient(circle at 50% 100%,rgba(16,22,6,0.06),transparent 52%);
+  animation:wealthAuraPulse 1.45s ease-in-out infinite;
+}
+.steward-wrap[data-state="wealthy"]::after {
+  content:""; position:absolute; left:1px; right:1px; top:-12px; bottom:-4px;
+  border-radius:52px; border:2.5px solid rgba(248,215,62,0.65);
+  pointer-events:none; z-index:0;
+  animation:wealthHalo 1.45s ease-in-out infinite;
+}
+@keyframes wealthHalo {
+  0%,100%{opacity:0.62;transform:scale(1);}
+  50%{opacity:1;transform:scale(1.03);}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MONOCLE / CANE / HAT / VEST GLOW
+═══════════════════════════════════════════════════════════════════ */
+.steward-wrap[data-state="thriving"] .sw-monocle {
+  filter:drop-shadow(0 0 4px rgba(255,220,78,0.65));
+}
+.steward-wrap[data-state="winning"] .sw-monocle {
+  filter:drop-shadow(0 0 7px rgba(255,218,55,0.95)) drop-shadow(0 0 14px rgba(240,198,48,0.55));
+}
+.steward-wrap[data-state="wealthy"] .sw-monocle {
+  filter:drop-shadow(0 0 11px rgba(255,222,60,1)) drop-shadow(0 0 24px rgba(240,198,50,0.72));
+}
+.steward-wrap[data-state="winning"] .sw-cane {
+  filter:drop-shadow(0 0 3px rgba(212,175,52,0.68));
+}
+.steward-wrap[data-state="wealthy"] .sw-cane {
+  filter:drop-shadow(0 0 7px rgba(228,188,58,0.88));
+}
+.steward-wrap[data-state="wealthy"] .sw-hat {
+  filter:drop-shadow(0 -3px 10px rgba(255,222,65,0.78));
+}
+.steward-wrap[data-state="thriving"] .sw-vest {
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,0.05), 0 0 16px rgba(218,178,52,0.34);
+}
+.steward-wrap[data-state="winning"] .sw-vest {
+  box-shadow:0 0 24px rgba(230,192,62,0.58), inset 0 2px 0 rgba(255,255,255,0.14);
+}
+@keyframes vestGlow {
+  0%,100%{box-shadow:0 0 30px rgba(244,206,66,0.72),inset 0 2px 0 rgba(255,255,255,0.18);}
+  50%{box-shadow:0 0 44px rgba(255,220,78,0.96),inset 0 2px 0 rgba(255,255,255,0.26);}
+}
+.steward-wrap[data-state="wealthy"] .sw-vest {
+  animation:vestGlow 1.45s ease-in-out infinite;
+}
+
+/* Extra sparkles via pseudo-elements for state 9-10 */
+.steward-wrap[data-state="winning"]  .steward-sparkles::before,
+.steward-wrap[data-state="wealthy"]  .steward-sparkles::before {
+  content:"✦"; position:absolute; right:2px; top:24px;
+  font-size:30px; color:rgba(255,216,129,0.95);
+  text-shadow:0 0 12px rgba(255,220,140,0.6);
+  animation:sparkleFloat 2.4s ease-in-out infinite 1.1s;
+}
+.steward-wrap[data-state="winning"]  .steward-sparkles::after,
+.steward-wrap[data-state="wealthy"]  .steward-sparkles::after {
+  content:"✧"; position:absolute; left:22px; top:10px;
+  font-size:24px; color:rgba(255,216,129,0.88);
+  text-shadow:0 0 8px rgba(255,220,140,0.5);
+  animation:sparkleFloat 3.1s ease-in-out infinite 0.55s;
+}
+.steward-wrap[data-state="thriving"] .steward-sparkles::before {
+  content:"✦"; position:absolute; right:5px; top:18px;
+  font-size:22px; color:rgba(255,216,129,0.82);
+  text-shadow:0 0 8px rgba(255,220,140,0.4);
+  animation:sparkleFloat 2.7s ease-in-out infinite 0.8s;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   COIN BOUNCE — states 7-8
+═══════════════════════════════════════════════════════════════════ */
+.steward-wrap[data-state="building"] .sm-c {
+  animation:coinBounceUp 1.7s ease-in-out infinite;
+}
+.steward-wrap[data-state="thriving"] .sm-c {
+  animation:coinBounceUp 1.2s ease-in-out infinite;
+}
+@keyframes coinBounceUp {
+  0%,100%{transform:translateY(0) rotate(0deg);}
+  35%{transform:translateY(-14px) rotate(22deg);}
+  65%{transform:translateY(-6px) rotate(-9deg);}
+}
+/* High-state $ signs bigger and brighter */
+.steward-wrap[data-state="winning"] .sm-d,
+.steward-wrap[data-state="wealthy"] .sm-d {
+  font-size:21px;
+  color:rgba(228,188,55,1);
+  text-shadow:0 0 8px rgba(218,175,42,0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RADIANCE + COINSHIMMER — states 9-10
+═══════════════════════════════════════════════════════════════════ */
+@keyframes coinShimmer {
+  0%,100%{opacity:0.65;transform:scale(1) rotate(0deg);}
+  50%{opacity:1;transform:scale(1.1) rotate(14deg);}
+}
+.steward-wrap[data-state="thriving"] .steward-coin,
+.steward-wrap[data-state="winning"]  .steward-coin,
+.steward-wrap[data-state="wealthy"]  .steward-coin {
+  animation:coinShimmer 2.0s ease-in-out infinite;
+}
+@keyframes radPulse {
+  0%,100%{opacity:0.58;transform:scale(1);}
+  50%{opacity:0.24;transform:scale(1.08);}
+}
+.steward-wrap[data-state="wealthy"]::before,
+.steward-wrap[data-state="winning"]::before {
+  animation-duration:1.65s;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HOVER GROW — states 9-10
+═══════════════════════════════════════════════════════════════════ */
+.steward-wrap[data-state="winning"]:hover .steward-character {
+  transform:translateX(-50%) scale(calc(var(--character-scale) * 1.055));
+}
+/* Wealthy hover handled in TWO-LAYER SCENE block below */
+
+/* ═══════════════════════════════════════════════════════════════════
+   WEALTHY CARD: EXPLICIT ZONE LAYOUT
+   Zone 1 (top 65%)  : Steward centered, full body visible, scale 1.1
+   Zone 2 (btm 30%)  : Gold car spans full card width; dog on hood left
+   Zone 3 (overlay)  : Semi-transparent dark strip min-height 60px; white text
+   Card: overflow:hidden + position:relative; every child position:absolute
+═══════════════════════════════════════════════════════════════════ */
+
+/* Card: explicit position:relative + overflow:hidden; fixed height for zone layout */
+/* 480px gives hat clearance: char 236px × 1.1 scale + pose 1.18 inner ≈ 307px;
+   bottom:148px → hat top at 480-148-307 = 25px, fully visible, no crop */
+.state-card[data-state="wealthy"] {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  padding: 0;
+  height: 480px;
+}
+
+/* Stage: fills entire card via absolute inset */
+.state-card[data-state="wealthy"] .card-stage {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  min-height: unset;
+  display: block;
+  overflow: hidden;
+}
+
+/* Wrap: fills stage; all descendants reference stage for absolute coords */
+.state-card[data-state="wealthy"] .steward-wrap {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+
+/* ── ZONE 1 ── Steward: centered horizontally, full body visible at scale 1.1 */
+/* char 236px × 1.1 = 260px; pose-scale 1.18 adds ~47px above → ~307px visual total */
+/* bottom:148px on 480px card → hat clears top by 25px — zero cropping */
+.state-card[data-state="wealthy"] .steward-character {
+  position: absolute;
+  left: 50%;
+  bottom: 148px;
+  top: auto;
+  right: auto;
+  transform: translateX(-50%) scale(1.1);
+  transform-origin: center bottom;
+  z-index: 3;
+}
+.state-card[data-state="wealthy"] .steward-wrap:hover .steward-character {
+  transform: translateX(-50%) scale(1.15);
+}
+
+/* ── ZONE 2 ── Car: left:0 right:0 spans full card width; bottom:60px above Zone 3 strip */
+.state-card[data-state="wealthy"] .sw-racecar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 60px;
+  top: auto;
+  width: auto;
+  height: 86px;
+  transform: none;
+  z-index: 2;
+}
+
+/* Car blends into gold background: top edge fades from card bg color to transparent */
+.state-card[data-state="wealthy"] .sw-racecar::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 44px;
+  background: linear-gradient(180deg, #a87800 0%, rgba(168, 120, 0, 0) 100%);
+  z-index: 8;
+  pointer-events: none;
+}
+
+/* Car body: left:10px right:10px auto-stretches to full card width */
+.steward-wrap[data-state="wealthy"] .rc-body {
+  left: 10px; right: 10px; bottom: 16px; height: 42px;
+  border-radius: 26px 18px 10px 10px;
+}
+.steward-wrap[data-state="wealthy"] .rc-body::before {
+  left: 0; width: 70px; height: 28px; border-radius: 20px 10px 10px 10px;
+}
+.steward-wrap[data-state="wealthy"] .rc-cabin {
+  left: 58px; bottom: 40px; width: 52px; height: 18px; border-radius: 10px 10px 2px 2px;
+}
+.steward-wrap[data-state="wealthy"] .rc-windshield { left: 54px; bottom: 39px; }
+.steward-wrap[data-state="wealthy"] .rc-rear-win   { right: 54px; bottom: 40px; }
+.steward-wrap[data-state="wealthy"] .rc-stripe,
+.steward-wrap[data-state="wealthy"] .rc-spoiler,
+.steward-wrap[data-state="wealthy"] .rc-coin-shower,
+.steward-wrap[data-state="wealthy"] .rc-dollar { display: none; }
+.steward-wrap[data-state="wealthy"] .rc-wheel { width: 30px; height: 30px; bottom: 2px; }
+.steward-wrap[data-state="wealthy"] .rc-wf { left: 24px; }
+.steward-wrap[data-state="wealthy"] .rc-wr { right: 20px; }
+.steward-wrap[data-state="wealthy"] .rc-win-driver,
+.steward-wrap[data-state="wealthy"] .rc-win-passenger,
+.steward-wrap[data-state="wealthy"] .rc-dog { display: none; }
+
+/* ── ZONE 2 ── Dog: SVG sits on car hood, left side */
+/* rc-body top = racecar bottom 60px + rc-body bottom 16px + rc-body height 42px = 118px */
+.state-card[data-state="wealthy"] .steward-dog-svg {
+  position: absolute;
+  left: 14px;
+  bottom: 114px;
+  top: auto;
+  width: 80px;
+  height: 92px;
+  opacity: 1;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* ── ZONE 3 ── Semi-transparent dark strip at very bottom; readable backdrop for text */
+.state-card[data-state="wealthy"] .card-stage::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 100px;
+  background: linear-gradient(180deg, rgba(8,4,0,0) 0%, rgba(8,4,0,0.88) 25%, rgba(4,2,0,0.96) 100%);
+  z-index: 6;
+  pointer-events: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+/* ── ZONE 3 ── "Wealthy" title: white, always readable */
+.state-card[data-state="wealthy"] .state-name {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 52px;
+  top: auto;
+  padding: 0 14px;
+  z-index: 10;
+  color: #ffffff;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+/* ── ZONE 3 ── Description: white, always readable */
+.state-card[data-state="wealthy"] .state-copy {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 16px;
+  top: auto;
+  padding: 0 14px;
+  z-index: 10;
+  color: rgba(255,255,255,0.82);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Badge and state number: above all zones */
+.state-card[data-state="wealthy"] .card-badge { z-index: 20; }
+.state-card[data-state="wealthy"] .state-num  { z-index: 20; color: rgba(255,255,255,0.35); }
+
+/* Tinted windows — dark smoke on the wealthy car */
+.steward-wrap[data-state="wealthy"] .rc-win-driver,
+.steward-wrap[data-state="wealthy"] .rc-win-passenger,
+.steward-wrap[data-state="wealthy"] .rc-windshield,
+.steward-wrap[data-state="wealthy"] .rc-rear-win {
+  background: rgba(18, 22, 28, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(180,200,220,0.18);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HAT GLINT — high tiers
+═══════════════════════════════════════════════════════════════════ */
+@keyframes swHatGlint {
+  0%,82%,100%{opacity:0.55;} 88%{opacity:0.96;}
+}
+.steward-wrap[data-motion="thrive"] .sw-hat-ding,
+.steward-wrap[data-motion="win"]    .sw-hat-ding,
+.steward-wrap[data-motion="luxury"] .sw-hat-ding {
+  animation:swHatGlint 5.2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   KEYFRAME LIBRARY
+═══════════════════════════════════════════════════════════════════ */
+@keyframes puffDrift {
+  0%{transform:translate(0,0) scale(0.7);opacity:0.7;}
+  100%{transform:translate(-12px,-10px) scale(1.3);opacity:0;}
+}
+@keyframes dollarBounce {
+  0%,100%{transform:translateY(0) rotate(0deg);}
+  50%{transform:translateY(-6px) rotate(6deg);}
+}
+@keyframes coinFall {
+  0%,100%{transform:translateY(0) rotate(0deg);}
+  50%{transform:translateY(8px) rotate(25deg);}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MEDIA QUERIES
+═══════════════════════════════════════════════════════════════════ */
+@media(max-width:1120px){
+  .hero-panel{grid-template-columns:1fr;}
+  .gallery-heading{align-items:start;flex-direction:column;}
+  .gallery-copy{max-width:none;text-align:left;}
+}
+@media(max-width:720px){
+  .lab-shell{width:min(100% - 20px,1440px);padding-top:16px;}
+  .hero-panel,.gallery-panel{padding:18px;}
+  .hero-card{min-height:380px;}
+  .hero-figure{transform:translateY(12px) scale(1.1);}
+}
+    </style>
+  </head>
+  <body>
+    <main class="lab-shell">
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">State Preview</p>
+          <h1>Steward &mdash; State Ladder</h1>
+          <p class="hero-text">
+            10 distinct financial character states. Each posture, scale, aura,
+            and animation is keyed to budget health. Click any pill to preview.
+          </p>
+          <div class="state-pills" id="state-pills"></div>
+          <div style="margin-top:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:0.70rem;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:var(--ink-500);">Drag to morph</span>
+              <span id="slider-label" style="font-size:0.70rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--forest-800);">Surviving</span>
+            </div>
+            <input id="tier-slider" type="range" min="0" max="9" step="1" value="3"
+              style="width:100%;accent-color:var(--forest-700);cursor:pointer;" />
+            <div style="display:flex;justify-content:space-between;margin-top:3px;">
+              <span style="font-size:0.66rem;color:var(--ink-500);">Rock Bottom</span>
+              <span style="font-size:0.66rem;color:var(--ink-500);">Wealthy</span>
+            </div>
+          </div>
+          <div class="hero-meta">
+            <strong id="hero-label">Surviving</strong>
+            <span id="hero-copy">Alive. Not thriving. Working on it.</span>
+          </div>
+        </div>
+        <div class="hero-stage">
+          <div class="hero-card">
+            <div class="hero-figure" id="hero-figure"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="gallery-panel">
+        <div class="gallery-heading">
+          <div>
+            <p class="eyebrow">All States</p>
+            <h2>Production state ladder</h2>
+          </div>
+          <p class="gallery-copy">Every <code>data-state</code> rendered side-by-side so regressions are visible at a glance.</p>
+        </div>
+        <div class="states-grid" id="states-grid"></div>
+      </section>
+    </main>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STEWARD TEMPLATE
+    ═══════════════════════════════════════════════════════════════ -->
+    <template id="steward-template">
+      <div class="steward-wrap" data-state="surviving" data-motion="survive" data-money-tier="medium">
+
+        <!-- sparkles / ambient glow -->
+        <div class="steward-sparkles" aria-hidden="true">
+          <span class="sparkle s1">✦</span>
+          <span class="sparkle s2">✧</span>
+          <span class="sparkle s3">+</span>
+        </div>
+
+        <!-- single floating coin -->
+        <div class="steward-coin" aria-hidden="true"></div>
+
+        <!-- CHARACTER -->
+        <div class="steward-character" aria-label="Steward the budget mascot">
+          <div class="sw-pose">
+            <div class="sw-ground" aria-hidden="true"></div>
+            <div class="sw-rig">
+              <div class="sw-upper-stack">
+                <!-- HAT -->
+                <div class="sw-hat">
+                  <div class="sw-hat-shadow"></div>
+                  <div class="sw-hat-crown"></div>
+                  <div class="sw-hat-band"></div>
+                  <div class="sw-hat-brim"></div>
+                  <div class="sw-hat-ding"></div>
+                </div>
+                <!-- HEAD -->
+                <div class="sw-head">
+                  <div class="sw-cheek sw-cheek-l"></div>
+                  <div class="sw-cheek sw-cheek-r"></div>
+                  <div class="sw-eyebrow sw-eyebrow-l"></div>
+                  <div class="sw-eyebrow sw-eyebrow-r"></div>
+                  <div class="sw-eye sw-eye-l">
+                    <span class="sw-pupil"></span>
+                    <span class="sw-eye-shine"></span>
+                    <span class="sw-lid"></span>
+                  </div>
+                  <div class="sw-eye sw-eye-r">
+                    <span class="sw-pupil"></span>
+                    <span class="sw-eye-shine"></span>
+                    <span class="sw-lid"></span>
+                  </div>
+                  <div class="sw-monocle" aria-hidden="true">
+                    <span class="sw-mono-rim"></span>
+                    <span class="sw-mono-glass"></span>
+                    <span class="sw-mono-chain"></span>
+                    <span class="sw-mono-glint"></span>
+                  </div>
+                  <div class="sw-nose"></div>
+                  <div class="sw-mustache">
+                    <span class="sw-stache sw-stache-l"></span>
+                    <span class="sw-stache sw-stache-r"></span>
+                  </div>
+                  <div class="sw-mouth"></div>
+                </div>
+                <!-- NECK -->
+                <div class="sw-neck">
+                  <div class="sw-collar sw-collar-l"></div>
+                  <div class="sw-collar sw-collar-r"></div>
+                  <div class="sw-bowtie"><span class="sw-bow-knot"></span></div>
+                </div>
+                <!-- BODY -->
+                <div class="sw-body">
+                  <div class="sw-coat-back"></div>
+                  <div class="sw-shoulder sw-shoulder-l"></div>
+                  <div class="sw-shoulder sw-shoulder-r"></div>
+                  <div class="sw-coat sw-coat-l"></div>
+                  <div class="sw-coat sw-coat-r"></div>
+                  <div class="sw-lapel sw-lapel-l"></div>
+                  <div class="sw-lapel sw-lapel-r"></div>
+                  <div class="sw-vest">
+                    <span class="sw-btn"></span>
+                    <span class="sw-btn"></span>
+                    <span class="sw-btn"></span>
+                  </div>
+                  <div class="sw-pocket" aria-hidden="true"></div>
+                  <!-- LEFT ARM -->
+                  <div class="sw-arm sw-arm-l">
+                    <div class="sw-upper-arm sw-upper-arm-l"></div>
+                    <div class="sw-forearm sw-forearm-l">
+                      <span class="sw-cuff"></span>
+                      <div class="sw-hand sw-hand-l"></div>
+                    </div>
+                  </div>
+                  <!-- RIGHT ARM + CANE -->
+                  <div class="sw-arm sw-arm-r">
+                    <div class="sw-upper-arm sw-upper-arm-r"></div>
+                    <div class="sw-forearm-wrap">
+                      <div class="sw-cane" aria-hidden="true">
+                        <span class="sw-cane-knob"></span>
+                        <span class="sw-cane-shaft"></span>
+                      </div>
+                      <div class="sw-forearm sw-forearm-r"></div>
+                      <div class="sw-hand sw-hand-r">
+                        <span class="sw-thumb" aria-hidden="true"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- COAT TAILS -->
+                <div class="sw-tails" aria-hidden="true">
+                  <span class="sw-tail sw-tail-l"></span>
+                  <span class="sw-tail sw-tail-r"></span>
+                </div>
+              </div>
+              <div class="sw-pelvis" aria-hidden="true"></div>
+              <!-- LEGS -->
+              <div class="sw-legs">
+                <div class="sw-leg sw-leg-l">
+                  <div class="sw-thigh sw-thigh-l">
+                    <div class="sw-calf sw-calf-l">
+                      <div class="sw-foot sw-foot-l">
+                        <div class="sw-shoe sw-shoe-l"></div>
+                        <div class="sw-sole-shadow" aria-hidden="true"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="sw-leg sw-leg-r">
+                  <div class="sw-thigh sw-thigh-r">
+                    <div class="sw-calf sw-calf-r">
+                      <div class="sw-foot sw-foot-r">
+                        <div class="sw-shoe sw-shoe-r"></div>
+                        <div class="sw-sole-shadow" aria-hidden="true"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARDBOARD SIGN (states 1-2) -->
+        <div class="steward-sign" aria-hidden="true">will budget 4 food :(</div>
+
+        <!-- FLOATING MONEY -->
+        <div class="steward-money" aria-hidden="true">
+          <span class="sm-c sm-c1"></span><span class="sm-c sm-c2"></span>
+          <span class="sm-c sm-c3"></span><span class="sm-c sm-c4"></span>
+          <span class="sm-c sm-c5"></span>
+          <span class="sm-b sm-b1"></span><span class="sm-b sm-b2"></span>
+          <span class="sm-b sm-b3"></span>
+          <span class="sm-d sm-d1">$</span><span class="sm-d sm-d2">$</span>
+          <span class="sm-d sm-d3">$</span><span class="sm-d sm-d4">$</span>
+          <span class="sm-d sm-d5">$</span><span class="sm-d sm-d6">$</span>
+          <span class="sm-d sm-d7">$</span><span class="sm-d sm-d8">$</span>
+        </div>
+
+        <!-- COIN FALL SHOWER (states 9-10) -->
+        <div class="steward-coinfall" aria-hidden="true">
+          <div class="scf-c scf-c1"></div><div class="scf-c scf-c2"></div>
+          <div class="scf-c scf-c3"></div><div class="scf-c scf-c4"></div>
+          <div class="scf-c scf-c5"></div><div class="scf-c scf-c6"></div>
+          <span class="scf-d scf-d1">$</span><span class="scf-d scf-d2">$</span>
+          <span class="scf-d scf-d3">$</span><span class="scf-d scf-d4">$</span>
+        </div>
+
+        <!-- GOLD CAR (state 10 only) -->
+        <div class="sw-racecar" aria-hidden="true">
+          <div class="rc-body">
+            <div class="rc-gold-trim"></div>
+            <div class="rc-cabin"></div>
+            <div class="rc-win-driver"></div>
+            <div class="rc-win-passenger"></div>
+            <div class="rc-windshield"></div>
+            <div class="rc-rear-win"></div>
+            <div class="rc-spoiler"></div>
+            <div class="rc-stripe"></div>
+            <div class="rc-headlight"></div>
+            <div class="rc-taillight"></div>
+            <div class="rc-grille"></div>
+            <div class="rc-ornament">
+              <div class="rc-orn-base"></div><div class="rc-orn-post"></div>
+              <div class="rc-orn-figure">
+                <div class="rc-orn-head"></div><div class="rc-orn-body"></div>
+                <div class="rc-orn-wing-l"></div><div class="rc-orn-wing-r"></div>
+              </div>
+            </div>
+          </div>
+          <div class="rc-wheel rc-wf"></div>
+          <div class="rc-wheel rc-wr"></div>
+          <div class="rc-exhaust">
+            <span class="rc-puff rp1"></span>
+            <span class="rc-puff rp2"></span>
+            <span class="rc-puff rp3"></span>
+          </div>
+          <div class="rc-coin-shower">
+            <div class="rc-coin rcc1"></div><div class="rc-coin rcc2"></div>
+            <div class="rc-coin rcc3"></div><div class="rc-coin rcc4"></div>
+            <div class="rc-coin rcc5"></div><div class="rc-coin rcc6"></div>
+            <div class="rc-coin rcc7"></div><div class="rc-coin rcc8"></div>
+          </div>
+          <div class="rc-ring rc-ring-1"></div>
+          <div class="rc-ring rc-ring-2"></div>
+          <div class="rc-ring rc-ring-3"></div>
+          <div class="rc-dollar rc-d1">$</div>
+          <div class="rc-dollar rc-d2">$</div>
+          <div class="rc-dollar rc-d3">$</div>
+          <div class="rc-dollar rc-d4">$</div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════
+             SVG DOG — state 10 only, sits loyally at Steward's side
+             Tail element animated via CSS keyframes
+        ═══════════════════════════════════════════════════════ -->
+        <svg class="steward-dog-svg"
+             xmlns="http://www.w3.org/2000/svg"
+             viewBox="0 0 80 92"
+             role="img"
+             aria-label="Steward's loyal dog, sitting at his side">
+          <defs>
+            <radialGradient id="dgBody" cx="40%" cy="34%" r="60%" gradientUnits="userSpaceOnUse" x1="14" y1="50" x2="60" y2="84">
+              <stop offset="0%"   stop-color="#f2ca70"/>
+              <stop offset="62%"  stop-color="#d4963c"/>
+              <stop offset="100%" stop-color="#b07428"/>
+            </radialGradient>
+            <radialGradient id="dgHead" cx="38%" cy="30%" r="62%" gradientUnits="userSpaceOnUse" x1="18" y1="24" x2="54" y2="56">
+              <stop offset="0%"   stop-color="#f8d890"/>
+              <stop offset="58%"  stop-color="#e8b860"/>
+              <stop offset="100%" stop-color="#c89040"/>
+            </radialGradient>
+          </defs>
+
+          <!-- Ground shadow -->
+          <ellipse cx="36" cy="89" rx="27" ry="4.5" fill="rgba(8,24,16,0.20)"/>
+
+          <!-- BODY -->
+          <ellipse cx="36" cy="67" rx="22" ry="17" fill="url(#dgBody)"/>
+          <ellipse cx="29" cy="58" rx="13" ry="8.5" fill="rgba(255,232,152,0.20)" transform="rotate(-16 29 58)"/>
+
+          <!-- TAIL (drawn after body so it's visible; outer g pins SVG pivot at 55,66;
+               inner .dog-tail rotates around local 0,0 = SVG 55,66) -->
+          <g transform="translate(55,66)">
+            <g class="dog-tail">
+              <path d="M0,-2 C7,-13 17,-23 12,-37" stroke="#c4882e" stroke-width="9" stroke-linecap="round" fill="none"/>
+              <!-- fluffy tail tip -->
+              <ellipse cx="11" cy="-39" rx="7.5" ry="10" fill="#e8b040" transform="rotate(-20 11 -39)"/>
+              <!-- tail highlight -->
+              <path d="M2,-4 C8,-14 17,-24 13,-36" stroke="rgba(255,222,120,0.45)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+            </g>
+          </g>
+
+          <!-- FRONT PAWS -->
+          <!-- left paw (static) -->
+          <rect x="18" y="75" width="11" height="15" rx="5.5" fill="#c88a38"/>
+          <rect x="19" y="75" width="9" height="5"  rx="4"   fill="rgba(255,220,140,0.24)"/>
+          <path d="M20,88 Q24,91 29,88" stroke="rgba(80,44,8,0.28)" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          <!-- right paw (animated wave — outer g pins pivot at top-centre x=48.5,y=75) -->
+          <g transform="translate(48.5,75)">
+            <g class="dog-paw-wave">
+              <rect x="-5.5" y="0" width="11" height="15" rx="5.5" fill="#c88a38"/>
+              <rect x="-4.5" y="0" width="9"  height="5"  rx="4"   fill="rgba(255,220,140,0.24)"/>
+              <path d="M-3.5,13 Q0.5,16 5.5,13" stroke="rgba(80,44,8,0.28)" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+            </g>
+          </g>
+
+          <!-- NECK -->
+          <ellipse cx="36" cy="53" rx="12" ry="9.5" fill="#d49840"/>
+          <!-- collar band -->
+          <rect x="28" y="56" width="16" height="3.5" rx="1.8" fill="#ddb850"/>
+
+          <!-- HEAD -->
+          <ellipse cx="36" cy="38" rx="18" ry="16" fill="url(#dgHead)"/>
+
+          <!-- EARS -->
+          <ellipse cx="18.5" cy="40" rx="7"   ry="14.5" fill="#a06822" transform="rotate(14 18.5 40)"/>
+          <ellipse cx="53.5" cy="40" rx="7"   ry="14.5" fill="#a06822" transform="rotate(-14 53.5 40)"/>
+          <ellipse cx="18.5" cy="41" rx="4"   ry="9.5"  fill="#c47c34" opacity="0.52" transform="rotate(14 18.5 41)"/>
+          <ellipse cx="53.5" cy="41" rx="4"   ry="9.5"  fill="#c47c34" opacity="0.52" transform="rotate(-14 53.5 41)"/>
+
+          <!-- EYE WHITES -->
+          <circle cx="28.5" cy="35.5" r="5.5" fill="#fdf8ef"/>
+          <circle cx="43.5" cy="35.5" r="5.5" fill="#fdf8ef"/>
+          <!-- IRISES -->
+          <circle cx="28.5" cy="36"   r="3.5" fill="#1c1008"/>
+          <circle cx="43.5" cy="36"   r="3.5" fill="#1c1008"/>
+          <!-- eye shine -->
+          <circle cx="29.8" cy="34.5" r="1.5" fill="rgba(255,255,255,0.94)"/>
+          <circle cx="44.8" cy="34.5" r="1.5" fill="rgba(255,255,255,0.94)"/>
+          <circle cx="30.8" cy="37.5" r="0.7" fill="rgba(255,255,255,0.48)"/>
+          <circle cx="45.8" cy="37.5" r="0.7" fill="rgba(255,255,255,0.48)"/>
+
+          <!-- CHEEKS -->
+          <circle cx="21"   cy="41"   r="5"   fill="rgba(225,138,110,0.42)"/>
+          <circle cx="51"   cy="41"   r="5"   fill="rgba(225,138,110,0.42)"/>
+
+          <!-- SNOUT -->
+          <ellipse cx="36" cy="44.5" rx="9.5" ry="7" fill="#f2d295"/>
+          <ellipse cx="33" cy="41.5" rx="4"   ry="3" fill="rgba(255,242,192,0.38)"/>
+          <!-- NOSE -->
+          <ellipse cx="36" cy="41.5" rx="5"   ry="3.8" fill="#1e140c"/>
+          <circle  cx="33.5" cy="42.4" r="1.3" fill="rgba(0,0,0,0.52)"/>
+          <circle  cx="38.5" cy="42.4" r="1.3" fill="rgba(0,0,0,0.52)"/>
+          <ellipse cx="33.5" cy="40.5" rx="2" ry="1.2" fill="rgba(255,255,255,0.18)"/>
+
+          <!-- HAPPY MOUTH / TONGUE -->
+          <path d="M31.5,47 Q36,53 40.5,47" stroke="none" fill="#e07888" opacity="0.90"/>
+          <path d="M36,47.5 L36,52.5" stroke="rgba(158,38,58,0.52)" stroke-width="1.2" stroke-linecap="round"/>
+          <circle cx="31.5" cy="47" r="1.5" fill="#e07888" opacity="0.72"/>
+          <circle cx="40.5" cy="47" r="1.5" fill="#e07888" opacity="0.72"/>
+
+          <!-- MINI TOP HAT (matches Steward's style) -->
+          <!-- Crown (raised 10 units so brim clears the eyes) -->
+          <rect x="26" y="5" width="20" height="17" rx="4" fill="#143224"/>
+          <!-- Crown sheen -->
+          <path d="M29,7.5 Q34,5.5 39,7.5" stroke="rgba(255,255,255,0.14)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <!-- Crown bottom shadow -->
+          <rect x="26" y="13" width="20" height="9" rx="0" fill="rgba(0,0,0,0.16)"/>
+          <!-- Hat band (gold) -->
+          <rect x="24" y="18" width="24" height="4.5" rx="1.5" fill="#d9ac50"/>
+          <!-- Band buckle -->
+          <rect x="33.5" y="18.5" width="5" height="3.5" rx="0.8" fill="#e8c860" opacity="0.82"/>
+          <!-- Brim -->
+          <rect x="21" y="20.5" width="30" height="5.5" rx="2.8" fill="#0d2018"/>
+          <!-- Brim edge highlight -->
+          <path d="M22,20.5 Q36,19.5 50,20.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.5" fill="none"/>
+          <!-- Hat ding / shine -->
+          <ellipse cx="30.5" cy="9.5" rx="5.5" ry="3" fill="rgba(255,255,255,0.26)" transform="rotate(-15 30.5 9.5)" opacity="0.68"/>
+        </svg>
+
+      </div>
+    </template>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         SCRIPT
+    ═══════════════════════════════════════════════════════════════ -->
+    <script>
+const STATES = [
+  { id:"rock_bottom", label:"Rock Bottom", badge:"01", copy:"Overdraft fees have overdraft fees. The bottom has a basement." },
+  { id:"broke",       label:"Broke",       badge:"02", copy:"Paycheck lands. Bills devour it. Repeat until exhausted." },
+  { id:"struggling",  label:"Struggling",  badge:"03", copy:"Juggling three bills with two dollars. Something always drops." },
+  { id:"surviving",   label:"Surviving",   badge:"04", copy:"Everything is paid — barely. One surprise from chaos." },
+  { id:"stabilizing", label:"Stabilizing", badge:"05", copy:"The bleeding has slowed. A thin buffer is forming. Don't sneeze." },
+  { id:"stable",      label:"Stable",      badge:"06", copy:"Bills covered, buffer intact, chaos evicted. Breathe normally." },
+  { id:"building",    label:"Building",    badge:"07", copy:"Emergency fund is real. Spending has a plan. This feels different." },
+  { id:"thriving",    label:"Thriving",    badge:"08", copy:"Months ahead. Investing feels normal. You stop refreshing your balance." },
+  { id:"winning",     label:"Winning",     badge:"09", copy:"Fully funded goals. Zero financial dread. The fit is immaculate." },
+  { id:"wealthy",     label:"Wealthy",     badge:"10", copy:"Gold car. Gold glow. Money works while you sleep. Fully unhinged." }
+];
+
+/* ─────────────────────────────────────────────────────────────────
+   PER-STATE CSS VARIABLE MAPS
+   Key differentiators across states 6-9:
+     • character-scale  : 1.0 → 1.10 → 1.20 → 1.30  (visible size jump)
+     • stance           : 14px → 24px → 32px → 38px  (feet spread / power)
+     • arm-l / arm-r    : neutral → wide → wider → commanding
+     • chest-tilt       : 0 → -4 → -8 → -11 (puffed proud lean)
+     • head-tilt        : 0 → 1.5 → 3 → 4.5 (chin raised)
+     • glow colour      : green tones → gold radiance
+───────────────────────────────────────────────────────────────── */
+const STEWARD_STATE = {
+  rock_bottom: {
+    motion:"rock", moneyTier:"sparse",
+    vars:{
+      "--character-scale":"0.64",
+      "--coat":"#3d2c31","--coat-deep":"#24161a","--vest":"#7a5a38",
+      "--shirt":"#dfd4cc","--skin":"#e4cdb2","--hat":"#1c1216","--hat-band":"#5a4330","--ink":"#160f12",
+      "--pose-rotate":"-13deg","--pose-y":"2px","--pose-scale":"0.92",
+      "--stance":"30px","--hat-tilt":"-18deg","--upper-drop":"14px","--chest-tilt":"12deg",
+      "--head-tilt":"-8deg","--torso-shift-x":"-4px",
+      "--arm-l":"44deg","--arm-r":"-18deg","--forearm-l":"7deg","--forearm-r":"14deg",
+      "--leg-l":"9deg","--leg-r":"-14deg","--thigh-l":"5deg","--thigh-r":"-9deg",
+      "--calf-l":"-14deg","--calf-r":"-16deg","--foot-l":"10deg","--foot-r":"-6deg",
+      "--cane-opacity":"0.52","--cane-angle":"22deg","--cane-x":"2px","--cane-y-nudge":"5px",
+      "--mono-opacity":"0.32","--mono-chain-opacity":"0.22","--mono-tilt":"-7deg",
+      "--wear-vignette":"0.68","--coat-shred":"1","--lapel-gloss":"0.09",
+      "--stache-l":"15deg","--stache-r":"-15deg",
+      "--money-opacity":"0.02","--money-scale":"0.60","--money-tilt":"-6deg",
+      "--sparkle-opacity":"0","--sign-opacity":"1","--coin-opacity":"0.04","--car-opacity":"0",
+      "--glow":"rgba(95,52,68,0.13)",
+      "--eye-open":"0.52","--brow-l":"26deg","--brow-r":"-26deg",
+      "--mouth-y":"5px","--mouth-scale-y":"0.42","--mouth-rotate":"180deg","--mouth-w":"22px",
+      "--cheek-opacity":"0.38","--idle-ms":"2.5s","--tail-flare":"0.94",
+      "--coat-sheen":"0.04","--shoe-lift-l":"1px","--shoe-lift-r":"0px"
+    }
+  },
+  broke: {
+    motion:"broke", moneyTier:"sparse",
+    vars:{
+      "--character-scale":"0.74",
+      "--coat":"#4a4c48","--coat-deep":"#2d2f2c","--vest":"#8f8774",
+      "--shirt":"#eae4dc","--skin":"#e6cfae","--hat":"#32342f","--hat-band":"#7a6e58","--ink":"#141a16",
+      "--pose-rotate":"-9deg","--pose-y":"2px","--pose-scale":"0.94",
+      "--stance":"26px","--hat-tilt":"-13deg","--upper-drop":"9px","--chest-tilt":"9deg",
+      "--head-tilt":"-6deg","--torso-shift-x":"-2px",
+      "--arm-l":"37deg","--arm-r":"-17deg","--forearm-l":"5deg","--forearm-r":"13deg",
+      "--leg-l":"6deg","--leg-r":"-10deg","--thigh-l":"3deg","--thigh-r":"-6deg",
+      "--calf-l":"-10deg","--calf-r":"-12deg","--foot-l":"7deg","--foot-r":"-4deg",
+      "--cane-opacity":"0.58","--cane-angle":"16deg","--cane-x":"1px","--cane-y-nudge":"3px",
+      "--mono-opacity":"0.45","--mono-chain-opacity":"0.34","--mono-tilt":"-4deg",
+      "--wear-vignette":"0.52","--coat-shred":"0.88","--lapel-gloss":"0.16",
+      "--stache-l":"11deg","--stache-r":"-11deg",
+      "--money-opacity":"0.05","--money-scale":"0.68","--money-tilt":"-5deg",
+      "--sparkle-opacity":"0.03","--sign-opacity":"0.80","--coin-opacity":"0.09","--car-opacity":"0",
+      "--glow":"rgba(140,138,136,0.15)",
+      "--eye-open":"0.70","--brow-l":"18deg","--brow-r":"-18deg",
+      "--mouth-y":"4px","--mouth-scale-y":"0.58","--mouth-rotate":"180deg","--mouth-w":"21px",
+      "--cheek-opacity":"0.28","--idle-ms":"2.9s","--tail-flare":"0.84",
+      "--coat-sheen":"0.07","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  struggling: {
+    motion:"struggle", moneyTier:"medium",
+    vars:{
+      "--character-scale":"0.83",
+      "--coat":"#5c3f38","--coat-deep":"#3a2622","--vest":"#a87645",
+      "--shirt":"#f2ebe3","--skin":"#e9d2b4","--hat":"#3a241f","--hat-band":"#c99547","--ink":"#1a1412",
+      "--pose-rotate":"-6deg","--pose-y":"1px","--pose-scale":"0.96",
+      "--stance":"22px","--hat-tilt":"-8deg","--upper-drop":"6px","--chest-tilt":"6deg",
+      "--head-tilt":"-4deg","--torso-shift-x":"-1px",
+      "--arm-l":"28deg","--arm-r":"-14deg","--forearm-l":"3deg","--forearm-r":"11deg",
+      "--leg-l":"4deg","--leg-r":"-7deg","--thigh-l":"1.5deg","--thigh-r":"-3.5deg",
+      "--calf-l":"-7deg","--calf-r":"-9deg","--foot-l":"5deg","--foot-r":"-3deg",
+      "--cane-opacity":"0.68","--cane-angle":"11deg","--cane-x":"0px","--cane-y-nudge":"1px",
+      "--mono-opacity":"0.62","--mono-chain-opacity":"0.48","--mono-tilt":"-2deg",
+      "--wear-vignette":"0.38","--coat-shred":"0.58","--lapel-gloss":"0.24",
+      "--stache-l":"8deg","--stache-r":"-8deg",
+      "--money-opacity":"0.10","--money-scale":"0.78","--money-tilt":"-4deg",
+      "--sparkle-opacity":"0.07","--sign-opacity":"0.50","--coin-opacity":"0.15","--car-opacity":"0",
+      "--glow":"rgba(198,138,115,0.17)",
+      "--eye-open":"0.80","--brow-l":"12deg","--brow-r":"-12deg",
+      "--mouth-y":"3px","--mouth-scale-y":"0.70","--mouth-rotate":"178deg","--mouth-w":"19px",
+      "--cheek-opacity":"0.22","--idle-ms":"3.0s","--tail-flare":"0.76",
+      "--coat-sheen":"0.09","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  surviving: {
+    motion:"survive", moneyTier:"medium",
+    vars:{
+      "--character-scale":"0.90",
+      "--coat":"#214839","--coat-deep":"#143025","--vest":"#c99745",
+      "--shirt":"#f7f3ec","--skin":"#f0dcb8","--hat":"#163326","--hat-band":"#d0a14c","--ink":"#143126",
+      "--pose-rotate":"-2.5deg","--pose-y":"0px","--pose-scale":"0.98",
+      "--stance":"22px","--hat-tilt":"-3deg","--upper-drop":"3px","--chest-tilt":"3deg",
+      "--head-tilt":"-1.5deg","--torso-shift-x":"0px",
+      "--arm-l":"24deg","--arm-r":"-20deg","--forearm-l":"8deg","--forearm-r":"6deg",
+      "--leg-l":"4deg","--leg-r":"-5deg","--thigh-l":"6deg","--thigh-r":"-5deg",
+      "--calf-l":"-11deg","--calf-r":"-10deg","--foot-l":"3deg","--foot-r":"-2deg",
+      "--cane-opacity":"0.48","--cane-angle":"6deg","--cane-x":"-1px","--cane-y-nudge":"0px",
+      "--mono-opacity":"0.88","--mono-chain-opacity":"0.72","--mono-tilt":"0deg",
+      "--wear-vignette":"0.24","--coat-shred":"0.28","--lapel-gloss":"0.32",
+      "--stache-l":"6deg","--stache-r":"-6deg",
+      "--money-opacity":"0.13","--money-scale":"0.82","--money-tilt":"-3deg",
+      "--sparkle-opacity":"0.12","--sign-opacity":"0","--coin-opacity":"0.18","--car-opacity":"0",
+      "--glow":"rgba(240,205,132,0.20)",
+      "--eye-open":"0.88","--brow-l":"7deg","--brow-r":"-7deg",
+      "--mouth-y":"1px","--mouth-scale-y":"0.84","--mouth-rotate":"0deg","--mouth-w":"17px",
+      "--cheek-opacity":"0.17","--idle-ms":"3.15s","--tail-flare":"0.70",
+      "--coat-sheen":"0.13","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  stabilizing: {
+    motion:"stabilize", moneyTier:"medium",
+    vars:{
+      "--character-scale":"0.95",
+      "--coat":"#1f4a3b","--coat-deep":"#123228","--vest":"#cf9f4a",
+      "--shirt":"#f9f6f0","--skin":"#f2deb9","--hat":"#153629","--hat-band":"#d9ae55","--ink":"#132a22",
+      "--pose-rotate":"-1deg","--pose-y":"0px","--pose-scale":"1.0",
+      "--stance":"16px","--hat-tilt":"-1deg","--upper-drop":"1.5px","--chest-tilt":"1.5deg",
+      "--head-tilt":"-0.5deg","--torso-shift-x":"0px",
+      "--arm-l":"-4deg","--arm-r":"-10deg","--forearm-l":"78deg","--forearm-r":"6deg",
+      "--leg-l":"1deg","--leg-r":"-2deg","--thigh-l":"0deg","--thigh-r":"0deg",
+      "--calf-l":"-2deg","--calf-r":"-3deg","--foot-l":"2deg","--foot-r":"-1deg",
+      "--cane-opacity":"0.80","--cane-angle":"1deg","--cane-x":"-2px","--cane-y-nudge":"0px",
+      "--mono-opacity":"0.94","--mono-chain-opacity":"0.82","--mono-tilt":"1deg",
+      "--wear-vignette":"0.16","--coat-shred":"0.14","--lapel-gloss":"0.40",
+      "--stache-l":"4deg","--stache-r":"-4deg",
+      "--money-opacity":"0.30","--money-scale":"0.92","--money-tilt":"-2deg",
+      "--sparkle-opacity":"0.28","--sign-opacity":"0","--coin-opacity":"0.28","--car-opacity":"0",
+      "--glow":"rgba(165,210,142,0.24)",
+      "--eye-open":"0.92","--brow-l":"4deg","--brow-r":"-4deg",
+      "--mouth-y":"0px","--mouth-scale-y":"0.90","--mouth-rotate":"0deg","--mouth-w":"16px",
+      "--cheek-opacity":"0.15","--idle-ms":"3.25s","--tail-flare":"0.64",
+      "--coat-sheen":"0.17","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  stable: {
+    motion:"stable", moneyTier:"medium",
+    vars:{
+      /* ── STATE 6: baseline. Scale 1.0, feet 14px apart, arms neutral ── */
+      "--character-scale":"1.0",
+      "--coat":"#1b4638","--coat-deep":"#102f26","--vest":"#d4a54e",
+      "--shirt":"#faf7f2","--skin":"#f3deb9","--hat":"#143224","--hat-band":"#ddb45d","--ink":"#11281f",
+      "--pose-rotate":"0deg","--pose-y":"0px","--pose-scale":"1.02",
+      "--stance":"15px","--hat-tilt":"1deg","--upper-drop":"0px","--chest-tilt":"0deg",
+      "--head-tilt":"0deg","--torso-shift-x":"0px",
+      "--arm-l":"-26deg","--arm-r":"-10deg","--forearm-l":"74deg","--forearm-r":"4deg",
+      "--leg-l":"0deg","--leg-r":"0deg","--thigh-l":"0deg","--thigh-r":"0deg",
+      "--calf-l":"-1deg","--calf-r":"-1deg","--foot-l":"1deg","--foot-r":"0deg",
+      "--cane-opacity":"0.84","--cane-angle":"0deg","--cane-x":"-3px","--cane-y-nudge":"-1px",
+      "--mono-opacity":"1","--mono-chain-opacity":"0.90","--mono-tilt":"2deg",
+      "--wear-vignette":"0.08","--coat-shred":"0","--lapel-gloss":"0.48",
+      "--stache-l":"3deg","--stache-r":"-3deg",
+      "--money-opacity":"0.40","--money-scale":"1.0","--money-tilt":"-1deg",
+      "--sparkle-opacity":"0.18","--sign-opacity":"0","--coin-opacity":"0.38","--car-opacity":"0",
+      "--glow":"rgba(108,182,120,0.24)",
+      "--eye-open":"0.96","--brow-l":"1deg","--brow-r":"-1deg",
+      "--mouth-y":"-1px","--mouth-scale-y":"1.0","--mouth-rotate":"0deg","--mouth-w":"15px",
+      "--cheek-opacity":"0.13","--idle-ms":"3.4s","--tail-flare":"0.58",
+      "--coat-sheen":"0.20","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  building: {
+    motion:"build", moneyTier:"full",
+    vars:{
+      /* ── STATE 7: +10% scale, 24px stance, right arm extends for cane ── */
+      "--character-scale":"1.10",
+      "--coat":"#194435","--coat-deep":"#0e2c23","--vest":"#dbaf58",
+      "--shirt":"#fcfaf6","--skin":"#f5e0bc","--hat":"#122f24","--hat-band":"#e3bc68","--ink":"#0f241c",
+      "--pose-rotate":"1.0deg","--pose-y":"0px","--pose-scale":"1.07",
+      "--stance":"24px","--hat-tilt":"3deg","--upper-drop":"-3px","--chest-tilt":"-4deg",
+      "--head-tilt":"1.5deg","--torso-shift-x":"1px",
+      "--arm-l":"7deg","--arm-r":"-20deg","--forearm-l":"-1deg","--forearm-r":"2deg",
+      "--leg-l":"-1.5deg","--leg-r":"1.5deg","--thigh-l":"-1deg","--thigh-r":"1deg",
+      "--calf-l":"0deg","--calf-r":"0deg","--foot-l":"0deg","--foot-r":"0deg",
+      "--cane-opacity":"0.78","--cane-angle":"-2deg","--cane-x":"-4px","--cane-y-nudge":"-1px",
+      "--mono-opacity":"1","--mono-chain-opacity":"0.95","--mono-tilt":"3deg",
+      "--wear-vignette":"0.04","--coat-shred":"0","--lapel-gloss":"0.56",
+      "--stache-l":"2deg","--stache-r":"-2deg",
+      "--money-opacity":"0.50","--money-scale":"1.02","--money-tilt":"0deg",
+      "--sparkle-opacity":"0.28","--sign-opacity":"0","--coin-opacity":"0.52","--car-opacity":"0",
+      "--glow":"rgba(65,188,108,0.36)",
+      "--eye-open":"1","--brow-l":"-1deg","--brow-r":"1deg",
+      "--mouth-y":"-1px","--mouth-scale-y":"1.06","--mouth-rotate":"0deg","--mouth-w":"16px",
+      "--cheek-opacity":"0.17","--idle-ms":"3.05s","--tail-flare":"0.52",
+      "--coat-sheen":"0.26","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  thriving: {
+    motion:"thrive", moneyTier:"full",
+    vars:{
+      /* ── STATE 8: +20% scale, 32px stance, arms wider, aura visible ── */
+      "--character-scale":"1.20",
+      "--coat":"#173f32","--coat-deep":"#0c281f","--vest":"#e3b86a",
+      "--shirt":"#fffdf9","--skin":"#f7e3c4","--hat":"#102b21","--hat-band":"#e8c678","--ink":"#0d1f18",
+      "--pose-rotate":"2.0deg","--pose-y":"0px","--pose-scale":"1.12",
+      "--stance":"32px","--hat-tilt":"5deg","--upper-drop":"-4px","--chest-tilt":"-7deg",
+      "--head-tilt":"2.5deg","--torso-shift-x":"1.5px",
+      "--arm-l":"2deg","--arm-r":"-28deg","--forearm-l":"-1deg","--forearm-r":"0deg",
+      "--leg-l":"-2deg","--leg-r":"2deg","--thigh-l":"-1.5deg","--thigh-r":"1.5deg",
+      "--calf-l":"1deg","--calf-r":"1deg","--foot-l":"-0.5deg","--foot-r":"0.5deg",
+      "--cane-opacity":"0.86","--cane-angle":"-4deg","--cane-x":"-5px","--cane-y-nudge":"-2px",
+      "--mono-opacity":"1","--mono-chain-opacity":"1","--mono-tilt":"4deg",
+      "--wear-vignette":"0","--coat-shred":"0","--lapel-gloss":"0.64",
+      "--stache-l":"1deg","--stache-r":"-1deg",
+      "--money-opacity":"0.55","--money-scale":"1.04","--money-tilt":"0deg",
+      "--sparkle-opacity":"0.55","--sign-opacity":"0","--coin-opacity":"0.62","--car-opacity":"0",
+      "--glow":"rgba(40,205,122,0.50)",
+      "--eye-open":"1","--brow-l":"-2deg","--brow-r":"2deg",
+      "--mouth-y":"-2px","--mouth-scale-y":"1.10","--mouth-rotate":"0deg","--mouth-w":"17px",
+      "--cheek-opacity":"0.21","--idle-ms":"2.9s","--tail-flare":"0.46",
+      "--coat-sheen":"0.32","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  winning: {
+    motion:"win", moneyTier:"full",
+    vars:{
+      /* ── STATE 9: confident but clearly smaller than state 10 ── */
+      "--character-scale":"1.28",
+      "--shirt":"#ffffff","--skin":"#f8e6c8","--hat":"#0e271e","--hat-band":"#edcd82","--ink":"#0b1c16",
+      "--pose-rotate":"2.5deg","--pose-y":"0px","--pose-scale":"1.16",
+      "--stance":"38px","--hat-tilt":"6.5deg","--upper-drop":"-5px","--chest-tilt":"-11deg",
+      "--head-tilt":"4.0deg","--torso-shift-x":"1.5px",
+      "--arm-l":"-5deg","--arm-r":"-34deg","--forearm-l":"-2deg","--forearm-r":"-1deg",
+      "--leg-l":"-2.5deg","--leg-r":"2.5deg","--thigh-l":"-1.5deg","--thigh-r":"1.5deg",
+      "--calf-l":"1.5deg","--calf-r":"1.5deg","--foot-l":"-1deg","--foot-r":"1deg",
+      "--cane-opacity":"0.94","--cane-angle":"-8deg","--cane-x":"-6px","--cane-y-nudge":"-2px",
+      "--mono-opacity":"1","--mono-chain-opacity":"1","--mono-tilt":"5.5deg",
+      "--wear-vignette":"0","--coat-shred":"0","--lapel-gloss":"0.72",
+      "--stache-l":"0deg","--stache-r":"0deg",
+      "--money-opacity":"0.58","--money-scale":"1.05","--money-tilt":"1deg",
+      "--sparkle-opacity":"0.50","--sign-opacity":"0","--coin-opacity":"0.58","--car-opacity":"0",
+      "--glow":"rgba(218,192,48,0.62)",
+      "--eye-open":"1","--brow-l":"-3deg","--brow-r":"3deg",
+      "--mouth-y":"-2px","--mouth-scale-y":"1.14","--mouth-rotate":"0deg","--mouth-w":"18px",
+      "--cheek-opacity":"0.24","--idle-ms":"3.2s","--tail-flare":"0.40",
+      "--coat-sheen":"0.38","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  },
+  wealthy: {
+    motion:"luxury", moneyTier:"full",
+    vars:{
+      /* ── STATE 10: 1.15 — unmistakably the largest, plus car for total composition ── */
+      "--character-scale":"1.38","--vest":"#efd08a",
+      "--shirt":"#fffefb","--skin":"#fcedd4","--hat":"#0c221a","--hat-band":"#f2d48e","--ink":"#091812",
+      "--pose-rotate":"3.0deg","--pose-y":"0px","--pose-scale":"1.18",
+      "--stance":"40px","--hat-tilt":"7.5deg","--upper-drop":"-6px","--chest-tilt":"-12deg",
+      "--head-tilt":"5.0deg","--torso-shift-x":"2px",
+      "--arm-l":"-9deg","--arm-r":"-38deg","--forearm-l":"-2deg","--forearm-r":"-2deg",
+      "--leg-l":"-3deg","--leg-r":"3deg","--thigh-l":"-1.5deg","--thigh-r":"1.5deg",
+      "--calf-l":"1.5deg","--calf-r":"1.5deg","--foot-l":"-1deg","--foot-r":"1deg",
+      "--cane-opacity":"1","--cane-angle":"-10deg","--cane-x":"-7px","--cane-y-nudge":"-3px",
+      "--mono-opacity":"1","--mono-chain-opacity":"1","--mono-tilt":"6.5deg",
+      "--wear-vignette":"0","--coat-shred":"0","--lapel-gloss":"0.80",
+      "--stache-l":"-1deg","--stache-r":"1deg",
+      "--money-opacity":"0.60","--money-scale":"1.06","--money-tilt":"2deg",
+      "--sparkle-opacity":"0.58","--sign-opacity":"0","--coin-opacity":"0.48","--car-opacity":"1",
+      "--car-shift-x":"-8px","--car-shift-y":"28px","--car-scale":"1.14",
+      "--ring-opacity":"0.55","--coin-shower-opacity":"0.80",
+      "--dog-opacity":"0","--ornament-opacity":"0",
+      "--car-body":"#c8d0d8","--car-body-deep":"#8a9298",
+      "--car-accent":"#e8edf2","--car-window":"rgba(200,230,245,0.90)","--car-wheel":"#2a2e32",
+      "--glow":"rgba(255,215,52,0.74)",
+      "--eye-open":"1","--brow-l":"-4deg","--brow-r":"4deg",
+      "--mouth-y":"-3px","--mouth-scale-y":"1.10","--mouth-rotate":"0deg","--mouth-w":"17px",
+      "--cheek-opacity":"0.26","--idle-ms":"3.55s","--tail-flare":"0.34",
+      "--coat-sheen":"0.46","--shoe-lift-l":"0px","--shoe-lift-r":"0px"
+    }
+  }
+};
+
+const DEFAULT_VARS = {
+  "--character-scale":"1","--upper-drop":"0px","--chest-tilt":"0deg","--head-tilt":"0deg",
+  "--thigh-l":"0deg","--thigh-r":"0deg","--calf-l":"0deg","--calf-r":"0deg",
+  "--foot-l":"0deg","--foot-r":"0deg","--forearm-l":"0deg","--forearm-r":"0deg",
+  "--cane-y-nudge":"0px","--torso-shift-x":"0px","--money-tilt":"-4deg",
+  "--car-shift-x":"56px","--car-shift-y":"20px","--car-scale":"0.66",
+  "--ring-opacity":"0","--coin-shower-opacity":"0","--dog-opacity":"0",
+  "--ornament-opacity":"0","--car-body":"#113829","--car-body-deep":"#0b251b",
+  "--car-accent":"#d4a643","--car-window":"rgba(208,231,238,0.92)","--car-wheel":"#23282d"
+};
+
+/* ── DOM refs ── */
+const template    = document.getElementById("steward-template");
+const heroFigure  = document.getElementById("hero-figure");
+const heroLabel   = document.getElementById("hero-label");
+const heroCopy    = document.getElementById("hero-copy");
+const pillsEl     = document.getElementById("state-pills");
+const gridEl      = document.getElementById("states-grid");
+
+function applyStewardTheme(wrap, stateId) {
+  const entry = STEWARD_STATE[stateId];
+  const vars  = { ...DEFAULT_VARS, ...(entry?.vars || {}) };
+  for (const [k, v] of Object.entries(vars)) wrap.style.setProperty(k, String(v));
+  if (entry?.motion) wrap.dataset.motion = entry.motion;
+  wrap.dataset.moneyTier = entry?.moneyTier || "medium";
+}
+
+function buildSteward(stateId) {
+  const node = template.content.firstElementChild.cloneNode(true);
+  node.dataset.state = stateId;
+  applyStewardTheme(node, stateId);
+  return node;
+}
+
+/* ── Interpolation engine ── */
+const NUMERIC_VAR_RE = /^-?[\d.]+/;
+
+function parseVal(v) {
+  const s = String(v).trim();
+  const m = s.match(/^(-?[\d.]+)(.*)$/);
+  if (!m) return null;
+  return { num: parseFloat(m[1]), unit: m[2] };
+}
+
+function lerpVal(a, b, t) {
+  const pa = parseVal(a), pb = parseVal(b);
+  if (!pa || !pb || pa.unit !== pb.unit) return t < 0.5 ? a : b;
+  return (pa.num + (pb.num - pa.num) * t).toFixed(4) + pa.unit;
+}
+
+function lerpColor(a, b, t) {
+  if (!a.startsWith('rgba') && !a.startsWith('rgb') && !a.startsWith('#')) return t < 0.5 ? a : b;
+  try {
+    const parse = c => {
+      const m = c.match(/rgba?\(([^)]+)\)/);
+      if (m) { const p = m[1].split(',').map(Number); return [p[0]||0,p[1]||0,p[2]||0,p[3]!=null?p[3]:1]; }
+      if (c.startsWith('#')) {
+        const h = c.slice(1);
+        const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+        return [r,g,b,1];
+      }
+      return null;
+    };
+    const pa=parse(a), pb=parse(b);
+    if (!pa||!pb) return t<0.5?a:b;
+    const r=Math.round(pa[0]+(pb[0]-pa[0])*t);
+    const g=Math.round(pa[1]+(pb[1]-pa[1])*t);
+    const bl=Math.round(pa[2]+(pb[2]-pa[2])*t);
+    const al=+(pa[3]+(pb[3]-pa[3])*t).toFixed(3);
+    return al===1?`rgb(${r},${g},${bl})`:`rgba(${r},${g},${bl},${al})`;
+  } catch(e) { return t<0.5?a:b; }
+}
+
+function interpVar(a, b, t) {
+  const sa=String(a).trim(), sb=String(b).trim();
+  if (sa.startsWith('rgba')||sa.startsWith('rgb')||sa.startsWith('#')) return lerpColor(sa,sb,t);
+  return lerpVal(sa,sb,t) ?? (t<0.5?sa:sb);
+}
+
+let animFrame = null;
+let currentStateIdx = 3;
+let targetStateIdx  = 3;
+
+function getVars(idx) {
+  const id = STATES[idx].id;
+  return { ...DEFAULT_VARS, ...(STEWARD_STATE[id]?.vars || {}) };
+}
+
+function tweenToState(toIdx, onDone) {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  const fromVars = getVars(currentStateIdx);
+  const toVars   = getVars(toIdx);
+  const wrap = heroFigure.querySelector('.steward-wrap');
+  if (!wrap) { currentStateIdx = toIdx; onDone && onDone(); return; }
+
+  const start = performance.now();
+  const DURATION = 520;
+
+  function ease(t) { return t<0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+  function tick(now) {
+    const raw = Math.min((now - start) / DURATION, 1);
+    const t   = ease(raw);
+    for (const key of new Set([...Object.keys(fromVars), ...Object.keys(toVars)])) {
+      const a = fromVars[key] ?? toVars[key];
+      const b = toVars[key]   ?? fromVars[key];
+      wrap.style.setProperty(key, interpVar(a, b, t));
+    }
+    if (raw < 1) { animFrame = requestAnimationFrame(tick); }
+    else {
+      currentStateIdx = toIdx;
+      applyStewardTheme(wrap, STATES[toIdx].id);
+      wrap.dataset.motion = STEWARD_STATE[STATES[toIdx].id]?.motion || '';
+      animFrame = null;
+      onDone && onDone();
+    }
+  }
+  animFrame = requestAnimationFrame(tick);
+}
+
+function setHero(state, animate = true) {
+  const toIdx = STATES.findIndex(s => s.id === state.id);
+  heroLabel.textContent = state.label;
+  heroCopy.textContent  = state.copy;
+  pillsEl.querySelectorAll("button").forEach(btn =>
+    btn.classList.toggle("is-active", btn.dataset.state === state.id)
+  );
+  if (tierSlider) tierSlider.value = toIdx;
+
+  if (!heroFigure.querySelector('.steward-wrap')) {
+    heroFigure.innerHTML = "";
+    heroFigure.appendChild(buildSteward(state.id));
+    currentStateIdx = toIdx;
+    return;
+  }
+
+  if (!animate || toIdx === currentStateIdx) {
+    currentStateIdx = toIdx;
+    const wrap = heroFigure.querySelector('.steward-wrap');
+    applyStewardTheme(wrap, state.id);
+    wrap.dataset.motion = STEWARD_STATE[state.id]?.motion || '';
+    return;
+  }
+
+  tweenToState(toIdx);
+}
+
+/* ── Tier slider ── */
+let tierSlider = null;
+
+STATES.forEach(state => {
+  /* pill */
+  const pill = document.createElement("button");
+  pill.type = "button";
+  pill.className = "state-pill";
+  pill.dataset.state = state.id;
+  pill.textContent = state.label;
+  pill.addEventListener("click", () => setHero(state));
+  pillsEl.appendChild(pill);
+
+  /* card */
+  const card = document.createElement("article");
+  card.className = "state-card";
+  card.dataset.state = state.id;
+  card.innerHTML = `
+    <span class="card-badge">${state.label}</span>
+    <span class="state-num">${state.badge}</span>
+    <div class="card-stage"></div>
+    <strong class="state-name">${state.label}</strong>
+    <p class="state-copy">${state.copy}</p>
+  `;
+  card.querySelector(".card-stage").appendChild(buildSteward(state.id));
+  card.addEventListener("click", () => setHero(state));
+  gridEl.appendChild(card);
+});
+
+/* wire slider */
+tierSlider = document.getElementById("tier-slider");
+const sliderLabel = document.getElementById("slider-label");
+let sliderTimer = null;
+tierSlider.addEventListener("input", () => {
+  const idx = parseInt(tierSlider.value);
+  sliderLabel.textContent = STATES[idx].label;
+  clearTimeout(sliderTimer);
+  sliderTimer = setTimeout(() => setHero(STATES[idx]), 80);
+});
+
+setHero(STATES[3]); /* default to "Surviving" */
+    </script>
+  </body>
+</html>

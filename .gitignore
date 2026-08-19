@@ -159,3 +159,10 @@ vite.config.ts.timestamp-*
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Local agent scratch and personal settings
+.claude/settings.local.json
+.claude/explore/
+
+# Transient handoff archive (regenerable, 1.2MB)
+steward-rebuild-handoff.zip
